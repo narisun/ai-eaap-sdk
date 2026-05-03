@@ -1,0 +1,38 @@
+"""Minimal FastAPI host wired with the EAAP DI container."""
+
+from __future__ import annotations
+
+from fastapi import Depends, FastAPI
+
+from ai_core.di import Container, AgentModule
+from ai_core.security import AuthorizedPrincipal, OPAAuthorization
+
+container = Container.build([AgentModule()])
+authz = OPAAuthorization(container)
+app = FastAPI(title="{{ project_name }}")
+
+
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/profile/{user_id}")
+async def read_profile(
+    user_id: str,
+    principal: AuthorizedPrincipal = Depends(
+        authz.requires(action="profile.read", resource="profile")
+    ),
+) -> dict[str, str]:
+    return {"viewer": principal.subject, "user_id": user_id}
+
+
+def main() -> None:
+    """Run with `uvicorn`."""
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()

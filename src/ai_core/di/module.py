@@ -31,14 +31,18 @@ from ai_core.di.interfaces import (
     ICheckpointSaver,
     ILLMClient,
     IObservabilityProvider,
+    IPolicyEvaluator,
 )
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
 from ai_core.mcp.transports import FastMCPConnectionFactory, IMCPConnectionFactory
-from ai_core.observability.noop import NoOpObservabilityProvider
+from ai_core.observability.real import RealObservabilityProvider
 from ai_core.persistence.checkpoint import PostgresCheckpointSaver
 from ai_core.persistence.engine import EngineFactory
+from ai_core.schema.registry import SchemaRegistry
+from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
+from ai_core.security.opa import OPAPolicyEvaluator
 
 
 class AgentModule(Module):
@@ -85,13 +89,16 @@ class AgentModule(Module):
     # ----- Observability ----------------------------------------------------
     @singleton
     @provider
-    def provide_observability(self) -> IObservabilityProvider:
-        """Return the default no-op observability provider.
+    def provide_observability(self, settings: AppSettings) -> IObservabilityProvider:
+        """Return the production OTel + LangFuse observability provider.
 
-        Production hosts override this binding with a concrete
-        OTel/LangFuse provider in their own DI module.
+        The provider degrades gracefully: when no OTel endpoint and no
+        LangFuse credentials are configured (the default), it still
+        produces traces in-process so log correlation works during local
+        development. To explicitly opt out, override this binding with
+        :class:`ai_core.observability.NoOpObservabilityProvider`.
         """
-        return NoOpObservabilityProvider()
+        return RealObservabilityProvider(settings)
 
     # ----- Budget -----------------------------------------------------------
     @singleton
@@ -161,6 +168,33 @@ class AgentModule(Module):
     def provide_mcp_connection_factory(self) -> IMCPConnectionFactory:
         """Return the default FastMCP connection factory."""
         return FastMCPConnectionFactory()
+
+    # ----- Security ---------------------------------------------------------
+    @singleton
+    @provider
+    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
+        """Return the OPA-backed policy evaluator singleton."""
+        return OPAPolicyEvaluator(settings)
+
+    @singleton
+    @provider
+    def provide_jwt_verifier(self, settings: AppSettings) -> JWTVerifier:
+        """Return the default JWT verifier.
+
+        Defaults to :class:`UnverifiedJWTDecoder` (decode-only, suitable
+        for deployments where an upstream gateway has already validated
+        the signature). Production hosts that terminate JWT verification
+        inside the service should override this binding with
+        :class:`HS256JWTVerifier` (or a JWKS verifier of their own).
+        """
+        return UnverifiedJWTDecoder(settings)
+
+    # ----- Schema registry --------------------------------------------------
+    @singleton
+    @provider
+    def provide_schema_registry(self) -> SchemaRegistry:
+        """Return the in-process versioned-schema registry singleton."""
+        return SchemaRegistry()
 
 
 __all__ = ["AgentModule"]

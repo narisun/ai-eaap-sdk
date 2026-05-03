@@ -47,6 +47,7 @@ dependencies = [
     # --- API / Security ---
     "fastapi>=0.110.0",
     "starlette>=0.36.0",
+    "PyJWT[crypto]>=2.8.0",
 
     # --- Observability ---
     "opentelemetry-api>=1.24.0",
@@ -96,6 +97,9 @@ Issues = "https://github.com/eaap/ai-core-sdk/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_core"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/ai_core/cli/templates" = "ai_core/cli/templates"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "src/ai_core",
@@ -117,6 +121,10 @@ markers = [
     "unit: fast, isolated unit tests",
     "component: in-process tests across multiple SDK modules",
     "integration: tests that hit real external systems (DB, OPA, OTel, LLM)",
+]
+filterwarnings = [
+    # Short HMAC secrets are fine in unit tests; we test correctness, not crypto strength.
+    "ignore::jwt.warnings.InsecureKeyLengthWarning",
 ]
 
 [tool.coverage.run]

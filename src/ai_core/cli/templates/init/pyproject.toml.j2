@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "Generated EAAP application."
+requires-python = ">=3.11"
+dependencies = [
+    "ai-core-sdk>=0.1.0",
+    "uvicorn[standard]>=0.29.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+{{ project_package }} = "{{ project_package }}.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ project_package }}"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

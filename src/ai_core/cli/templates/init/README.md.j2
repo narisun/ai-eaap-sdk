@@ -1,0 +1,27 @@
+# {{ project_name }}
+
+Generated EAAP application.
+
+## Quick start
+
+```bash
+# 1. Bring up local infra (Postgres + OPA + OTel collector + Jaeger)
+docker compose up -d
+
+# 2. Configure environment
+cp .env.example .env
+
+# 3. Install + run
+pip install -e ".[dev]"
+python -m {{ project_package }}.main
+```
+
+## Layout
+
+- `src/{{ project_package }}/` — application code
+- `policies/` — Rego policies loaded by the OPA sidecar
+- `docker-compose.yaml` — local infra
+- `.env.example` — settings template
+
+Traces land in Jaeger at <http://localhost:16686>.
+OPA decisions are queryable at <http://localhost:8181>.

@@ -1,0 +1,147 @@
+"""Unit tests for :class:`ai_core.observability.real.RealObservabilityProvider`.
+
+The tests intentionally avoid spinning up a real OTel collector or
+LangFuse server. OTel is exercised in *in-process* mode (no exporter
+configured); LangFuse is mocked at the constructor level so the
+provider's interactions can be observed deterministically.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+
+from ai_core.config.settings import AppSettings
+from ai_core.observability.real import RealObservabilityProvider
+
+
+pytestmark = pytest.mark.unit
+
+
+def _settings_no_external() -> AppSettings:
+    """No OTel endpoint, no LangFuse keys — exercises degraded-mode."""
+    return AppSettings(service_name="obs-test")
+
+
+def _settings_with_langfuse() -> AppSettings:
+    return AppSettings(
+        service_name="obs-test",
+        observability={  # type: ignore[arg-type]
+            "service_name": "obs-test",
+            "langfuse_public_key": "pk-test",
+            "langfuse_secret_key": "sk-test",
+            "langfuse_host": "http://localhost:3000",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Degraded mode
+# ---------------------------------------------------------------------------
+async def test_start_span_works_without_any_backend() -> None:
+    provider = RealObservabilityProvider(_settings_no_external())
+    async with provider.start_span("op.x", attributes={"k": 1}) as ctx:
+        assert ctx.name == "op.x"
+        assert len(ctx.trace_id) == 32
+        assert len(ctx.span_id) == 16
+        assert "otel" in ctx.backend_handles
+        assert ctx.backend_handles["langfuse"] is None
+
+
+async def test_record_llm_usage_no_op_without_langfuse() -> None:
+    provider = RealObservabilityProvider(_settings_no_external())
+    # Should not raise.
+    await provider.record_llm_usage(
+        model="m", prompt_tokens=10, completion_tokens=5, latency_ms=12.0, cost_usd=0.01
+    )
+
+
+async def test_record_event_no_op_without_langfuse() -> None:
+    provider = RealObservabilityProvider(_settings_no_external())
+    await provider.record_event("agent.thought", attributes={"k": "v"})
+
+
+async def test_shutdown_idempotent() -> None:
+    provider = RealObservabilityProvider(_settings_no_external())
+    await provider.shutdown()
+    await provider.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# LangFuse delegation (mocked)
+# ---------------------------------------------------------------------------
+def _build_with_mock_langfuse(monkeypatch: pytest.MonkeyPatch) -> tuple[RealObservabilityProvider, MagicMock]:
+    fake_trace = MagicMock(name="lf_trace")
+    fake_trace.span = MagicMock(return_value=MagicMock(name="lf_span"))
+    fake_trace.generation = MagicMock(name="lf_generation")
+    fake_trace.event = MagicMock(name="lf_event")
+
+    fake_client = MagicMock(name="Langfuse")
+    fake_client.trace = MagicMock(return_value=fake_trace)
+    fake_client.flush = MagicMock()
+
+    def _fake_init(self: RealObservabilityProvider) -> Any:
+        return fake_client
+
+    monkeypatch.setattr(RealObservabilityProvider, "_init_langfuse", _fake_init)
+
+    provider = RealObservabilityProvider(_settings_with_langfuse())
+    return provider, fake_trace
+
+
+async def test_start_span_creates_langfuse_trace_and_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider, fake_trace = _build_with_mock_langfuse(monkeypatch)
+    async with provider.start_span("agent.thought", attributes={"step": 1}) as ctx:
+        assert ctx.backend_handles["langfuse"] is fake_trace.span.return_value
+    fake_trace.span.assert_called_once()
+    fake_trace.span.return_value.end.assert_called_once()
+
+
+async def test_record_llm_usage_writes_langfuse_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider, fake_trace = _build_with_mock_langfuse(monkeypatch)
+    async with provider.start_span("llm.call"):
+        await provider.record_llm_usage(
+            model="claude-sonnet-4-6",
+            prompt_tokens=100,
+            completion_tokens=50,
+            latency_ms=120.5,
+            cost_usd=0.0125,
+            attributes={"agent.id": "a-1"},
+        )
+    fake_trace.generation.assert_called_once()
+    args = fake_trace.generation.call_args.kwargs
+    assert args["model"] == "claude-sonnet-4-6"
+    assert args["usage"]["input"] == 100
+    assert args["usage"]["output"] == 50
+    assert args["usage"]["total_cost"] == pytest.approx(0.0125)
+
+
+async def test_record_event_writes_langfuse_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider, fake_trace = _build_with_mock_langfuse(monkeypatch)
+    async with provider.start_span("agent.run"):
+        await provider.record_event("tool.invoked", attributes={"tool": "search"})
+    fake_trace.event.assert_called_once()
+
+
+async def test_exception_inside_span_is_recorded_then_reraised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider, fake_trace = _build_with_mock_langfuse(monkeypatch)
+    with pytest.raises(RuntimeError, match="boom"):
+        async with provider.start_span("op.x"):
+            raise RuntimeError("boom")
+    fake_trace.span.return_value.end.assert_called_once()
+    end_kwargs = fake_trace.span.return_value.end.call_args.kwargs
+    assert end_kwargs.get("level") == "ERROR"
+
+
+async def test_shutdown_flushes_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider, _ = _build_with_mock_langfuse(monkeypatch)
+    await provider.shutdown()
+    provider._langfuse.flush.assert_called_once()  # type: ignore[union-attr]

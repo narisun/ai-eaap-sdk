@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eaap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eaap
+      POSTGRES_PASSWORD: eaap
+      POSTGRES_DB: eaap
+    ports: ["5432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eaap"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  opa:
+    image: openpolicyagent/opa:latest
+    container_name: eaap-opa
+    restart: unless-stopped
+    command:
+      - run
+      - --server
+      - --log-level=info
+      - --addr=0.0.0.0:8181
+      - /policies
+    volumes:
+      - ./policies:/policies:ro
+    ports: ["8181:8181"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: eaap-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: eaap-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # UI
+      - "14250:14250"  # gRPC
+
+volumes:
+  postgres_data: {}

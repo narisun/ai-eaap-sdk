@@ -1,0 +1,25 @@
+# Copy to `.env` and fill in real values.
+
+EAAP_ENVIRONMENT=local
+EAAP_SERVICE_NAME={{ service_name }}
+
+# Database
+EAAP_DATABASE__DSN=postgresql+asyncpg://eaap:eaap@localhost:5432/eaap
+
+# LLM (LiteLLM)
+EAAP_LLM__DEFAULT_MODEL=bedrock/anthropic.claude-sonnet-4-6
+# EAAP_LLM__PROXY_BASE_URL=http://localhost:4000
+# EAAP_LLM__PROXY_API_KEY=sk-...
+
+# Observability
+EAAP_OBSERVABILITY__OTEL_ENDPOINT=http://localhost:4317
+# EAAP_OBSERVABILITY__LANGFUSE_HOST=https://cloud.langfuse.com
+# EAAP_OBSERVABILITY__LANGFUSE_PUBLIC_KEY=
+# EAAP_OBSERVABILITY__LANGFUSE_SECRET_KEY=
+
+# Security (OPA)
+EAAP_SECURITY__OPA_URL=http://localhost:8181
+EAAP_SECURITY__OPA_DECISION_PATH=eaap/api/allow
+EAAP_SECURITY__FAIL_CLOSED=true
+# EAAP_SECURITY__JWT_AUDIENCE=
+# EAAP_SECURITY__JWT_ISSUER=
