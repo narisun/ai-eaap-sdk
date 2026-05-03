@@ -141,3 +141,126 @@ def test_generate_mcp_writes_server_and_test(runner: CliRunner, tmp_path: Path) 
     assert "from fastmcp import FastMCP" in body
     assert "class TicketingEchoIn(BaseModel):" in body
     assert "ticketing_echo" in body
+
+
+# ---------------------------------------------------------------------------
+# eaap schema export
+# ---------------------------------------------------------------------------
+_SCHEMA_MODULE_BODY = '''
+from pydantic import BaseModel
+from ai_core.schema import SchemaRegistry
+
+
+class IssueIn(BaseModel):
+    title: str
+    body: str = ""
+
+
+class IssueOut(BaseModel):
+    issue_id: str
+
+
+def register(registry: SchemaRegistry) -> None:
+    registry.register(
+        "create_issue", 1,
+        input_schema=IssueIn,
+        output_schema=IssueOut,
+        description="Open a new issue.",
+    )
+    registry.register(
+        "create_issue", 2,
+        input_schema=IssueIn,
+        output_schema=IssueOut,
+    )
+'''
+
+
+def test_schema_export_writes_files(runner: CliRunner, tmp_path: Path) -> None:
+    module = tmp_path / "schemas.py"
+    module.write_text(_SCHEMA_MODULE_BODY)
+    out = tmp_path / "exported"
+
+    result = runner.invoke(
+        app,
+        ["schema", "export", "--module-path", str(module), "--out", str(out)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (out / "create_issue.v1.input.json").is_file()
+    assert (out / "create_issue.v1.output.json").is_file()
+    assert (out / "create_issue.v2.input.json").is_file()
+    assert (out / "create_issue.v2.output.json").is_file()
+    assert "Exported 4 schema files" in result.output
+
+
+def test_schema_export_rejects_missing_module(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "schema", "export",
+            "--module-path", str(tmp_path / "nope.py"),
+            "--out", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "not found" in result.output
+
+
+def test_schema_export_rejects_module_without_register_callable(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    module = tmp_path / "no_register.py"
+    module.write_text("x = 1\n")
+    result = runner.invoke(
+        app,
+        [
+            "schema", "export",
+            "--module-path", str(module),
+            "--out", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "callable" in result.output
+
+
+def test_schema_export_with_custom_callable_name(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    module = tmp_path / "schemas.py"
+    body = _SCHEMA_MODULE_BODY.replace("def register(", "def populate(")
+    module.write_text(body)
+    out = tmp_path / "exported"
+
+    result = runner.invoke(
+        app,
+        [
+            "schema", "export",
+            "--module-path", str(module),
+            "--out", str(out),
+            "--callable", "populate",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert (out / "create_issue.v1.input.json").is_file()
+
+
+def test_schema_export_warns_on_empty_registry(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    module = tmp_path / "noop.py"
+    module.write_text(
+        "from ai_core.schema import SchemaRegistry\n"
+        "def register(registry: SchemaRegistry) -> None: pass\n"
+    )
+    result = runner.invoke(
+        app,
+        [
+            "schema", "export",
+            "--module-path", str(module),
+            "--out", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0
+    assert "empty" in result.output

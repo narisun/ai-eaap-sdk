@@ -40,6 +40,7 @@ from ai_core.mcp.transports import FastMCPConnectionFactory, IMCPConnectionFacto
 from ai_core.observability.real import RealObservabilityProvider
 from ai_core.persistence.checkpoint import PostgresCheckpointSaver
 from ai_core.persistence.engine import EngineFactory
+from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.security.opa import OPAPolicyEvaluator
@@ -155,6 +156,21 @@ class AgentModule(Module):
     def provide_checkpoint_saver(self, engine: AsyncEngine) -> ICheckpointSaver:
         """Return the Postgres-backed checkpoint saver singleton."""
         return PostgresCheckpointSaver(engine)
+
+    @singleton
+    @provider
+    def provide_langgraph_checkpoint_saver(
+        self,
+        engine: AsyncEngine,
+    ) -> LangGraphCheckpointSaver:
+        """Return the LangGraph-native checkpoint saver singleton.
+
+        Bound by concrete type rather than LangGraph's
+        :class:`BaseCheckpointSaver` to keep that interface optional —
+        host applications that don't compile LangGraph graphs never
+        pull the LangGraph types into their DI graph.
+        """
+        return LangGraphCheckpointSaver(engine)
 
     # ----- MCP --------------------------------------------------------------
     @singleton

@@ -177,6 +177,16 @@ class SchemaRegistry:
         """Return every registered tool/message name (sorted, unique)."""
         return sorted({n for (n, _) in self._records})
 
+    def iter_records(self) -> list[SchemaRecord]:
+        """Return every registered :class:`SchemaRecord` sorted by ``(name, version)``.
+
+        A list (not an iterator) is returned so callers can iterate
+        multiple times without re-acquiring a snapshot. Ordering is
+        deterministic across runs — useful for documentation and
+        diff-friendly schema exports.
+        """
+        return [self._records[k] for k in sorted(self._records.keys())]
+
     def __contains__(self, key: object) -> bool:
         if isinstance(key, tuple) and len(key) == 2:
             return cast(tuple, key) in self._records

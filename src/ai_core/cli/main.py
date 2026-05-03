@@ -16,8 +16,9 @@ Templates live under :mod:`ai_core.cli.templates` and are loaded via
 
 from __future__ import annotations
 
+import importlib.util
 import re
-from importlib import resources
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -32,11 +33,15 @@ from ai_core.cli.scaffold import (
     iter_template_files,
     render_template,
 )
+from ai_core.schema.export import export_schemas
+from ai_core.schema.registry import SchemaRegistry
 
 console = Console()
 app = typer.Typer(help="Enterprise Agentic AI Platform — scaffolding CLI", no_args_is_help=True)
 generate_app = typer.Typer(help="Generate a new SDK component", no_args_is_help=True)
+schema_app = typer.Typer(help="Inspect / export the schema registry", no_args_is_help=True)
 app.add_typer(generate_app, name="generate")
+app.add_typer(schema_app, name="schema")
 
 
 _IDENT_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -232,6 +237,108 @@ def generate_mcp(
         f"({written} files). Run it with:\n"
         f"  python -m {package}.{snake}\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# eaap schema export
+# ---------------------------------------------------------------------------
+@schema_app.command("export")
+def schema_export(
+    module_path: Path = typer.Option(
+        ...,
+        "--module-path",
+        "-m",
+        help="Path to a Python file that registers schemas. Must define a "
+        "callable (default name: 'register') taking a SchemaRegistry.",
+    ),
+    out: Path = typer.Option(
+        Path("./schemas-export"),
+        "--out",
+        "-o",
+        help="Directory to write JSON Schema files into.",
+    ),
+    register_callable: str = typer.Option(
+        "register",
+        "--callable",
+        "-c",
+        help="Name of the callable inside the module that populates the registry.",
+    ),
+    indent: int = typer.Option(2, "--indent", help="JSON indent (0 = compact)."),
+    overwrite: bool = typer.Option(
+        True, "--overwrite/--no-overwrite", help="Overwrite existing files."
+    ),
+) -> None:
+    """Export every registered schema as JSON Schema files."""
+    if not module_path.exists() or not module_path.is_file():
+        raise typer.BadParameter(f"Module file not found: {module_path}")
+
+    registry = _populate_registry_from_file(module_path, register_callable)
+
+    if not registry.iter_records():
+        console.print(
+            f"[yellow]warning[/yellow] {module_path}:{register_callable}() left "
+            f"the registry empty — nothing to export."
+        )
+        raise typer.Exit(code=0)
+
+    written = export_schemas(registry, out, indent=indent, overwrite=overwrite)
+    console.print(
+        f"\n[bold green]✓[/bold green] Exported {len(written)} schema files to {out}"
+    )
+    for path in written:
+        console.print(f"  [green]wrote[/green] {path}")
+
+
+def _populate_registry_from_file(
+    module_path: Path,
+    callable_name: str,
+) -> SchemaRegistry:
+    """Load ``module_path`` as a one-shot module and call ``callable_name(registry)``.
+
+    Args:
+        module_path: Filesystem path to a Python file.
+        callable_name: Top-level callable name to invoke after import.
+
+    Returns:
+        A populated :class:`SchemaRegistry`.
+
+    Raises:
+        typer.BadParameter: If the file can't be loaded or doesn't expose a
+            callable with the given name.
+    """
+    # Use a stable internal module name; reload is safe because we always
+    # construct a fresh module object via spec_from_file_location.
+    internal_name = "_eaap_user_schema_module"
+    spec = importlib.util.spec_from_file_location(internal_name, module_path)
+    if spec is None or spec.loader is None:
+        raise typer.BadParameter(f"Cannot load module from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+
+    # Make sibling imports work (e.g. `from .common import ...`).
+    parent_dir = str(module_path.parent.resolve())
+    added = False
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+        added = True
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 — surface any user-import error
+        raise typer.BadParameter(
+            f"Failed to import {module_path}: {type(exc).__name__}: {exc}"
+        ) from exc
+    finally:
+        if added:
+            sys.path.remove(parent_dir)
+
+    register = getattr(module, callable_name, None)
+    if register is None or not callable(register):
+        raise typer.BadParameter(
+            f"Module {module_path} does not expose a callable {callable_name!r}"
+        )
+
+    registry = SchemaRegistry()
+    register(registry)
+    return registry
 
 
 def main() -> None:
