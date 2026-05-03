@@ -6,11 +6,18 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
+from langchain_core.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
 
 from ai_core.agents.memory import MemoryManager, TokenCounter
 from ai_core.agents.state import new_agent_state
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
+
+
+def _content_messages(state_messages: list[Any]) -> list[Any]:
+    """Strip RemoveMessage markers from a compacted-state messages list."""
+    return [m for m in state_messages if not isinstance(m, RemoveMessage)]
 
 
 pytestmark = pytest.mark.unit
@@ -135,12 +142,18 @@ async def test_compact_returns_state_with_summary_and_essentials_preserved() -> 
     # Summary text recorded.
     assert new_state["summary"] == "condensed conversation"
 
-    # First message in the new history is the summary system message.
-    assert new_state["messages"][0]["role"] == "system"
-    assert "condensed conversation" in new_state["messages"][0]["content"]
+    # The first element MUST be a RemoveMessage(REMOVE_ALL_MESSAGES) marker so
+    # the add_messages reducer wipes existing history before applying the rest.
+    assert isinstance(new_state["messages"][0], RemoveMessage)
+    assert new_state["messages"][0].id == REMOVE_ALL_MESSAGES
+
+    # The summary system message follows the marker.
+    summary_msg = new_state["messages"][1]
+    assert summary_msg["role"] == "system"
+    assert "condensed conversation" in summary_msg["content"]
 
     # Tail (most recent user message) is preserved post-compaction.
-    contents = [m["content"] for m in new_state["messages"]]
+    contents = [m["content"] for m in _content_messages(new_state["messages"])]
     assert any("deadline" in c for c in contents)
 
     # Essential entities — both configured and host-defined — survive.
@@ -178,6 +191,42 @@ async def test_compact_no_messages_returns_state_unchanged() -> None:
     state = new_agent_state(essential={"user_id": "u-1"})
     out = await mgr.compact(state)
     assert out is state  # no-op
+
+
+async def test_compact_replaces_history_via_add_messages_reducer() -> None:
+    """The RemoveMessage marker must cause add_messages to wipe non-trailing history.
+
+    Compaction *intentionally* preserves the most recent user+assistant pair as
+    immediate context for the next turn; it evicts everything before that and
+    inserts a summary in its place.
+    """
+    fake_llm = FakeLLM(summary="compressed")
+    mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
+    existing = [
+        {"role": "user", "content": "old-1", "id": "m1"},
+        {"role": "assistant", "content": "old-2", "id": "m2"},
+        {"role": "user", "content": "old-3", "id": "m3"},
+        {"role": "assistant", "content": "old-4", "id": "m4"},
+    ]
+    state = new_agent_state(initial_messages=existing, essential={"user_id": "u-1"})
+
+    update = await mgr.compact(state)
+
+    # Run the actual reducer the way LangGraph would on commit.
+    after = add_messages(existing, update["messages"])
+
+    after_ids = {getattr(m, "id", None) for m in after}
+    # Evicted: every message *before* the trailing pair.
+    assert "m1" not in after_ids
+    assert "m2" not in after_ids
+    # The summary system message is present.
+    assert any(getattr(m, "type", None) == "system" for m in after)
+    # The trailing user+assistant pair survived for immediate context.
+    assert "m3" in after_ids
+    assert "m4" in after_ids
+    # And nothing more — the only survivors are summary + trail pair.
+    non_summary_ids = {i for i in after_ids if i in {"m1", "m2", "m3", "m4"}}
+    assert non_summary_ids == {"m3", "m4"}
 
 
 async def test_compact_increments_count_across_invocations() -> None:

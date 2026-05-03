@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ai_core.agents.base import BaseAgent
 from ai_core.agents.memory import (
+    IMemoryManager,
     LiteLLMTokenCounter,
     MemoryManager,
     TokenCounter,
@@ -15,6 +16,7 @@ __all__ = [
     "AgentState",
     "EssentialEntities",
     "new_agent_state",
+    "IMemoryManager",
     "MemoryManager",
     "TokenCounter",
     "LiteLLMTokenCounter",

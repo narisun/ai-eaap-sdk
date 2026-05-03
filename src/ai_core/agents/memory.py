@@ -2,10 +2,15 @@
 
 Design:
 
-* :class:`MemoryManager` is *stateless* — it operates on the
-  :class:`AgentState` mapping passed by the LangGraph compaction node.
-* It depends on a :class:`TokenCounter` (defaults to LiteLLM's tokenizer)
-  so unit tests can inject deterministic counts.
+* :class:`IMemoryManager` is the abstract contract that
+  :class:`BaseAgent` depends on. Hosts that need
+  per-agent / per-tenant compaction strategies subclass it and
+  override the binding in their DI module.
+* :class:`MemoryManager` is the production implementation. It is
+  *stateless* — it operates on the :class:`AgentState` mapping passed
+  by the LangGraph compaction node and depends on a
+  :class:`TokenCounter` (defaults to LiteLLM's tokenizer) so unit
+  tests can inject deterministic counts.
 * Compaction calls a *summarization chain* — modelled here as one
   :meth:`ILLMClient.complete` call with a system + user prompt. The
   prompt asks the LLM to summarise the conversation while explicitly
@@ -13,15 +18,28 @@ Design:
 * "Essential Entities" are collected from
   :attr:`AgentSettings.essential_entity_keys` plus anything already
   present in :attr:`AgentState.essential_entities`.
+
+Replacement vs. append semantics
+--------------------------------
+The compaction node returns a state whose ``messages`` list begins
+with :class:`langchain_core.messages.RemoveMessage` carrying the
+LangGraph-recognised id ``"__remove_all__"``. The ``add_messages``
+reducer interprets this marker as "wipe the existing history" before
+appending the rest of the returned messages. Without this, the
+``add_messages`` reducer would *append* the summary to the existing
+history and compaction would grow tokens instead of compressing them.
 """
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 import litellm
 from injector import inject
+from langchain_core.messages import BaseMessage, RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from ai_core.agents.state import AgentState
 from ai_core.config.settings import AppSettings
@@ -35,7 +53,7 @@ from ai_core.di.interfaces import ILLMClient
 class TokenCounter(Protocol):
     """Counts prompt tokens for a list of chat messages."""
 
-    def count(self, messages: Sequence[Mapping[str, Any]], *, model: str) -> int:
+    def count(self, messages: Sequence[Any], *, model: str) -> int:
         """Return the prompt-token count for ``messages``."""
         ...
 
@@ -43,11 +61,12 @@ class TokenCounter(Protocol):
 class LiteLLMTokenCounter:
     """Default :class:`TokenCounter` backed by :func:`litellm.token_counter`."""
 
-    def count(self, messages: Sequence[Mapping[str, Any]], *, model: str) -> int:
+    def count(self, messages: Sequence[Any], *, model: str) -> int:
+        normalised = [_msg_to_dict(m) for m in messages]
         try:
-            return int(litellm.token_counter(model=model, messages=list(messages)))
+            return int(litellm.token_counter(model=model, messages=normalised))
         except Exception:  # noqa: BLE001 — fall back to character heuristic
-            approx = sum(len(str(m.get("content", ""))) for m in messages)
+            approx = sum(len(_msg_content(m)) for m in messages)
             return max(0, approx // 4)
 
 
@@ -75,10 +94,39 @@ def _format_essential_entities(entities: Mapping[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# IMemoryManager
+# ---------------------------------------------------------------------------
+class IMemoryManager(ABC):
+    """Abstract contract for agent memory management.
+
+    Implementations decide *when* to compact (`should_compact`) and
+    *how* (`compact`). The default :class:`MemoryManager` runs a
+    summarisation chain; alternative strategies (recency-only,
+    semantic clustering, tiered storage) plug in by overriding the
+    binding in the host's DI module.
+    """
+
+    @abstractmethod
+    def should_compact(self, state: AgentState, *, model: str | None = None) -> bool:
+        """Return ``True`` when the state should be compacted before the next turn."""
+
+    @abstractmethod
+    async def compact(
+        self,
+        state: AgentState,
+        *,
+        model: str | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> AgentState:
+        """Return a new state with compressed history and Essential Entities preserved."""
+
+
+# ---------------------------------------------------------------------------
 # MemoryManager
 # ---------------------------------------------------------------------------
-class MemoryManager:
-    """Decide when to compact agent memory and execute the compaction.
+class MemoryManager(IMemoryManager):
+    """Default :class:`IMemoryManager` — summarisation-chain based.
 
     Args:
         settings: Aggregated application settings (``agent`` group consumed).
@@ -101,16 +149,7 @@ class MemoryManager:
     # Decision
     # ------------------------------------------------------------------
     def should_compact(self, state: AgentState, *, model: str | None = None) -> bool:
-        """Return ``True`` when current message tokens exceed the configured threshold.
-
-        Args:
-            state: Current agent state.
-            model: Optional model id used for tokenization. Defaults to
-                :attr:`LLMSettings.default_model`.
-
-        Returns:
-            Whether the compaction node should run before the next LLM call.
-        """
+        """Return ``True`` when current message tokens exceed the configured threshold."""
         threshold = self._settings.agent.memory_compaction_token_threshold
         messages = state.get("messages") or []
         if not messages:
@@ -131,17 +170,11 @@ class MemoryManager:
     ) -> AgentState:
         """Summarise the message history while preserving Essential Entities.
 
-        Args:
-            state: Current agent state.
-            model: Optional model id to use for the summarization chain.
-            tenant_id: Forwarded to the LLM client for budget enforcement.
-            agent_id: Forwarded to the LLM client for budget enforcement.
-
-        Returns:
-            A *new* :class:`AgentState` whose ``messages`` list has been
-            replaced with a single summary message plus the most recent
-            user/assistant exchange. ``essential_entities`` is preserved
-            verbatim and a brief ``summary`` is recorded.
+        Returns a new :class:`AgentState` whose ``messages`` field starts
+        with a :class:`RemoveMessage` marker so the ``add_messages``
+        reducer wipes existing history before appending the summary
+        and the trailing user/assistant pair. ``essential_entities`` is
+        preserved verbatim and a brief ``summary`` is recorded.
         """
         messages = list(state.get("messages") or [])
         if not messages:
@@ -171,26 +204,26 @@ class MemoryManager:
         )
         summary_text = summary_response.content.strip()
 
-        # Keep the tail of the conversation (last user msg + last assistant msg)
-        # so that the post-compaction agent has immediate context to act on.
         tail = _trailing_user_assistant_pair(messages)
-        new_messages: list[dict[str, Any]] = [
+        replacement: list[Any] = [
+            # Tells add_messages to drop every existing message before applying
+            # the rest of this list — without it the summary would be appended.
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
             {"role": "system", "content": f"[Conversation summary]\n{summary_text}"},
             *tail,
         ]
 
-        new_state: AgentState = AgentState(
-            messages=new_messages,
+        return AgentState(
+            messages=replacement,
             essential_entities=dict(essentials),
             token_count=self._counter.count(
-                new_messages,
+                replacement[1:],  # token count for the actual content, excludes the marker
                 model=model or self._settings.llm.default_model,
             ),
             compaction_count=int(state.get("compaction_count", 0)) + 1,
             summary=summary_text,
             metadata=dict(state.get("metadata") or {}),
         )
-        return new_state
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -202,7 +235,6 @@ class MemoryManager:
         for key in self._settings.agent.essential_entity_keys:
             if key in existing:
                 essentials[key] = existing[key]
-        # Also preserve any host-defined essentials not in the configured list.
         for key, value in existing.items():
             essentials.setdefault(key, value)
         return essentials
@@ -211,38 +243,126 @@ class MemoryManager:
 # ---------------------------------------------------------------------------
 # Module-private message helpers
 # ---------------------------------------------------------------------------
-def _render_history(messages: Sequence[Mapping[str, Any]]) -> str:
+_LC_TYPE_TO_ROLE: dict[str, str] = {
+    "human": "user",
+    "ai": "assistant",
+    "system": "system",
+    "tool": "tool",
+    "function": "function",
+    "remove": "remove",
+}
+
+
+def _msg_role(msg: Any) -> str:
+    """Extract a normalised role from either a dict or a LangChain Message."""
+    if isinstance(msg, BaseMessage):
+        return _LC_TYPE_TO_ROLE.get(msg.type, msg.type)
+    if isinstance(msg, Mapping):
+        role = msg.get("role")
+        return str(role) if role is not None else "?"
+    return "?"
+
+
+def _msg_content(msg: Any) -> str:
+    """Extract textual content from either a dict or a LangChain Message."""
+    content: Any
+    if isinstance(msg, BaseMessage):
+        content = msg.content
+    elif isinstance(msg, Mapping):
+        content = msg.get("content", "")
+    else:
+        content = ""
+    if isinstance(content, list):
+        # Some providers return content as a list of segments — join their text.
+        return " ".join(
+            str(part.get("text", part)) if isinstance(part, Mapping) else str(part)
+            for part in content
+        )
+    return str(content)
+
+
+def _msg_to_dict(msg: Any) -> Mapping[str, Any]:
+    """Coerce a message to the OpenAI-style dict shape used by tokenisers."""
+    return to_openai_message(msg)
+
+
+def to_openai_message(msg: Any) -> dict[str, Any]:
+    """Normalise a message into an OpenAI-style chat dict (``role`` + ``content``).
+
+    LangGraph's :func:`add_messages` reducer converts dict messages into
+    typed :class:`langchain_core.messages.BaseMessage` instances after
+    they pass through the graph. LiteLLM and most OpenAI-compatible
+    providers expect the ``{role, content}`` dict shape, so callers that
+    forward state messages onto a downstream LLM SHOULD normalise via
+    this helper.
+
+    Args:
+        msg: Either an OpenAI-style dict, a LangChain ``BaseMessage``, or
+            any value with a ``content`` attribute.
+
+    Returns:
+        A new dict with at minimum ``role`` and ``content`` keys.
+        Assistant tool calls are preserved as-is when present.
+    """
+    if isinstance(msg, Mapping):
+        return dict(msg)
+    if isinstance(msg, BaseMessage):
+        out: dict[str, Any] = {"role": _msg_role(msg), "content": _msg_content(msg)}
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            # AIMessage exposes tool_calls as a list of TypedDicts; OpenAI's
+            # provider accepts either shape, so we pass-through verbatim.
+            out["tool_calls"] = list(tool_calls)
+        return out
+    return {"role": "user", "content": str(msg)}
+
+
+def to_openai_messages(messages: Sequence[Any]) -> list[dict[str, Any]]:
+    """Apply :func:`to_openai_message` to every element of ``messages``."""
+    return [to_openai_message(m) for m in messages]
+
+
+def _render_history(messages: Sequence[Any]) -> str:
     """Render messages as a readable transcript for the summariser."""
     lines: list[str] = []
     for msg in messages:
-        role = str(msg.get("role", "?"))
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            content = " ".join(str(part.get("text", part)) for part in content)
-        lines.append(f"{role.upper()}: {content}")
+        if isinstance(msg, RemoveMessage):
+            continue
+        role = _msg_role(msg)
+        lines.append(f"{role.upper()}: {_msg_content(msg)}")
     return "\n".join(lines)
 
 
-def _trailing_user_assistant_pair(
-    messages: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    """Return the most recent user and assistant messages, in order."""
-    last_user: dict[str, Any] | None = None
-    last_assistant: dict[str, Any] | None = None
+def _trailing_user_assistant_pair(messages: Sequence[Any]) -> list[Any]:
+    """Return the most recent user and assistant messages (in chronological order).
+
+    Returned messages are passed through verbatim — dicts stay dicts,
+    LangChain Message objects stay typed. The ``add_messages`` reducer
+    handles either shape downstream.
+    """
+    last_user: Any = None
+    last_assistant: Any = None
     for msg in reversed(messages):
-        role = msg.get("role")
+        role = _msg_role(msg)
         if role == "assistant" and last_assistant is None:
-            last_assistant = dict(msg)
+            last_assistant = msg
         elif role == "user" and last_user is None:
-            last_user = dict(msg)
-        if last_user and last_assistant:
+            last_user = msg
+        if last_user is not None and last_assistant is not None:
             break
-    tail: list[dict[str, Any]] = []
-    if last_user:
+    tail: list[Any] = []
+    if last_user is not None:
         tail.append(last_user)
-    if last_assistant:
+    if last_assistant is not None:
         tail.append(last_assistant)
     return tail
 
 
-__all__ = ["MemoryManager", "TokenCounter", "LiteLLMTokenCounter"]
+__all__ = [
+    "IMemoryManager",
+    "MemoryManager",
+    "TokenCounter",
+    "LiteLLMTokenCounter",
+    "to_openai_message",
+    "to_openai_messages",
+]

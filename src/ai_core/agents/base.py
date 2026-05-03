@@ -12,9 +12,17 @@ The base class wires:
 
 * an ``agent`` node that calls :class:`ILLMClient` with the system prompt
   prepended to the conversation;
-* a ``compaction`` node that delegates to :class:`MemoryManager.compact`;
+* a ``compaction`` node that delegates to
+  :class:`IMemoryManager.compact`;
 * a router that runs compaction *before* each agent turn whenever
-  :meth:`MemoryManager.should_compact` returns ``True``;
+  :meth:`IMemoryManager.should_compact` returns ``True``;
+* OpenTelemetry **Baggage** propagation for ``agent_id`` / ``tenant_id``
+  / ``user_id`` / ``session_id`` / ``task_id`` / ``thread_id`` so that
+  every downstream span (and LangFuse trace) is automatically tagged
+  for cross-tenant aggregation;
+* an explicit ``recursion_limit`` from
+  :attr:`AgentSettings.max_recursion_depth` so a confused LLM cannot
+  spin in an infinite loop;
 * an optional checkpointer (LangGraph-native) supplied by callers.
 """
 
@@ -25,12 +33,16 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from injector import inject
+from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
+from opentelemetry import baggage
+from opentelemetry import context as otel_context
 
-from ai_core.agents.memory import MemoryManager
+from ai_core.agents.memory import IMemoryManager, to_openai_messages
 from ai_core.agents.state import AgentState, new_agent_state
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
+from ai_core.exceptions import AgentRecursionLimitError
 
 
 class BaseAgent(ABC):
@@ -39,7 +51,7 @@ class BaseAgent(ABC):
     Args:
         settings: Aggregated application settings.
         llm: LLM client used by the agent node.
-        memory: Memory manager used by the compaction node.
+        memory: Memory manager (interface) used by the compaction node.
         observability: Provider used to wrap top-level invocations in spans.
     """
 
@@ -51,7 +63,7 @@ class BaseAgent(ABC):
         self,
         settings: AppSettings,
         llm: ILLMClient,
-        memory: MemoryManager,
+        memory: IMemoryManager,
         observability: IObservabilityProvider,
     ) -> None:
         self._settings = settings
@@ -123,6 +135,10 @@ class BaseAgent(ABC):
 
         Returns:
             Final :class:`AgentState` after graph execution.
+
+        Raises:
+            AgentRecursionLimitError: If the graph exceeds
+                :attr:`AgentSettings.max_recursion_depth`.
         """
         compiled = self.compile()
         initial = new_agent_state(
@@ -130,13 +146,35 @@ class BaseAgent(ABC):
             essential={**(essential or {}), "tenant_id": tenant_id or ""},
             metadata={"agent_id": self.agent_id},
         )
-        config: dict[str, Any] = {}
+
+        recursion_limit = self._settings.agent.max_recursion_depth
+        config: dict[str, Any] = {"recursion_limit": recursion_limit}
         if thread_id is not None:
             config["configurable"] = {"thread_id": thread_id}
 
         attributes = {"agent.id": self.agent_id, "agent.tenant_id": tenant_id or ""}
-        async with self._observability.start_span("agent.ainvoke", attributes=attributes):
-            result = await compiled.ainvoke(initial, config=config or None)
+
+        # Stash agent context in OTel Baggage so every downstream span (LLM
+        # call, tool call, MCP request) is automatically tagged for
+        # cross-tenant aggregation in OTel + LangFuse.
+        token = otel_context.attach(self._build_baggage(tenant_id, thread_id, essential))
+        try:
+            async with self._observability.start_span("agent.ainvoke", attributes=attributes):
+                try:
+                    result = await compiled.ainvoke(initial, config=config)
+                except GraphRecursionError as exc:
+                    raise AgentRecursionLimitError(
+                        "Agent exceeded recursion limit",
+                        details={
+                            "agent_id": self.agent_id,
+                            "tenant_id": tenant_id,
+                            "thread_id": thread_id,
+                            "limit": recursion_limit,
+                        },
+                        cause=exc,
+                    ) from exc
+        finally:
+            otel_context.detach(token)
         return result
 
     # ------------------------------------------------------------------
@@ -145,9 +183,13 @@ class BaseAgent(ABC):
     async def _agent_node(self, state: AgentState) -> AgentState:
         """LangGraph node that performs one LLM turn."""
         history = list(state.get("messages") or [])
+        # Normalise: LangGraph's add_messages reducer upgrades dict messages
+        # into typed langchain_core.messages.BaseMessage instances, but the
+        # downstream LiteLLM client expects OpenAI-style ``{role, content}``
+        # dicts. Convert here so subclasses don't have to think about it.
         prompt: list[Mapping[str, Any]] = [
             {"role": "system", "content": self.system_prompt()},
-            *history,
+            *to_openai_messages(history),
         ]
         essentials = state.get("essential_entities") or {}
         response = await self._llm.complete(
@@ -170,7 +212,7 @@ class BaseAgent(ABC):
         )
 
     async def _compaction_node(self, state: AgentState) -> AgentState:
-        """LangGraph node that delegates to :class:`MemoryManager`."""
+        """LangGraph node that delegates to :class:`IMemoryManager`."""
         essentials = state.get("essential_entities") or {}
         return await self._memory.compact(
             state,
@@ -184,6 +226,33 @@ class BaseAgent(ABC):
     def _router_should_compact(self, state: AgentState) -> bool:
         """Conditional edge: True → compact, False → agent."""
         return self._memory.should_compact(state)
+
+    # ------------------------------------------------------------------
+    # Baggage
+    # ------------------------------------------------------------------
+    def _build_baggage(
+        self,
+        tenant_id: str | None,
+        thread_id: str | None,
+        essential: Mapping[str, Any] | None,
+    ) -> Any:
+        """Construct an OTel Context with ``eaap.*`` Baggage entries set.
+
+        The returned context can be attached with :func:`otel_context.attach`
+        so every downstream span observes the same agent attribution
+        without per-call injection.
+        """
+        ctx = otel_context.get_current()
+        ctx = baggage.set_baggage("eaap.agent_id", self.agent_id, context=ctx)
+        if tenant_id:
+            ctx = baggage.set_baggage("eaap.tenant_id", tenant_id, context=ctx)
+        if thread_id:
+            ctx = baggage.set_baggage("eaap.thread_id", thread_id, context=ctx)
+        for key in ("user_id", "session_id", "task_id"):
+            value = (essential or {}).get(key)
+            if value:
+                ctx = baggage.set_baggage(f"eaap.{key}", str(value), context=ctx)
+        return ctx
 
 
 __all__ = ["BaseAgent"]

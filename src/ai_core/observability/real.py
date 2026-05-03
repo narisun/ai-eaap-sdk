@@ -7,10 +7,20 @@ Behaviour
   :attr:`ObservabilitySettings.otel_endpoint` is configured. Spans
   capture agent "thoughts" (start_span attributes) and tool calls
   (record_event).
+* **Dev mode console exporter** — when no collector endpoint is
+  configured *and* the environment is local/dev, install an
+  :class:`ConsoleSpanExporter` so developers see traces on stderr
+  immediately without standing up infrastructure.
 * **LangFuse** — constructs a :class:`langfuse.Langfuse` client when
   both keys are configured. ``record_llm_usage`` writes a
   ``generation`` (prompt → completion with token + cost metadata) and
   ``record_event`` writes a top-level ``event``.
+* **OTel Baggage propagation** — every span opened via
+  :py:meth:`start_span` copies any ``eaap.*`` Baggage entries onto its
+  attributes (and onto the LangFuse span metadata). This means tenant
+  /user/agent attribution flows automatically as long as the calling
+  code sets Baggage at the entry point (FastAPI middleware,
+  :class:`BaseAgent.ainvoke`, custom orchestrators).
 * **Graceful degradation** — when neither backend is configured the
   provider behaves like the :class:`NoOpObservabilityProvider`, with
   one improvement: it still allocates and propagates trace identifiers
@@ -34,21 +44,28 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from injector import inject
+from opentelemetry import baggage
+from opentelemetry import trace as otel_trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    ConsoleSpanExporter,
+    SimpleSpanProcessor,
+)
 
-from ai_core.config.settings import AppSettings, ObservabilitySettings
+from ai_core.config.settings import AppSettings, Environment, ObservabilitySettings
 from ai_core.di.interfaces import IObservabilityProvider, SpanContext
 
 _logger = logging.getLogger(__name__)
 
-# OTel imports kept module-level — they're required deps in pyproject.
-from opentelemetry import trace as otel_trace  # noqa: E402
-from opentelemetry.sdk.resources import Resource  # noqa: E402
-from opentelemetry.sdk.trace import TracerProvider  # noqa: E402
-from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: E402
-
 # Track the active LangFuse trace per async task.
 _active_lf_trace: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
     "ai_core_active_langfuse_trace", default=None
+)
+
+_DEV_ENVIRONMENTS: frozenset[Environment] = frozenset(
+    {Environment.LOCAL, Environment.DEV}
 )
 
 
@@ -63,6 +80,7 @@ class RealObservabilityProvider(IObservabilityProvider):
     def __init__(self, settings: AppSettings) -> None:
         self._cfg: ObservabilitySettings = settings.observability
         self._service_name = settings.service_name
+        self._environment: Environment = settings.environment
         self._tracer = self._init_otel()
         self._langfuse = self._init_langfuse()
 
@@ -99,12 +117,12 @@ class RealObservabilityProvider(IObservabilityProvider):
                 "llm.cost_usd": cost_usd if cost_usd is not None else 0.0,
             }
         )
-        # OTel: emit as an event on the current span (if any) — cheap, structured.
+        attrs.update(_baggage_attributes())
+
         current = otel_trace.get_current_span()
         if current.is_recording():
             current.add_event("llm.usage", attributes=attrs)
 
-        # LangFuse: a "generation" lives on the active trace.
         trace_handle = self._ensure_lf_trace(name="llm.complete")
         if trace_handle is not None:
             try:
@@ -130,14 +148,17 @@ class RealObservabilityProvider(IObservabilityProvider):
         attributes: Mapping[str, Any] | None = None,
     ) -> None:
         """See :meth:`IObservabilityProvider.record_event`."""
+        attrs = dict(attributes or {})
+        attrs.update(_baggage_attributes())
+
         current = otel_trace.get_current_span()
         if current.is_recording():
-            current.add_event(name, attributes=dict(attributes or {}))
+            current.add_event(name, attributes=attrs)
 
         trace_handle = self._ensure_lf_trace(name=name)
         if trace_handle is not None:
             try:
-                trace_handle.event(name=name, metadata=dict(attributes or {}))
+                trace_handle.event(name=name, metadata=attrs)
             except Exception as exc:  # noqa: BLE001
                 _logger.warning("LangFuse event() failed: %s", exc)
 
@@ -166,9 +187,12 @@ class RealObservabilityProvider(IObservabilityProvider):
         attributes: Mapping[str, Any] | None,
     ) -> AsyncIterator[SpanContext]:
         attrs = dict(attributes or {})
+        # Promote Baggage to span attributes so attribution propagates without
+        # the caller having to thread tenant/agent ids through every method.
+        attrs.update(_baggage_attributes())
+
         outer_trace_token: contextvars.Token[Any | None] | None = None
 
-        # Open OTel span
         with self._tracer.start_as_current_span(name, attributes=attrs) as otel_span:
             otel_ctx = otel_span.get_span_context()
             trace_id_hex = format(otel_ctx.trace_id, "032x")
@@ -219,20 +243,25 @@ class RealObservabilityProvider(IObservabilityProvider):
     # Backend init
     # ------------------------------------------------------------------
     def _init_otel(self) -> Any:
-        provider = otel_trace.get_tracer_provider()
-        if isinstance(provider, TracerProvider):
-            # A TracerProvider has already been installed (e.g. by the host
-            # application). Reuse it — don't double-install processors.
-            return otel_trace.get_tracer(self._service_name)
+        """Build a per-instance :class:`TracerProvider`.
 
+        The provider is also installed as the *global* OTel provider on a
+        best-effort basis so that auto-instrumentation in third-party
+        libraries lands on the same exporters. The global install is
+        "first writer wins" in OTel — subsequent calls are no-ops — so
+        we always use the instance's own provider for span emission to
+        guarantee that this provider's exporter configuration takes
+        effect even if the global slot was claimed earlier.
+        """
         new_provider = TracerProvider(
             resource=Resource.create(
                 {
                     "service.name": self._service_name,
-                    "deployment.environment": "unknown",
+                    "deployment.environment": self._environment.value,
                 }
             )
         )
+        installed_exporter = False
         if self._cfg.otel_endpoint is not None:
             try:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
@@ -244,10 +273,34 @@ class RealObservabilityProvider(IObservabilityProvider):
                     insecure=self._cfg.otel_insecure,
                 )
                 new_provider.add_span_processor(BatchSpanProcessor(exporter))
+                installed_exporter = True
             except Exception as exc:  # noqa: BLE001
                 _logger.warning("OTel OTLP exporter setup failed: %s", exc)
-        otel_trace.set_tracer_provider(new_provider)
-        return otel_trace.get_tracer(self._service_name)
+
+        # Dev-mode console exporter: only when nothing else is exporting and
+        # the environment is local/dev. SimpleSpanProcessor is intentional
+        # here so developers see spans synchronously on stderr.
+        if (
+            not installed_exporter
+            and self._cfg.console_export_in_dev
+            and self._environment in _DEV_ENVIRONMENTS
+        ):
+            new_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+
+        # Global install: skip if a real provider is already installed (the
+        # OTel runtime only allows one and would otherwise emit an
+        # "Overriding of current TracerProvider is not allowed" warning).
+        # Spans always go through ``new_provider.get_tracer(...)`` below, so
+        # this provider's exporters fire regardless of the global slot.
+        existing = otel_trace.get_tracer_provider()
+        if not isinstance(existing, TracerProvider):
+            try:
+                otel_trace.set_tracer_provider(new_provider)
+            except Exception as exc:  # noqa: BLE001
+                _logger.debug("OTel global TracerProvider install failed: %s", exc)
+
+        self._otel_provider = new_provider
+        return new_provider.get_tracer(self._service_name)
 
     def _init_langfuse(self) -> Any | None:
         if self._cfg.langfuse_public_key is None or self._cfg.langfuse_secret_key is None:
@@ -286,6 +339,15 @@ class RealObservabilityProvider(IObservabilityProvider):
         except Exception as exc:  # noqa: BLE001
             _logger.warning("LangFuse call failed: %s", exc)
             return None
+
+
+def _baggage_attributes() -> dict[str, str]:
+    """Return ``eaap.*`` Baggage entries as a flat span-attribute mapping."""
+    out: dict[str, str] = {}
+    for key, value in baggage.get_all().items():
+        if key.startswith("eaap."):
+            out[key] = str(value)
+    return out
 
 
 __all__ = ["RealObservabilityProvider"]

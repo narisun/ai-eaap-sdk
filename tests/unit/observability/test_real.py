@@ -145,3 +145,101 @@ async def test_shutdown_flushes_langfuse(monkeypatch: pytest.MonkeyPatch) -> Non
     provider, _ = _build_with_mock_langfuse(monkeypatch)
     await provider.shutdown()
     provider._langfuse.flush.assert_called_once()  # type: ignore[union-attr]
+
+
+# ---------------------------------------------------------------------------
+# Dev-mode console exporter
+# ---------------------------------------------------------------------------
+def _has_console_processor(provider: RealObservabilityProvider) -> bool:
+    """Return True if the per-instance TracerProvider has a console exporter."""
+    from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+    processors = provider._otel_provider._active_span_processor._span_processors  # type: ignore[attr-defined]
+    return any(
+        isinstance(p, SimpleSpanProcessor)
+        and isinstance(p.span_exporter, ConsoleSpanExporter)
+        for p in processors
+    )
+
+
+def test_console_exporter_installed_in_local_when_no_endpoint() -> None:
+    settings = AppSettings(
+        environment="local",
+        observability={  # type: ignore[arg-type]
+            "service_name": "dev-console-test",
+            "console_export_in_dev": True,
+        },
+    )
+    provider = RealObservabilityProvider(settings)
+    assert _has_console_processor(provider)
+
+
+def test_console_exporter_NOT_installed_in_prod() -> None:
+    settings = AppSettings(
+        environment="prod",
+        observability={"service_name": "prod-test"},  # type: ignore[arg-type]
+    )
+    provider = RealObservabilityProvider(settings)
+    assert not _has_console_processor(provider)
+
+
+def test_console_exporter_disabled_when_flag_off() -> None:
+    settings = AppSettings(
+        environment="local",
+        observability={  # type: ignore[arg-type]
+            "service_name": "no-console",
+            "console_export_in_dev": False,
+        },
+    )
+    provider = RealObservabilityProvider(settings)
+    assert not _has_console_processor(provider)
+
+
+# ---------------------------------------------------------------------------
+# Baggage propagation into span attributes
+# ---------------------------------------------------------------------------
+async def test_baggage_eaap_keys_copied_onto_span_attributes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When eaap.* baggage is set in context, _span() must copy it onto the OTel span."""
+    from opentelemetry import baggage
+    from opentelemetry import context as otel_context
+
+    provider = RealObservabilityProvider(_settings_no_external())
+
+    ctx = otel_context.get_current()
+    ctx = baggage.set_baggage("eaap.tenant_id", "acme", context=ctx)
+    ctx = baggage.set_baggage("eaap.agent_id", "agent-1", context=ctx)
+    # Non-eaap baggage must NOT be copied.
+    ctx = baggage.set_baggage("other", "leaked", context=ctx)
+    token = otel_context.attach(ctx)
+    try:
+        async with provider.start_span("agent.thought") as span_ctx:
+            otel_span = span_ctx.backend_handles["otel"]
+            attrs = dict(otel_span.attributes or {})
+            assert attrs.get("eaap.tenant_id") == "acme"
+            assert attrs.get("eaap.agent_id") == "agent-1"
+            assert "other" not in attrs
+    finally:
+        otel_context.detach(token)
+
+
+async def test_baggage_promoted_into_langfuse_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from opentelemetry import baggage
+    from opentelemetry import context as otel_context
+
+    provider, fake_trace = _build_with_mock_langfuse(monkeypatch)
+    ctx = otel_context.get_current()
+    ctx = baggage.set_baggage("eaap.tenant_id", "acme", context=ctx)
+    token = otel_context.attach(ctx)
+    try:
+        async with provider.start_span("op"):
+            pass
+    finally:
+        otel_context.detach(token)
+
+    # The metadata kwarg passed to lf.span() should include eaap.tenant_id.
+    metadata_seen = fake_trace.span.call_args.kwargs["metadata"]
+    assert metadata_seen.get("eaap.tenant_id") == "acme"

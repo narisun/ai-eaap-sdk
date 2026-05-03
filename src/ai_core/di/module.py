@@ -23,7 +23,12 @@ from __future__ import annotations
 from injector import Module, provider, singleton
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from ai_core.agents.memory import LiteLLMTokenCounter, MemoryManager, TokenCounter
+from ai_core.agents.memory import (
+    IMemoryManager,
+    LiteLLMTokenCounter,
+    MemoryManager,
+    TokenCounter,
+)
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -135,8 +140,20 @@ class AgentModule(Module):
         llm: ILLMClient,
         counter: TokenCounter,
     ) -> MemoryManager:
-        """Return the memory manager singleton."""
+        """Return the concrete :class:`MemoryManager` singleton."""
         return MemoryManager(settings, llm, counter)
+
+    @singleton
+    @provider
+    def provide_memory_manager_interface(self, manager: MemoryManager) -> IMemoryManager:
+        """Alias the :class:`IMemoryManager` interface to the concrete singleton.
+
+        :class:`BaseAgent` depends on :class:`IMemoryManager` so hosts
+        that need bespoke compaction strategies (recency-only, semantic
+        clustering, tiered storage) can override this binding alone
+        without touching the concrete :class:`MemoryManager` provider.
+        """
+        return manager
 
     # ----- Persistence ------------------------------------------------------
     @singleton

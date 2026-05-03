@@ -139,6 +139,14 @@ class ObservabilitySettings(BaseSettings):
         description="OTLP/gRPC collector endpoint. Disables export when None.",
     )
     otel_insecure: bool = True
+    console_export_in_dev: bool = Field(
+        default=True,
+        description=(
+            "Install an OTel ConsoleSpanExporter when no collector endpoint "
+            "is configured AND the environment is local/dev. Gives developers "
+            "immediate trace visibility without standing up infrastructure."
+        ),
+    )
     sample_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
     langfuse_host: AnyHttpUrl | None = None
     langfuse_public_key: SecretStr | None = None

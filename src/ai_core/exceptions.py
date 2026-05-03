@@ -98,6 +98,22 @@ class SchemaValidationError(EAAPBaseException):
 
 
 # ---------------------------------------------------------------------------
+# Agent runtime
+# ---------------------------------------------------------------------------
+class AgentRuntimeError(EAAPBaseException):
+    """Base class for agent-runtime failures (recursion limit, etc.)."""
+
+
+class AgentRecursionLimitError(AgentRuntimeError):
+    """Raised when an agent exceeds its configured recursion limit.
+
+    The ``details`` payload includes ``agent_id`` and ``limit`` so
+    operators can correlate dashboards with the exact agent that
+    looped.
+    """
+
+
+# ---------------------------------------------------------------------------
 # MCP / registry
 # ---------------------------------------------------------------------------
 class RegistryError(EAAPBaseException):
@@ -115,5 +131,7 @@ __all__ = [
     "LLMInvocationError",
     "BudgetExceededError",
     "SchemaValidationError",
+    "AgentRuntimeError",
+    "AgentRecursionLimitError",
     "RegistryError",
 ]
