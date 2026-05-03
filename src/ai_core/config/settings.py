@@ -1,0 +1,259 @@
+"""Strongly-typed application settings backed by Pydantic v2.
+
+All settings are loaded from environment variables (and optional ``.env``
+files) using :mod:`pydantic_settings`. Nested groups are addressed via a
+double-underscore delimiter, so for example::
+
+    EAAP_DATABASE__DSN=postgresql+asyncpg://user:pass@host/db
+    EAAP_LLM__DEFAULT_MODEL=bedrock/anthropic.claude-sonnet-4-6
+    EAAP_OBSERVABILITY__OTEL_ENDPOINT=http://otel-collector:4317
+
+The constructed :class:`AppSettings` instance is meant to be bound as a
+DI singleton (see :mod:`ai_core.di`); modules MUST receive their
+configuration through DI rather than instantiating settings themselves.
+"""
+
+from __future__ import annotations
+
+import enum
+from functools import lru_cache
+from typing import Annotated, Literal
+
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ---------------------------------------------------------------------------
+# Enums / aliases
+# ---------------------------------------------------------------------------
+PortInt = Annotated[int, Field(ge=1, le=65_535)]
+
+
+class LogLevel(str, enum.Enum):
+    """Standard syslog-style log levels accepted by the SDK."""
+
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+class Environment(str, enum.Enum):
+    """Deployment environment classifier — drives default behaviors."""
+
+    LOCAL = "local"
+    DEV = "dev"
+    STAGING = "staging"
+    PROD = "prod"
+
+
+# ---------------------------------------------------------------------------
+# Nested settings
+# ---------------------------------------------------------------------------
+class DatabaseSettings(BaseSettings):
+    """Async SQLAlchemy / Postgres configuration.
+
+    Attributes:
+        dsn: Async SQLAlchemy DSN, e.g. ``postgresql+asyncpg://...``.
+        pool_size: Number of permanent connections in the pool.
+        max_overflow: Burst connections beyond ``pool_size``.
+        pool_timeout_seconds: Wait time before a checkout fails.
+        echo_sql: Whether SQLAlchemy should echo SQL (DEBUG only).
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    dsn: SecretStr = Field(
+        default=SecretStr("postgresql+asyncpg://eaap:eaap@localhost:5432/eaap"),
+        description="Async SQLAlchemy DSN.",
+    )
+    pool_size: int = Field(default=10, ge=1, le=200)
+    max_overflow: int = Field(default=20, ge=0, le=500)
+    pool_timeout_seconds: float = Field(default=30.0, gt=0)
+    echo_sql: bool = False
+
+
+class VectorDBSettings(BaseSettings):
+    """Vector database configuration (pgvector / external)."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    backend: Literal["pgvector", "pinecone", "weaviate", "noop"] = "pgvector"
+    collection: str = "eaap_default"
+    embedding_dimensions: int = Field(default=1536, ge=1)
+    endpoint: AnyHttpUrl | None = None
+    api_key: SecretStr | None = None
+
+
+class StorageSettings(BaseSettings):
+    """Blob / object storage configuration (S3 by default)."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    backend: Literal["s3", "gcs", "azure_blob", "local"] = "s3"
+    bucket: str = "eaap-artifacts"
+    region: str = "us-east-1"
+    endpoint_url: AnyHttpUrl | None = Field(
+        default=None,
+        description="Optional override for S3-compatible endpoints (MinIO, LocalStack).",
+    )
+
+
+class LLMSettings(BaseSettings):
+    """LiteLLM-fronted LLM proxy configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    default_model: str = Field(
+        default="bedrock/anthropic.claude-sonnet-4-6",
+        description="LiteLLM model identifier used when an agent does not override.",
+    )
+    fallback_models: list[str] = Field(default_factory=list)
+    request_timeout_seconds: float = Field(default=60.0, gt=0)
+    max_retries: int = Field(default=3, ge=0, le=10)
+    retry_initial_backoff_seconds: float = Field(default=0.5, gt=0)
+    retry_max_backoff_seconds: float = Field(default=10.0, gt=0)
+    proxy_base_url: AnyHttpUrl | None = None
+    proxy_api_key: SecretStr | None = None
+
+
+class BudgetSettings(BaseSettings):
+    """Per-tenant / per-agent budget enforcement."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    enabled: bool = True
+    default_daily_token_limit: int = Field(default=1_000_000, ge=0)
+    default_daily_usd_limit: float = Field(default=50.0, ge=0.0)
+    hard_fail_on_exceeded: bool = True
+
+
+class ObservabilitySettings(BaseSettings):
+    """OpenTelemetry + LangFuse observability configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    service_name: str = "ai-core-sdk"
+    otel_endpoint: AnyHttpUrl | None = Field(
+        default=None,
+        description="OTLP/gRPC collector endpoint. Disables export when None.",
+    )
+    otel_insecure: bool = True
+    sample_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
+    langfuse_host: AnyHttpUrl | None = None
+    langfuse_public_key: SecretStr | None = None
+    langfuse_secret_key: SecretStr | None = None
+    log_level: LogLevel = LogLevel.INFO
+
+
+class SecuritySettings(BaseSettings):
+    """OPA / AuthZ configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    opa_url: AnyHttpUrl = Field(
+        default=AnyHttpUrl("http://localhost:8181"),
+        description="Base URL of the OPA sidecar.",
+    )
+    opa_decision_path: str = Field(
+        default="eaap/authz/allow",
+        description="Decision document path; combined with /v1/data/<path>.",
+    )
+    opa_request_timeout_seconds: float = Field(default=2.0, gt=0)
+    fail_closed: bool = Field(
+        default=True,
+        description="If True, deny on OPA error; if False, allow (use with caution).",
+    )
+    jwt_audience: str | None = None
+    jwt_issuer: str | None = None
+
+
+class AgentSettings(BaseSettings):
+    """Agent runtime defaults (memory compaction, recursion limits, …)."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    memory_compaction_token_threshold: int = Field(default=8_000, ge=512)
+    memory_compaction_target_tokens: int = Field(default=2_000, ge=128)
+    max_recursion_depth: int = Field(default=25, ge=1, le=200)
+    essential_entity_keys: list[str] = Field(
+        default_factory=lambda: ["user_id", "tenant_id", "session_id", "task_id"],
+        description="State keys that must be preserved across compactions.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Top-level settings
+# ---------------------------------------------------------------------------
+class AppSettings(BaseSettings):
+    """Aggregated SDK settings — bound as a DI singleton.
+
+    All env vars are prefixed with ``EAAP_`` and use ``__`` as a nested
+    delimiter, e.g.::
+
+        EAAP_ENVIRONMENT=staging
+        EAAP_DATABASE__POOL_SIZE=25
+        EAAP_LLM__DEFAULT_MODEL=bedrock/anthropic.claude-opus-4-7
+
+    Attributes:
+        environment: Deployment classifier influencing defaults.
+        service_name: Human-readable service identity used in logs/traces.
+        database: Async SQLAlchemy configuration.
+        vector_db: Vector store configuration.
+        storage: Object storage configuration.
+        llm: LiteLLM proxy + retry configuration.
+        budget: Quota enforcement configuration.
+        observability: OpenTelemetry + LangFuse configuration.
+        security: OPA / authz configuration.
+        agent: Agent runtime defaults.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="EAAP_",
+        env_nested_delimiter="__",
+        env_file=(".env", ".env.local"),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    environment: Environment = Environment.LOCAL
+    service_name: str = "ai-core-sdk"
+
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    vector_db: VectorDBSettings = Field(default_factory=VectorDBSettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    budget: BudgetSettings = Field(default_factory=BudgetSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
+    agent: AgentSettings = Field(default_factory=AgentSettings)
+
+    @field_validator("service_name")
+    @classmethod
+    def _service_name_not_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("service_name must be a non-empty string")
+        return value.strip()
+
+    def is_production(self) -> bool:
+        """Return ``True`` when running in a production-like environment."""
+        return self.environment is Environment.PROD
+
+
+# ---------------------------------------------------------------------------
+# Accessor — used by the DI container only; never read directly elsewhere.
+# ---------------------------------------------------------------------------
+@lru_cache(maxsize=1)
+def get_settings() -> AppSettings:
+    """Return a process-wide cached :class:`AppSettings` instance.
+
+    The cache is populated on first access and is intentionally process-scoped;
+    tests should call :func:`get_settings.cache_clear` between cases or — better —
+    inject an ``AppSettings`` override through the DI container instead of
+    relying on this accessor.
+
+    Returns:
+        A validated :class:`AppSettings` populated from the environment.
+    """
+    return AppSettings()

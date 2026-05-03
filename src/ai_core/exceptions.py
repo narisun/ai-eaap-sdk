@@ -1,0 +1,119 @@
+"""Custom exception hierarchy for the EAAP SDK.
+
+Every error raised by the SDK derives from :class:`EAAPBaseException`,
+allowing host applications to catch SDK errors generically while still
+distinguishing between sub-domains (configuration, persistence, policy,
+LLM, …) for targeted handling and metrics.
+
+Errors carry an optional structured ``details`` mapping that flows into
+OpenTelemetry span attributes and LangFuse trace metadata so that
+downstream operators can correlate failures without parsing strings.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+class EAAPBaseException(Exception):
+    """Base class for all SDK-raised exceptions.
+
+    Attributes:
+        message: Human-readable description of the error.
+        details: Optional structured context attached for observability.
+        cause: Optional underlying exception preserved for chained tracebacks.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        cause: BaseException | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message: str = message
+        self.details: dict[str, Any] = dict(details or {})
+        self.cause: BaseException | None = cause
+        if cause is not None:
+            self.__cause__ = cause
+
+    def __repr__(self) -> str:
+        cls = type(self).__name__
+        return f"{cls}(message={self.message!r}, details={self.details!r})"
+
+
+# ---------------------------------------------------------------------------
+# Configuration / secrets
+# ---------------------------------------------------------------------------
+class ConfigurationError(EAAPBaseException):
+    """Raised when required configuration is missing or invalid."""
+
+
+class SecretResolutionError(ConfigurationError):
+    """Raised when a secret cannot be resolved from a secret backend."""
+
+
+# ---------------------------------------------------------------------------
+# Dependency injection
+# ---------------------------------------------------------------------------
+class DependencyResolutionError(EAAPBaseException):
+    """Raised when the DI container cannot satisfy a binding."""
+
+
+# ---------------------------------------------------------------------------
+# Persistence
+# ---------------------------------------------------------------------------
+class StorageError(EAAPBaseException):
+    """Base class for persistence failures (SQL, vector, blob)."""
+
+
+class CheckpointError(StorageError):
+    """Raised when reading or writing a LangGraph checkpoint fails."""
+
+
+# ---------------------------------------------------------------------------
+# Security & policy
+# ---------------------------------------------------------------------------
+class PolicyDenialError(EAAPBaseException):
+    """Raised when an OPA policy denies a request or tool invocation."""
+
+
+# ---------------------------------------------------------------------------
+# LLM / budgeting
+# ---------------------------------------------------------------------------
+class LLMInvocationError(EAAPBaseException):
+    """Raised when an LLM call fails after retry exhaustion."""
+
+
+class BudgetExceededError(LLMInvocationError):
+    """Raised when an agent or tenant has consumed its allocated quota."""
+
+
+# ---------------------------------------------------------------------------
+# Schema / contract
+# ---------------------------------------------------------------------------
+class SchemaValidationError(EAAPBaseException):
+    """Raised when a payload does not match the expected versioned schema."""
+
+
+# ---------------------------------------------------------------------------
+# MCP / registry
+# ---------------------------------------------------------------------------
+class RegistryError(EAAPBaseException):
+    """Raised when a component registry operation fails."""
+
+
+__all__ = [
+    "EAAPBaseException",
+    "ConfigurationError",
+    "SecretResolutionError",
+    "DependencyResolutionError",
+    "StorageError",
+    "CheckpointError",
+    "PolicyDenialError",
+    "LLMInvocationError",
+    "BudgetExceededError",
+    "SchemaValidationError",
+    "RegistryError",
+]
