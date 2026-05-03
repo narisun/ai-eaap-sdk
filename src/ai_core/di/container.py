@@ -40,7 +40,10 @@ class Container:
 
     def __init__(self, modules: Sequence[Module]) -> None:
         self._modules: tuple[Module, ...] = tuple(modules)
-        self.injector: Injector = Injector(modules=list(modules), auto_bind=False)
+        # auto_bind=True lets concrete user classes (e.g. host-defined Agent
+        # subclasses) resolve without an explicit binding. Abstract interfaces
+        # still require a binding, so this does not weaken the contract.
+        self.injector: Injector = Injector(modules=list(modules), auto_bind=True)
 
     # ------------------------------------------------------------------
     # Construction helpers

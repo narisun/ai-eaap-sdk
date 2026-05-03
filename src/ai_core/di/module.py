@@ -2,51 +2,57 @@
 
 The :class:`AgentModule` is the canonical place where abstract
 interfaces (see :mod:`ai_core.di.interfaces`) are bound to concrete
-implementations. It is structured so that:
+implementations. Bindings are organised so that:
 
-* **Step 1 (this commit)** binds settings + the default
-  :class:`EnvSecretManager`. All other interfaces are *declared* but
-  intentionally not yet bound to concrete classes — the corresponding
-  modules (``llm``, ``observability``, ``security``, ``persistence``)
-  arrive in subsequent steps and will register their concretes here.
-* **Hosts override anything** by passing additional :class:`Module`
-  instances to :class:`Container.build` — the last binding wins, which
-  makes test fakes trivial to wire in.
+* every binding is a ``@singleton`` provider (one instance per container);
+* none of the providers performs I/O at instantiation — heavy resources
+  (database engine, FastMCP transports) are constructed lazily on first
+  use *after* injection;
+* hosts override anything by passing additional :class:`Module`
+  instances to :class:`Container.build` — the last binding wins.
 
 Note:
-    There are NO global singletons. Settings and clients are bound as
-    DI singletons *within a container* — a fresh container yields a
-    fresh dependency graph. Tests therefore enjoy full isolation.
+    The package-level ``ai_core.di.__init__`` deliberately does *not*
+    re-export this class eagerly; it uses :pep:`562` ``__getattr__`` to
+    avoid the circular import that would otherwise arise when domain
+    modules (which import from :mod:`ai_core.di.interfaces`) are loaded.
 """
 
 from __future__ import annotations
 
 from injector import Module, provider, singleton
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from ai_core.agents.memory import LiteLLMTokenCounter, MemoryManager, TokenCounter
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
+from ai_core.di.interfaces import (
+    IBudgetService,
+    ICheckpointSaver,
+    ILLMClient,
+    IObservabilityProvider,
+)
+from ai_core.llm.budget import InMemoryBudgetService
+from ai_core.llm.litellm_client import LiteLLMClient
+from ai_core.mcp.registry import ComponentRegistry
+from ai_core.mcp.transports import FastMCPConnectionFactory, IMCPConnectionFactory
+from ai_core.observability.noop import NoOpObservabilityProvider
+from ai_core.persistence.checkpoint import PostgresCheckpointSaver
+from ai_core.persistence.engine import EngineFactory
 
 
 class AgentModule(Module):
     """Default top-level DI module for agentic applications.
 
-    Subclass this module (or compose alongside it) to override bindings
-    for specific environments. For example, a production deployment may
-    want::
-
-        class ProdModule(AgentModule):
-            def configure(self, binder: injector.Binder) -> None:
-                super().configure(binder)
-                binder.bind(IStorageProvider, to=S3StorageProvider, scope=singleton)
-                binder.bind(ILLMClient, to=LiteLLMClient, scope=singleton)
-                ...
+    Subclass or compose alongside this module to override bindings for
+    specific environments (e.g. swap :class:`NoOpObservabilityProvider`
+    for a real OTel/LangFuse provider in production).
 
     Args:
         settings: Optional pre-built :class:`AppSettings`. If omitted,
-            settings are loaded from the environment via
-            :func:`ai_core.config.settings.get_settings`.
-        secret_manager: Optional :class:`ISecretManager` instance. Defaults
-            to :class:`EnvSecretManager` (env-var backed).
+            settings are loaded from the environment.
+        secret_manager: Optional :class:`ISecretManager`. Defaults to
+            :class:`EnvSecretManager`.
     """
 
     def __init__(
@@ -65,8 +71,6 @@ class AgentModule(Module):
         """Return the bound :class:`AppSettings` singleton."""
         if self._settings is not None:
             return self._settings
-        # Local import keeps the test seam clean: callers can override
-        # via the constructor without monkey-patching get_settings().
         from ai_core.config.settings import get_settings
 
         return get_settings()
@@ -77,6 +81,86 @@ class AgentModule(Module):
     def provide_secret_manager(self) -> ISecretManager:
         """Return the bound :class:`ISecretManager` singleton."""
         return self._secret_manager or EnvSecretManager()
+
+    # ----- Observability ----------------------------------------------------
+    @singleton
+    @provider
+    def provide_observability(self) -> IObservabilityProvider:
+        """Return the default no-op observability provider.
+
+        Production hosts override this binding with a concrete
+        OTel/LangFuse provider in their own DI module.
+        """
+        return NoOpObservabilityProvider()
+
+    # ----- Budget -----------------------------------------------------------
+    @singleton
+    @provider
+    def provide_budget(self, settings: AppSettings) -> IBudgetService:
+        """Return the in-memory budget service singleton."""
+        return InMemoryBudgetService(settings)
+
+    # ----- LLM client -------------------------------------------------------
+    @singleton
+    @provider
+    def provide_llm_client(
+        self,
+        settings: AppSettings,
+        budget: IBudgetService,
+        observability: IObservabilityProvider,
+    ) -> ILLMClient:
+        """Return the LiteLLM-backed client singleton."""
+        return LiteLLMClient(settings, budget, observability)
+
+    # ----- Token counter + memory manager -----------------------------------
+    @singleton
+    @provider
+    def provide_token_counter(self) -> TokenCounter:
+        """Return the default LiteLLM-backed token counter."""
+        return LiteLLMTokenCounter()
+
+    @singleton
+    @provider
+    def provide_memory_manager(
+        self,
+        settings: AppSettings,
+        llm: ILLMClient,
+        counter: TokenCounter,
+    ) -> MemoryManager:
+        """Return the memory manager singleton."""
+        return MemoryManager(settings, llm, counter)
+
+    # ----- Persistence ------------------------------------------------------
+    @singleton
+    @provider
+    def provide_engine_factory(self, settings: AppSettings) -> EngineFactory:
+        """Return the engine factory singleton (lazy connection)."""
+        return EngineFactory(settings)
+
+    @singleton
+    @provider
+    def provide_async_engine(self, factory: EngineFactory) -> AsyncEngine:
+        """Return the lazily-constructed :class:`AsyncEngine`."""
+        return factory.engine()
+
+    @singleton
+    @provider
+    def provide_checkpoint_saver(self, engine: AsyncEngine) -> ICheckpointSaver:
+        """Return the Postgres-backed checkpoint saver singleton."""
+        return PostgresCheckpointSaver(engine)
+
+    # ----- MCP --------------------------------------------------------------
+    @singleton
+    @provider
+    def provide_component_registry(self) -> ComponentRegistry:
+        """Return the in-memory component registry singleton."""
+        return ComponentRegistry()
+
+    @singleton
+    @provider
+    def provide_mcp_connection_factory(self) -> IMCPConnectionFactory:
+        """Return the default FastMCP connection factory."""
+        return FastMCPConnectionFactory()
 
 
 __all__ = ["AgentModule"]
