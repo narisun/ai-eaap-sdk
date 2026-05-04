@@ -22,6 +22,10 @@ from typing import Annotated, Literal
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ai_core.config.secrets import ISecretManager
+from ai_core.config.validation import ValidationContext
+from ai_core.exceptions import ConfigurationError
+
 # ---------------------------------------------------------------------------
 # Enums / aliases
 # ---------------------------------------------------------------------------
@@ -247,6 +251,94 @@ class AppSettings(BaseSettings):
     def is_production(self) -> bool:
         """Return ``True`` when running in a production-like environment."""
         return self.environment is Environment.PROD
+
+    def validate_for_runtime(
+        self,
+        *,
+        secret_manager: ISecretManager | None = None,
+    ) -> None:
+        """Collect-all runtime validation. Raises :class:`ConfigurationError` once.
+
+        Pydantic enforces type and ``Field`` constraints at construction time,
+        but a few real-world invariants slip through:
+
+        * Required strings can be set to the empty string by an environment
+          override.
+        * Cross-field invariants (e.g. compaction target < threshold) cannot
+          be expressed as single-field constraints.
+        * The ``secret_manager`` parameter is forward-looking: future
+          settings groups may carry :class:`SecretRef` instances, and we
+          want the wiring to be in place before that happens.
+
+        Args:
+            secret_manager: Optional :class:`ISecretManager` used to resolve
+                any :class:`SecretRef` instances reachable from this settings
+                tree. If ``None``, secret-resolution checks are skipped.
+
+        Raises:
+            ConfigurationError: If at least one issue is found. The exception
+                ``details["issues"]`` field is a list of
+                ``{"path", "message", "hint"}`` dicts — one per problem.
+        """
+        ctx = ValidationContext()
+
+        # llm.default_model must be a non-empty, non-blank string.
+        if not (self.llm.default_model and self.llm.default_model.strip()):
+            ctx.fail(
+                path="llm.default_model",
+                message="must be a non-empty model identifier",
+                hint=(
+                    "set env var EAAP_LLM__DEFAULT_MODEL=<model-id> "
+                    "or override AppSettings.llm.default_model in code"
+                ),
+            )
+
+        # llm.fallback_models entries must be non-blank.
+        for idx, model in enumerate(self.llm.fallback_models):
+            if not (model and model.strip()):
+                ctx.fail(
+                    path=f"llm.fallback_models[{idx}]",
+                    message="fallback model identifier must be non-empty",
+                    hint="remove the entry or set a real model id",
+                )
+
+        # Cross-field: compaction target must be strictly less than threshold.
+        if (
+            self.agent.memory_compaction_target_tokens
+            >= self.agent.memory_compaction_token_threshold
+        ):
+            ctx.fail(
+                path="agent.memory_compaction_target_tokens",
+                message=(
+                    "must be strictly less than "
+                    "agent.memory_compaction_token_threshold "
+                    f"(target={self.agent.memory_compaction_target_tokens}, "
+                    f"threshold={self.agent.memory_compaction_token_threshold})"
+                ),
+                hint=(
+                    "set EAAP_AGENT__MEMORY_COMPACTION_TARGET_TOKENS to a value "
+                    "strictly less than EAAP_AGENT__MEMORY_COMPACTION_TOKEN_THRESHOLD"
+                ),
+            )
+
+        # secret_manager type-check (forward-looking).
+        # The isinstance guard is intentional: callers may pass a wrong type at
+        # runtime even though the static type is ISecretManager | None.
+        if secret_manager is not None and not isinstance(secret_manager, ISecretManager):
+            ctx.fail(  # type: ignore[unreachable]
+                path="secret_manager",
+                message=f"must be an ISecretManager, got {type(secret_manager).__name__}",
+                hint="pass an instance of ai_core.config.secrets.ISecretManager",
+            )
+
+        if ctx.has_issues:
+            raise ConfigurationError(
+                f"Runtime configuration is invalid: {len(ctx.issues)} issue(s) found.",
+                details={"issues": [
+                    {"path": i.path, "message": i.message, "hint": i.hint}
+                    for i in ctx.issues
+                ]},
+            )
 
 
 # ---------------------------------------------------------------------------
