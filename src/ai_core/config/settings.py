@@ -324,10 +324,11 @@ class AppSettings(BaseSettings):
         # secret_manager type-check (forward-looking).
         # The isinstance guard is intentional: callers may pass a wrong type at
         # runtime even though the static type is ISecretManager | None.
-        if secret_manager is not None and not isinstance(secret_manager, ISecretManager):
-            ctx.fail(  # type: ignore[unreachable]
+        _sm: object = secret_manager  # widen to object so mypy does not mark the branch unreachable
+        if _sm is not None and not isinstance(_sm, ISecretManager):
+            ctx.fail(
                 path="secret_manager",
-                message=f"must be an ISecretManager, got {type(secret_manager).__name__}",
+                message=f"must be an ISecretManager, got {type(_sm).__name__}",
                 hint="pass an instance of ai_core.config.secrets.ISecretManager",
             )
 

@@ -39,11 +39,6 @@ def test_validation_context_starts_empty() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _settings(**overrides: object) -> AppSettings:
-    """Build an AppSettings with targeted overrides; defaults are otherwise valid."""
-    return AppSettings(**overrides)  # type: ignore[arg-type]
-
-
 def test_validate_passes_on_default_settings(fake_secret_manager_factory: object) -> None:
     s = AppSettings()
     s.validate_for_runtime(secret_manager=fake_secret_manager_factory({}))  # type: ignore[operator]
