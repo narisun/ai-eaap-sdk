@@ -28,11 +28,14 @@ The base class wires:
 
 from __future__ import annotations
 
+import json
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from injector import inject
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 from opentelemetry import baggage
@@ -42,7 +45,16 @@ from ai_core.agents.memory import IMemoryManager, to_openai_messages
 from ai_core.agents.state import AgentState, new_agent_state
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
-from ai_core.exceptions import AgentRecursionLimitError
+from ai_core.exceptions import (
+    AgentRecursionLimitError,
+    PolicyDenialError,
+    ToolExecutionError,
+    ToolValidationError,
+)
+from ai_core.tools.invoker import ToolInvoker
+from ai_core.tools.spec import Tool, ToolSpec
+
+_logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
@@ -53,10 +65,17 @@ class BaseAgent(ABC):
         llm: LLM client used by the agent node.
         memory: Memory manager (interface) used by the compaction node.
         observability: Provider used to wrap top-level invocations in spans.
+        tool_invoker: Invoker used to dispatch SDK tools through the
+            validation → policy → handler pipeline.
     """
 
     #: Logical identifier — override in subclasses (used for budgeting + tracing).
     agent_id: str = "base-agent"
+
+    #: When True, ``compile()`` auto-installs a tool dispatch loop whenever
+    #: ``tools()`` returns at least one ``Tool``-protocol object. Subclasses
+    #: that prefer to wire their own tool handling can set this to False.
+    auto_tool_loop: bool = True
 
     @inject
     def __init__(
@@ -65,11 +84,13 @@ class BaseAgent(ABC):
         llm: ILLMClient,
         memory: IMemoryManager,
         observability: IObservabilityProvider,
+        tool_invoker: ToolInvoker,
     ) -> None:
         self._settings = settings
         self._llm = llm
         self._memory = memory
         self._observability = observability
+        self._tool_invoker = tool_invoker
         self._graph: Any | None = None
 
     # ------------------------------------------------------------------
@@ -79,8 +100,8 @@ class BaseAgent(ABC):
     def system_prompt(self) -> str:
         """Return the agent's system prompt."""
 
-    def tools(self) -> Sequence[Mapping[str, Any]]:
-        """Return tool definitions in OpenAI-style format. Defaults to none."""
+    def tools(self) -> Sequence[Tool | Mapping[str, Any]]:
+        """Return tool definitions or ``Tool``-protocol objects (default: empty)."""
         return ()
 
     def extend_graph(self, graph: StateGraph) -> None:
@@ -100,18 +121,35 @@ class BaseAgent(ABC):
         """
         if self._graph is not None:
             return self._graph
-        graph: StateGraph = StateGraph(AgentState)
-
+        graph: StateGraph[AgentState] = StateGraph(AgentState)
         graph.add_node("compact", self._compaction_node)
         graph.add_node("agent", self._agent_node)
 
-        graph.add_conditional_edges(
-            START,
-            self._router_should_compact,
-            {True: "compact", False: "agent"},
-        )
-        graph.add_edge("compact", "agent")
-        graph.add_edge("agent", END)
+        sdk_tools = [t for t in self.tools() if isinstance(t, ToolSpec)]
+        install_loop = self.auto_tool_loop and bool(sdk_tools)
+
+        if install_loop:
+            graph.add_node("tool", self._tool_node)
+            graph.add_conditional_edges(
+                START,
+                self._router_should_compact,
+                {True: "compact", False: "agent"},
+            )
+            graph.add_edge("compact", "agent")
+            graph.add_conditional_edges(
+                "agent",
+                self._router_after_agent,
+                {True: "tool", False: END},
+            )
+            graph.add_edge("tool", "agent")
+        else:
+            graph.add_conditional_edges(
+                START,
+                self._router_should_compact,
+                {True: "compact", False: "agent"},
+            )
+            graph.add_edge("compact", "agent")
+            graph.add_edge("agent", END)
 
         self.extend_graph(graph)
         self._graph = graph.compile(checkpointer=checkpointer)
@@ -183,33 +221,116 @@ class BaseAgent(ABC):
     async def _agent_node(self, state: AgentState) -> AgentState:
         """LangGraph node that performs one LLM turn."""
         history = list(state.get("messages") or [])
-        # Normalise: LangGraph's add_messages reducer upgrades dict messages
-        # into typed langchain_core.messages.BaseMessage instances, but the
-        # downstream LiteLLM client expects OpenAI-style ``{role, content}``
-        # dicts. Convert here so subclasses don't have to think about it.
         prompt: list[Mapping[str, Any]] = [
             {"role": "system", "content": self.system_prompt()},
             *to_openai_messages(history),
         ]
         essentials = state.get("essential_entities") or {}
+
+        tool_payload: list[Mapping[str, Any]] = []
+        for t in self.tools():
+            if isinstance(t, ToolSpec):
+                tool_payload.append(t.openai_schema())
+            elif isinstance(t, Mapping):
+                tool_payload.append(t)
+            elif hasattr(t, "openai_schema"):
+                tool_payload.append(t.openai_schema())
+
         response = await self._llm.complete(
             model=None,
             messages=prompt,
-            tools=list(self.tools()) or None,
+            tools=tool_payload or None,
             tenant_id=str(essentials.get("tenant_id") or "") or None,
             agent_id=self.agent_id,
         )
-        appended: list[dict[str, Any]] = [
-            {
-                "role": "assistant",
-                "content": response.content,
-                **({"tool_calls": list(response.tool_calls)} if response.tool_calls else {}),
-            }
-        ]
+        appended: list[Any]
+        if response.tool_calls:
+            appended = [AIMessage(
+                content=response.content,
+                tool_calls=[
+                    {
+                        "id": tc.get("id") or f"call-{i}",
+                        "name": tc.get("function", {}).get("name", ""),
+                        "args": json.loads(tc.get("function", {}).get("arguments") or "{}"),
+                    }
+                    for i, tc in enumerate(response.tool_calls)
+                ],
+            )]
+        else:
+            appended = [AIMessage(content=response.content)]
         return AgentState(
             messages=appended,
             token_count=response.usage.prompt_tokens + response.usage.completion_tokens,
         )
+
+    async def _tool_node(self, state: AgentState) -> AgentState:
+        """Dispatch all tool calls on the most recent assistant message."""
+        history = list(state.get("messages") or [])
+        last = history[-1] if history else None
+        tool_calls = getattr(last, "tool_calls", None) or []
+        sdk_tools_by_name: dict[str, ToolSpec] = {
+            t.name: t for t in self.tools() if isinstance(t, ToolSpec)
+        }
+        essentials = state.get("essential_entities") or {}
+        tenant_id = str(essentials.get("tenant_id") or "") or None
+
+        appended: list[Any] = []
+        for tc in tool_calls:
+            tc_id = tc.get("id") if isinstance(tc, Mapping) else getattr(tc, "id", "")
+            name = tc.get("name") if isinstance(tc, Mapping) else getattr(tc, "name", "")
+            args = tc.get("args") if isinstance(tc, Mapping) else getattr(tc, "args", {}) or {}
+            spec = sdk_tools_by_name.get(name)
+            if spec is None:
+                appended.append(ToolMessage(
+                    content=f"Unknown tool '{name}'.",
+                    tool_call_id=tc_id or "",
+                    name=name or "",
+                ))
+                continue
+            try:
+                result = await self._tool_invoker.invoke(
+                    spec,
+                    args if isinstance(args, Mapping) else {},
+                    agent_id=self.agent_id,
+                    tenant_id=tenant_id,
+                )
+                appended.append(ToolMessage(
+                    content=json.dumps(result),
+                    tool_call_id=tc_id or "",
+                    name=name,
+                ))
+            except ToolValidationError as exc:
+                appended.append(ToolMessage(
+                    content=(
+                        f"Validation failed for '{name}': "
+                        f"{exc.message} ({exc.details.get('errors', [])[:1]})"
+                    ),
+                    tool_call_id=tc_id or "",
+                    name=name,
+                ))
+            except PolicyDenialError as exc:
+                reason = exc.details.get("reason") or exc.message
+                appended.append(ToolMessage(
+                    content=f"Tool '{name}' denied by policy: {reason}",
+                    tool_call_id=tc_id or "",
+                    name=name,
+                ))
+            except ToolExecutionError as exc:
+                _logger.error(
+                    "Tool '%s' execution error", name, exc_info=exc.__cause__,
+                )
+                appended.append(ToolMessage(
+                    content=f"Tool '{name}' failed: {exc.message}",
+                    tool_call_id=tc_id or "",
+                    name=name,
+                ))
+        return AgentState(messages=appended)
+
+    def _router_after_agent(self, state: AgentState) -> bool:
+        """True -> there is at least one outstanding tool_call to dispatch."""
+        history = list(state.get("messages") or [])
+        last = history[-1] if history else None
+        return bool(getattr(last, "tool_calls", None))
 
     async def _compaction_node(self, state: AgentState) -> AgentState:
         """LangGraph node that delegates to :class:`IMemoryManager`."""
