@@ -108,6 +108,8 @@ async def test_opa_deny_raises_policy_denial(
         await inv.invoke(_search, {"q": "x", "limit": 1})
     assert exc.value.details["tool"] == "search"
     assert "denied" in exc.value.message.lower() or exc.value.details.get("reason") == "denied"
+    # OPA deny short-circuits before the span opens.
+    assert fake_observability.spans == []
 
 
 @pytest.mark.asyncio
@@ -143,6 +145,8 @@ async def test_output_validation_failure(
         await inv.invoke(lying, {"q": "x", "limit": 1})
     assert exc.value.details["side"] == "output"
     assert exc.value.details["tool"] == "lying"
+    # Completion event must not fire when output validation fails.
+    assert all(name != "tool.completed" for name, _ in fake_observability.events)
 
 
 @pytest.mark.asyncio

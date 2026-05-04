@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from ai_core.exceptions import (
     PolicyDenialError,
+    SchemaValidationError,
     ToolExecutionError,
     ToolValidationError,
 )
@@ -74,7 +75,7 @@ class ToolInvoker:
                 output_schema=spec.output_model,
                 description=spec.description,
             )
-        except Exception:
+        except SchemaValidationError:
             # Already registered with the same (name, version): treat as idempotent.
             existing = self._registry.get(spec.name, version=spec.version)
             if (
@@ -156,13 +157,19 @@ class ToolInvoker:
                 ) from exc
 
         # ----- 5. Output validation ------------------------------------------------
+        # Output validation runs *outside* the span CM intentionally: the handler itself
+        # completed without raising, so the "tool.invoke" span succeeded. A non-conforming
+        # return value is a contract violation reported via ToolValidationError(side="output").
         try:
             validated: BaseModel = spec.output_model.model_validate(result)
         except ValidationError as exc:
             _logger.warning(
-                "Tool '%s' v%s returned a non-conforming object; this is a handler bug.",
+                "Tool '%s' v%s returned a non-conforming object "
+                "(agent_id=%s, tenant_id=%s); this is a handler bug.",
                 spec.name,
                 spec.version,
+                agent_id,
+                tenant_id,
             )
             raise ToolValidationError(
                 f"Tool '{spec.name}' v{spec.version} returned invalid data.",
