@@ -97,6 +97,27 @@ class SchemaValidationError(EAAPBaseException):
     """Raised when a payload does not match the expected versioned schema."""
 
 
+class ToolValidationError(SchemaValidationError):
+    """Tool input or output failed Pydantic validation.
+
+    The ``details`` payload carries:
+
+    * ``tool`` — the tool name,
+    * ``version`` — the registered version,
+    * ``side`` — ``"input"`` or ``"output"``,
+    * ``errors`` — Pydantic ``error.errors()`` list.
+    """
+
+
+class ToolExecutionError(EAAPBaseException):
+    """A tool handler raised. The original exception is preserved via ``__cause__``.
+
+    The ``details`` payload carries ``tool``, ``version``, and (when known)
+    ``agent_id`` / ``tenant_id`` so dashboards can correlate failures with
+    the calling agent.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Agent runtime
 # ---------------------------------------------------------------------------
@@ -121,17 +142,19 @@ class RegistryError(EAAPBaseException):
 
 
 __all__ = [
-    "EAAPBaseException",
-    "ConfigurationError",
-    "SecretResolutionError",
-    "DependencyResolutionError",
-    "StorageError",
-    "CheckpointError",
-    "PolicyDenialError",
-    "LLMInvocationError",
-    "BudgetExceededError",
-    "SchemaValidationError",
-    "AgentRuntimeError",
     "AgentRecursionLimitError",
+    "AgentRuntimeError",
+    "BudgetExceededError",
+    "CheckpointError",
+    "ConfigurationError",
+    "DependencyResolutionError",
+    "EAAPBaseException",
+    "LLMInvocationError",
+    "PolicyDenialError",
     "RegistryError",
+    "SchemaValidationError",
+    "SecretResolutionError",
+    "StorageError",
+    "ToolExecutionError",
+    "ToolValidationError",
 ]
