@@ -15,6 +15,7 @@ concerns are wired in by :class:`ai_core.tools.invoker.ToolInvoker`.
 from __future__ import annotations
 
 import inspect
+import sys
 import typing
 from typing import TYPE_CHECKING, TypeVar
 
@@ -134,8 +135,20 @@ def tool(
 
         # Resolve string annotations (e.g. when `from __future__ import annotations`
         # is in use in the user's module).
+        # We try progressively richer namespaces so that tools defined inside
+        # functions (common in tests) can reference locally-scoped models.
+        localns: dict[str, object] | None = None
         try:
-            hints = typing.get_type_hints(fn_any)
+            # Frame 0 = decorate (this function); frame 1 = call site where
+            # @tool(...) is applied. Merge locals + globals so that models
+            # defined inside a function body (common in tests) are visible.
+            frame = sys._getframe(1)  # private but stable CPython API
+            localns = {**frame.f_globals, **frame.f_locals}
+        except (AttributeError, ValueError):
+            pass
+
+        try:
+            hints = typing.get_type_hints(fn_any, localns=localns)
         except (NameError, AttributeError, TypeError) as exc:
             raise TypeError(
                 f"@tool could not resolve type hints for '{fn_any.__name__}': {exc}. "
