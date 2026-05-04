@@ -1,7 +1,10 @@
 """Tests for the ToolInvoker pipeline."""
 from __future__ import annotations
 
+import json as _json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel, Field
@@ -26,6 +29,22 @@ pytestmark = pytest.mark.unit
 class _In(BaseModel):
     q: str
     limit: int = Field(default=10, ge=1)
+
+
+# --- Module-level fixtures for datetime/UUID JSON-safety test -----------------
+
+
+class _DateOut(BaseModel):
+    when: datetime
+    ref: UUID
+
+
+@tool(name="ts", version=1)
+async def _ts_tool(payload: _In) -> _DateOut:
+    return _DateOut(
+        when=datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        ref=UUID("12345678-1234-5678-1234-567812345678"),
+    )
 
 
 class _Out(BaseModel):
@@ -221,3 +240,18 @@ async def test_pipeline_order_input_then_opa_then_handler(
     assert call.input["tool"] == "search"
     assert call.input["payload"] == {"q": "x", "limit": 1}
     assert call.input["user"] == {"sub": "u1"}
+
+
+@pytest.mark.asyncio
+async def test_invoke_returns_json_safe_dict_for_datetime_output(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """Output models containing datetime/UUID must round-trip through json.dumps."""
+    inv = _invoker(fake_observability, fake_policy_evaluator_factory)
+    result = await inv.invoke(_ts_tool, {"q": "x", "limit": 1})
+    # Must be JSON-serializable without error.
+    blob = _json.dumps(result)
+    parsed = _json.loads(blob)
+    assert parsed["when"].startswith("2026-01-01T12:00:00")
+    assert parsed["ref"] == "12345678-1234-5678-1234-567812345678"

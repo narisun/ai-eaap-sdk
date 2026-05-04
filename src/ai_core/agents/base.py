@@ -2,8 +2,8 @@
 
 A subclass implements three things:
 
-1. :meth:`tools` — return the OpenAI-style tool definitions the agent
-   can invoke (or ``[]``).
+1. :meth:`tools` — return either SDK ``Tool``-protocol objects (e.g. via
+   :func:`@tool`) or raw OpenAI-style dicts (or ``()``).
 2. :meth:`system_prompt` — return the system prompt for the agent.
 3. *(optional)* :meth:`extend_graph` — add custom nodes/edges to the
    compiled :class:`StateGraph` before it is finalised.
@@ -55,6 +55,25 @@ from ai_core.tools.invoker import ToolInvoker
 from ai_core.tools.spec import Tool, ToolSpec
 
 _logger = logging.getLogger(__name__)
+
+
+def _parse_tool_call_args(arguments: str | None) -> dict[str, Any]:
+    """Parse JSON tool-call arguments; return a sentinel dict on malformed input.
+
+    Args:
+        arguments: Raw JSON string from the LLM's ``function.arguments`` field.
+
+    Returns:
+        A dict of parsed arguments, or ``{"__parse_error__": <raw>}`` when the
+        string is not valid JSON or does not decode to a mapping.
+    """
+    if not arguments:
+        return {}
+    try:
+        parsed = json.loads(arguments)
+    except json.JSONDecodeError:
+        return {"__parse_error__": arguments}
+    return parsed if isinstance(parsed, dict) else {"__parse_error__": str(parsed)}
 
 
 class BaseAgent(ABC):
@@ -128,14 +147,16 @@ class BaseAgent(ABC):
         sdk_tools = [t for t in self.tools() if isinstance(t, ToolSpec)]
         install_loop = self.auto_tool_loop and bool(sdk_tools)
 
+        # START routing is invariant across branches.
+        graph.add_conditional_edges(
+            START,
+            self._router_should_compact,
+            {True: "compact", False: "agent"},
+        )
+        graph.add_edge("compact", "agent")
+
         if install_loop:
             graph.add_node("tool", self._tool_node)
-            graph.add_conditional_edges(
-                START,
-                self._router_should_compact,
-                {True: "compact", False: "agent"},
-            )
-            graph.add_edge("compact", "agent")
             graph.add_conditional_edges(
                 "agent",
                 self._router_after_agent,
@@ -143,12 +164,6 @@ class BaseAgent(ABC):
             )
             graph.add_edge("tool", "agent")
         else:
-            graph.add_conditional_edges(
-                START,
-                self._router_should_compact,
-                {True: "compact", False: "agent"},
-            )
-            graph.add_edge("compact", "agent")
             graph.add_edge("agent", END)
 
         self.extend_graph(graph)
@@ -233,8 +248,6 @@ class BaseAgent(ABC):
                 tool_payload.append(t.openai_schema())
             elif isinstance(t, Mapping):
                 tool_payload.append(t)
-            elif hasattr(t, "openai_schema"):
-                tool_payload.append(t.openai_schema())
 
         response = await self._llm.complete(
             model=None,
@@ -251,7 +264,7 @@ class BaseAgent(ABC):
                     {
                         "id": tc.get("id") or f"call-{i}",
                         "name": tc.get("function", {}).get("name", ""),
-                        "args": json.loads(tc.get("function", {}).get("arguments") or "{}"),
+                        "args": _parse_tool_call_args(tc.get("function", {}).get("arguments")),
                     }
                     for i, tc in enumerate(response.tool_calls)
                 ],
@@ -279,6 +292,14 @@ class BaseAgent(ABC):
             tc_id = tc.get("id") if isinstance(tc, Mapping) else getattr(tc, "id", "")
             name = tc.get("name") if isinstance(tc, Mapping) else getattr(tc, "name", "")
             args = tc.get("args") if isinstance(tc, Mapping) else getattr(tc, "args", {}) or {}
+            if isinstance(args, Mapping) and "__parse_error__" in args:
+                raw = args["__parse_error__"]
+                appended.append(ToolMessage(
+                    content=f"Tool '{name}' arguments were not valid JSON: {raw!r}",
+                    tool_call_id=tc_id or "",
+                    name=name,
+                ))
+                continue
             spec = sdk_tools_by_name.get(name)
             if spec is None:
                 appended.append(ToolMessage(
@@ -300,11 +321,10 @@ class BaseAgent(ABC):
                     name=name,
                 ))
             except ToolValidationError as exc:
+                first_err = exc.details.get("errors", [{}])[0] if exc.details.get("errors") else {}
+                msg = first_err.get("msg") if isinstance(first_err, Mapping) else None
                 appended.append(ToolMessage(
-                    content=(
-                        f"Validation failed for '{name}': "
-                        f"{exc.message} ({exc.details.get('errors', [])[:1]})"
-                    ),
+                    content=f"Validation failed for '{name}': {msg or exc.message}",
                     tool_call_id=tc_id or "",
                     name=name,
                 ))
@@ -316,9 +336,7 @@ class BaseAgent(ABC):
                     name=name,
                 ))
             except ToolExecutionError as exc:
-                _logger.error(
-                    "Tool '%s' execution error", name, exc_info=exc.__cause__,
-                )
+                _logger.error("Tool '%s' execution error", name, exc_info=exc)
                 appended.append(ToolMessage(
                     content=f"Tool '{name}' failed: {exc.message}",
                     tool_call_id=tc_id or "",

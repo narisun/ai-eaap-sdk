@@ -46,7 +46,7 @@ class ToolInvoker:
     3. Open OTel span ``"tool.invoke"`` carrying tool/version/agent/tenant attributes.
     4. ``await spec.handler(payload)``; raise -> ``ToolExecutionError`` chained.
     5. Validate output via ``spec.output_model.model_validate`` (``ToolValidationError``).
-    6. Emit ``"tool.completed"`` event and return ``output.model_dump()``.
+    6. Emit ``"tool.completed"`` event and return ``output.model_dump(mode="json")``.
     """
 
     def __init__(
@@ -187,7 +187,7 @@ class ToolInvoker:
             "tool.completed",
             attributes={"tool.name": spec.name, "tool.version": spec.version},
         )
-        return validated.model_dump()
+        return validated.model_dump(mode="json")
 
 
 __all__ = ["ToolInvoker"]

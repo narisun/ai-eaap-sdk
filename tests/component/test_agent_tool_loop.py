@@ -221,3 +221,46 @@ async def test_auto_tool_loop_can_be_disabled(
         last.get("tool_calls") if isinstance(last, dict) else None
     )
     assert tc, "Expected the unanswered tool_calls to remain on the final message."
+
+
+@pytest.mark.asyncio
+async def test_malformed_tool_args_surface_as_toolmessage(
+    fake_observability, fake_policy_evaluator_factory
+):
+    """LLM emitting malformed JSON in tool_calls.arguments must not crash the graph."""
+    llm = _ScriptedLLM([
+        _llm_msg(tool_calls=[{
+            "id": "call-1",
+            "type": "function",
+            "function": {"name": "count", "arguments": "not-json{"},
+        }]),
+        _llm_msg(content="Sorry, I'll retry."),
+    ])
+    container = _build(llm, fake_observability, fake_policy_evaluator_factory)
+    agent = container.get(_DemoAgent)
+    state = await agent.ainvoke(messages=[{"role": "user", "content": "count x"}])
+    final = state["messages"][-1]
+    final_content = getattr(final, "content", None) or final["content"]
+    assert "retry" in final_content.lower() or "sorry" in final_content.lower()
+
+
+@pytest.mark.asyncio
+async def test_multiple_tool_calls_in_one_turn(
+    fake_observability, fake_policy_evaluator_factory
+):
+    """An AIMessage with multiple tool_calls dispatches each."""
+    llm = _ScriptedLLM([
+        _llm_msg(tool_calls=[
+            {"id": "call-1", "type": "function",
+             "function": {"name": "count", "arguments": '{"q":"abc"}'}},
+            {"id": "call-2", "type": "function",
+             "function": {"name": "count", "arguments": '{"q":"defgh"}'}},
+        ]),
+        _llm_msg(content="Got 3 and 5."),
+    ])
+    container = _build(llm, fake_observability, fake_policy_evaluator_factory)
+    agent = container.get(_DemoAgent)
+    state = await agent.ainvoke(messages=[{"role": "user", "content": "count two things"}])
+    final = state["messages"][-1]
+    final_content = getattr(final, "content", None) or final["content"]
+    assert "3" in final_content and "5" in final_content
