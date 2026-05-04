@@ -61,7 +61,8 @@ def test_toolspec_satisfies_tool_protocol() -> None:
     assert spec.version == 1
 
 
-def test_toolspec_eq_uses_name_and_version() -> None:
+def test_toolspec_eq_is_structural_over_all_fields() -> None:
+    """Verify that ToolSpec equality is structural, checking all fields."""
     a = _spec()
     b = _spec()
     assert a == b
@@ -75,3 +76,26 @@ def test_toolspec_eq_uses_name_and_version() -> None:
         opa_path=None,
     )
     assert a != c
+
+
+def test_toolspec_rejects_zero_or_negative_version() -> None:
+    with pytest.raises(ValueError):
+        ToolSpec(
+            name="x",
+            version=0,
+            description="d",
+            input_model=_In,
+            output_model=_Out,
+            handler=cast("ToolHandler", _handler),
+            opa_path=None,
+        )
+    with pytest.raises(ValueError):
+        ToolSpec(
+            name="x",
+            version=-1,
+            description="d",
+            input_model=_In,
+            output_model=_Out,
+            handler=cast("ToolHandler", _handler),
+            opa_path=None,
+        )

@@ -44,6 +44,12 @@ class ToolSpec:
     handler: ToolHandler
     opa_path: str | None
 
+    def __post_init__(self) -> None:
+        if self.version < 1:
+            raise ValueError(
+                f"ToolSpec.version must be >= 1, got {self.version} for tool '{self.name}'."
+            )
+
     def openai_schema(self) -> dict[str, Any]:
         """Return the OpenAI function-calling schema for this tool."""
         return {
@@ -58,7 +64,14 @@ class ToolSpec:
 
 @runtime_checkable
 class Tool(Protocol):
-    """Structural type for anything an agent can advertise to its LLM."""
+    """Structural type for anything an agent can advertise to its LLM.
+
+    Note: ``isinstance(x, Tool)`` is a *structural* check that only verifies
+    attribute names exist — not their types or method signatures. Use it to
+    gate Protocol conformance, not for trusted dispatch. Production code
+    should narrow on the concrete :class:`ToolSpec` type when it intends to
+    invoke ``handler``, ``opa_path``, etc.
+    """
 
     name: str
     version: int
