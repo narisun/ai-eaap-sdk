@@ -49,6 +49,7 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.security.opa import OPAPolicyEvaluator
+from ai_core.tools.invoker import ToolInvoker
 
 
 class AgentModule(Module):
@@ -228,6 +229,18 @@ class AgentModule(Module):
     def provide_schema_registry(self) -> SchemaRegistry:
         """Return the in-process versioned-schema registry singleton."""
         return SchemaRegistry()
+
+    # ----- Tool invoker -----------------------------------------------------
+    @singleton
+    @provider
+    def provide_tool_invoker(
+        self,
+        observability: IObservabilityProvider,
+        policy: IPolicyEvaluator,
+        registry: SchemaRegistry,
+    ) -> ToolInvoker:
+        """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
+        return ToolInvoker(observability=observability, policy=policy, registry=registry)
 
 
 __all__ = ["AgentModule"]
