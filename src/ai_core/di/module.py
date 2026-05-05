@@ -48,7 +48,6 @@ from ai_core.persistence.engine import EngineFactory
 from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
-from ai_core.security.opa import OPAPolicyEvaluator
 from ai_core.tools.invoker import ToolInvoker
 
 
@@ -206,9 +205,15 @@ class AgentModule(Module):
     # ----- Security ---------------------------------------------------------
     @singleton
     @provider
-    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
-        """Return the OPA-backed policy evaluator singleton."""
-        return OPAPolicyEvaluator(settings)
+    def provide_policy_evaluator(self) -> IPolicyEvaluator:
+        """Return the default :class:`NoOpPolicyEvaluator`.
+
+        Production deployments must override this binding with
+        :class:`ProductionSecurityModule` (or a custom module that binds a
+        real evaluator) to enable policy enforcement.
+        """
+        from ai_core.security.noop_policy import NoOpPolicyEvaluator  # noqa: PLC0415
+        return NoOpPolicyEvaluator()
 
     @singleton
     @provider
@@ -243,4 +248,26 @@ class AgentModule(Module):
         return ToolInvoker(observability=observability, policy=policy, registry=registry)
 
 
-__all__ = ["AgentModule"]
+class ProductionSecurityModule(Module):
+    """Opt-in DI module that binds :class:`OPAPolicyEvaluator` over the NoOp default.
+
+    Compose with :class:`AgentModule` for production:
+
+    .. code-block:: python
+
+        from ai_core.app import AICoreApp
+        from ai_core.di.module import ProductionSecurityModule
+
+        async with AICoreApp(modules=[ProductionSecurityModule()]) as app:
+            ...
+    """
+
+    @singleton
+    @provider
+    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
+        """Return the OPA-backed policy evaluator. Loaded from `ai_core.security.opa`."""
+        from ai_core.security.opa import OPAPolicyEvaluator  # noqa: PLC0415
+        return OPAPolicyEvaluator(settings)
+
+
+__all__ = ["AgentModule", "ProductionSecurityModule"]
