@@ -183,10 +183,7 @@ class ToolInvoker:
             ) from exc
 
         # ----- 6. Completion event -------------------------------------------------
-        await self._observability.record_event(
-            "tool.completed",
-            attributes={"tool.name": spec.name, "tool.version": spec.version},
-        )
+        await self._observability.record_event("tool.completed", attributes=attrs)
         return validated.model_dump(mode="json")
 
 
