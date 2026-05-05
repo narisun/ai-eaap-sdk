@@ -179,9 +179,9 @@ class LiteLLMClient(ILLMClient):
                     cause=exc,
                 ) from exc
             latency_ms = (time.monotonic() - started) * 1000.0
+            response = _normalise_response(resolved_model, raw)  # inside span: errors get tagged
 
-        # --- 3. Normalise response + record usage -------------------------------
-        response = _normalise_response(resolved_model, raw)
+        # --- 3. Record usage (outside span — pure metric emit) ------------------
         cost_usd = _extract_cost(raw)
 
         await self._observability.record_llm_usage(

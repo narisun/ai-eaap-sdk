@@ -46,6 +46,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from ai_core.agents.state import AgentState
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient
+from ai_core.exceptions import LLMTimeoutError
 
 _logger = logging.getLogger(__name__)
 
@@ -196,6 +197,13 @@ class MemoryManager(IMemoryManager):
                 "Compaction skipped: LLM call exceeded %.1fs timeout "
                 "(agent_id=%s, tenant_id=%s)",
                 timeout, agent_id, tenant_id,
+            )
+            return state
+        except LLMTimeoutError as exc:
+            _logger.warning(
+                "Compaction skipped: LLM client timeout (agent_id=%s, tenant_id=%s, "
+                "error_code=%s)",
+                agent_id, tenant_id, exc.error_code,
             )
             return state
 

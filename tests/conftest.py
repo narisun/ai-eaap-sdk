@@ -11,6 +11,8 @@ import pytest
 from ai_core.config.secrets import ISecretManager, SecretRef
 from ai_core.config.settings import AppSettings, get_settings
 from ai_core.di.interfaces import (
+    BudgetCheck,
+    IBudgetService,
     IObservabilityProvider,
     IPolicyEvaluator,
     PolicyDecision,
@@ -207,3 +209,54 @@ def fake_secret_manager_factory() -> Callable[..., FakeSecretManager]:
         return FakeSecretManager(mapping or {})
 
     return _make
+
+
+# ---------------------------------------------------------------------------
+# FakeBudgetService — promoted from per-test-file definitions (Phase 3 item 9)
+# ---------------------------------------------------------------------------
+class FakeBudgetService(IBudgetService):
+    """Always-allow IBudgetService for tests. Records call kwargs for assertion."""
+
+    def __init__(self) -> None:
+        self.checks: list[Mapping[str, Any]] = []
+        self.usages: list[Mapping[str, Any]] = []
+
+    async def check(
+        self,
+        *,
+        tenant_id: str | None,
+        agent_id: str | None,
+        estimated_tokens: int,
+    ) -> BudgetCheck:
+        self.checks.append(
+            {
+                "tenant_id": tenant_id,
+                "agent_id": agent_id,
+                "estimated_tokens": estimated_tokens,
+            },
+        )
+        return BudgetCheck(allowed=True, remaining_tokens=None, remaining_usd=None)
+
+    async def record_usage(
+        self,
+        *,
+        tenant_id: str | None,
+        agent_id: str | None,
+        prompt_tokens: int,
+        completion_tokens: int,
+        cost_usd: float,
+    ) -> None:
+        self.usages.append(
+            {
+                "tenant_id": tenant_id,
+                "agent_id": agent_id,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cost_usd": cost_usd,
+            },
+        )
+
+
+@pytest.fixture
+def fake_budget() -> FakeBudgetService:
+    return FakeBudgetService()

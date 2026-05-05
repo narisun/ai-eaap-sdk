@@ -93,48 +93,6 @@ class ToolInvoker:
         agent_id: str | None = None,
         tenant_id: str | None = None,
     ) -> Mapping[str, Any]:
-        # ----- 1. Input validation -------------------------------------------------
-        try:
-            payload = spec.input_model.model_validate(dict(raw_args))
-        except ValidationError as exc:
-            raise ToolValidationError(
-                f"Tool '{spec.name}' v{spec.version} input failed validation.",
-                details={
-                    "tool": spec.name,
-                    "version": spec.version,
-                    "side": "input",
-                    "errors": exc.errors(),
-                },
-                cause=exc,
-            ) from exc
-
-        # ----- 2. OPA enforcement --------------------------------------------------
-        if spec.opa_path is not None and self._policy is not None:
-            decision = await self._policy.evaluate(
-                decision_path=spec.opa_path,
-                input={
-                    "tool": spec.name,
-                    "version": spec.version,
-                    "payload": payload.model_dump(),
-                    "user": dict(principal or {}),
-                    "agent_id": agent_id,
-                    "tenant_id": tenant_id,
-                },
-            )
-            if not decision.allowed:
-                raise PolicyDenialError(
-                    f"Tool '{spec.name}' v{spec.version} denied by policy: "
-                    f"{decision.reason or 'no reason provided'}",
-                    details={
-                        "tool": spec.name,
-                        "version": spec.version,
-                        "reason": decision.reason,
-                        "agent_id": agent_id,
-                        "tenant_id": tenant_id,
-                    },
-                )
-
-        # ----- 3. Span + 4. handler call -----------------------------------------
         attrs: dict[str, Any] = {
             "tool.name": spec.name,
             "tool.version": spec.version,
@@ -142,9 +100,51 @@ class ToolInvoker:
             "tenant_id": tenant_id or "",
         }
         async with self._observability.start_span("tool.invoke", attributes=attrs):
+            # ----- 1. Input validation --------------------------------------------
+            try:
+                payload = spec.input_model.model_validate(dict(raw_args))
+            except ValidationError as exc:
+                raise ToolValidationError(
+                    f"Tool '{spec.name}' v{spec.version} input failed validation.",
+                    details={
+                        "tool": spec.name,
+                        "version": spec.version,
+                        "side": "input",
+                        "errors": exc.errors(),
+                    },
+                    cause=exc,
+                ) from exc
+
+            # ----- 2. OPA enforcement ---------------------------------------------
+            if spec.opa_path is not None and self._policy is not None:
+                decision = await self._policy.evaluate(
+                    decision_path=spec.opa_path,
+                    input={
+                        "tool": spec.name,
+                        "version": spec.version,
+                        "payload": payload.model_dump(),
+                        "user": dict(principal or {}),
+                        "agent_id": agent_id,
+                        "tenant_id": tenant_id,
+                    },
+                )
+                if not decision.allowed:
+                    raise PolicyDenialError(
+                        f"Tool '{spec.name}' v{spec.version} denied by policy: "
+                        f"{decision.reason or 'no reason provided'}",
+                        details={
+                            "tool": spec.name,
+                            "version": spec.version,
+                            "reason": decision.reason,
+                            "agent_id": agent_id,
+                            "tenant_id": tenant_id,
+                        },
+                    )
+
+            # ----- 3+4. Handler call ----------------------------------------------
             try:
                 result: Any = await spec.handler(payload)
-            except Exception as exc:
+            except Exception as exc:  # wrap as ToolExecutionError
                 raise ToolExecutionError(
                     f"Tool '{spec.name}' v{spec.version} failed: {exc}",
                     details={
@@ -156,33 +156,30 @@ class ToolInvoker:
                     cause=exc,
                 ) from exc
 
-        # ----- 5. Output validation ------------------------------------------------
-        # Output validation runs *outside* the span CM intentionally: the handler itself
-        # completed without raising, so the "tool.invoke" span succeeded. A non-conforming
-        # return value is a contract violation reported via ToolValidationError(side="output").
-        try:
-            validated: BaseModel = spec.output_model.model_validate(result)
-        except ValidationError as exc:
-            _logger.warning(
-                "Tool '%s' v%s returned a non-conforming object "
-                "(agent_id=%s, tenant_id=%s); this is a handler bug.",
-                spec.name,
-                spec.version,
-                agent_id,
-                tenant_id,
-            )
-            raise ToolValidationError(
-                f"Tool '{spec.name}' v{spec.version} returned invalid data.",
-                details={
-                    "tool": spec.name,
-                    "version": spec.version,
-                    "side": "output",
-                    "errors": exc.errors(),
-                },
-                cause=exc,
-            ) from exc
+            # ----- 5. Output validation -------------------------------------------
+            try:
+                validated: BaseModel = spec.output_model.model_validate(result)
+            except ValidationError as exc:
+                _logger.warning(
+                    "Tool '%s' v%s returned a non-conforming object "
+                    "(agent_id=%s, tenant_id=%s); this is a handler bug.",
+                    spec.name,
+                    spec.version,
+                    agent_id,
+                    tenant_id,
+                )
+                raise ToolValidationError(
+                    f"Tool '{spec.name}' v{spec.version} returned invalid data.",
+                    details={
+                        "tool": spec.name,
+                        "version": spec.version,
+                        "side": "output",
+                        "errors": exc.errors(),
+                    },
+                    cause=exc,
+                ) from exc
 
-        # ----- 6. Completion event -------------------------------------------------
+        # ----- 6. Completion event (outside span — span already closed cleanly) ---
         await self._observability.record_event("tool.completed", attributes=attrs)
         return validated.model_dump(mode="json")
 

@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ class LLMResponse:
     tool_calls: Sequence[Mapping[str, Any]]
     usage: LLMUsage
     raw: Mapping[str, Any]
-    finish_reason: str | None = None   # None means upstream didn't report
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter", "function_call"] | str | None = None  # None means upstream didn't report
 
 
 class ILLMClient(ABC):

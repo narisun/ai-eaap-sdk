@@ -127,8 +127,11 @@ async def test_opa_deny_raises_policy_denial(
         await inv.invoke(_search, {"q": "x", "limit": 1})
     assert exc.value.details["tool"] == "search"
     assert "denied" in exc.value.message.lower() or exc.value.details.get("reason") == "denied"
-    # OPA deny short-circuits before the span opens.
-    assert fake_observability.spans == []
+    # OPA deny now propagates inside the span (gets eaap.error.code tagging).
+    assert any(
+        s.name == "tool.invoke" and s.error_code == "policy.denied"
+        for s in fake_observability.spans
+    )
 
 
 @pytest.mark.asyncio
@@ -255,3 +258,50 @@ async def test_invoke_returns_json_safe_dict_for_datetime_output(
     parsed = _json.loads(blob)
     assert parsed["when"].startswith("2026-01-01T12:00:00")
     assert parsed["ref"] == "12345678-1234-5678-1234-567812345678"
+
+
+@pytest.mark.asyncio
+async def test_input_validation_error_tags_tool_invoke_span(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """ToolValidationError(side='input') must propagate inside the tool.invoke span."""
+    inv = _invoker(fake_observability, fake_policy_evaluator_factory)
+    with pytest.raises(ToolValidationError):
+        await inv.invoke(_search, {"q": "x", "limit": -1})  # limit<1 fails Pydantic
+    spans = [s for s in fake_observability.spans if s.name == "tool.invoke"]
+    assert len(spans) == 1
+    assert spans[0].error_code == "tool.validation_failed"
+
+
+@pytest.mark.asyncio
+async def test_policy_denial_tags_tool_invoke_span(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """PolicyDenialError must propagate inside the tool.invoke span."""
+    inv = _invoker(fake_observability, fake_policy_evaluator_factory, allow=False, reason="denied")
+    with pytest.raises(PolicyDenialError):
+        await inv.invoke(_search, {"q": "x", "limit": 1})
+    spans = [s for s in fake_observability.spans if s.name == "tool.invoke"]
+    assert len(spans) == 1
+    assert spans[0].error_code == "policy.denied"
+
+
+@pytest.mark.asyncio
+async def test_output_validation_error_tags_tool_invoke_span(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """ToolValidationError(side='output') must propagate inside the tool.invoke span."""
+
+    @tool(name="lying_v2", version=1)
+    async def lying_v2(payload: _In) -> _Out:
+        return {"wrong": True}  # type: ignore[return-value]
+
+    inv = _invoker(fake_observability, fake_policy_evaluator_factory)
+    with pytest.raises(ToolValidationError):
+        await inv.invoke(lying_v2, {"q": "x", "limit": 1})
+    spans = [s for s in fake_observability.spans if s.name == "tool.invoke"]
+    assert len(spans) == 1
+    assert spans[0].error_code == "tool.validation_failed"

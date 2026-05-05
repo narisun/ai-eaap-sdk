@@ -26,6 +26,7 @@ from ai_core.di.interfaces import (
 from ai_core.exceptions import BudgetExceededError, LLMInvocationError, LLMTimeoutError
 from ai_core.llm.litellm_client import LiteLLMClient, _normalise_response
 from ai_core.observability.noop import NoOpObservabilityProvider
+from tests.conftest import FakeBudgetService
 
 
 pytestmark = pytest.mark.unit
@@ -350,28 +351,6 @@ def test_finish_reason_none_when_upstream_omits() -> None:
 # §2c — LLMTimeoutError mapping after retry exhaustion
 # ---------------------------------------------------------------------------
 
-class _AlwaysAllowBudget(IBudgetService):
-    async def check(
-        self,
-        *,
-        tenant_id: str | None,
-        agent_id: str | None,
-        estimated_tokens: int,
-    ) -> BudgetCheck:
-        return BudgetCheck(allowed=True, remaining_tokens=None, remaining_usd=None)
-
-    async def record_usage(
-        self,
-        *,
-        tenant_id: str | None,
-        agent_id: str | None,
-        prompt_tokens: int,
-        completion_tokens: int,
-        cost_usd: float,
-    ) -> None:
-        return None
-
-
 class _NoOpObservability(IObservabilityProvider):
     def start_span(
         self,
@@ -413,7 +392,7 @@ async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pyt
 
     client = LiteLLMClient(
         settings=settings,
-        budget=_AlwaysAllowBudget(),
+        budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
     with pytest.raises(LLMTimeoutError) as exc:
@@ -444,7 +423,7 @@ async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypat
 
     client = LiteLLMClient(
         settings=settings,
-        budget=_AlwaysAllowBudget(),
+        budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
     with pytest.raises(LLMInvocationError) as exc:
@@ -455,3 +434,38 @@ async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypat
     # Assert we went through the RetryError path (not _TRANSIENT_LLM_ERRORS).
     assert exc.value.details["attempts"] == 1
     assert "after retries" in exc.value.message
+
+
+@pytest.mark.asyncio
+async def test_empty_response_tags_llm_complete_span(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_observability: Any,
+    fake_budget: Any,
+) -> None:
+    """An empty LLM response must propagate inside the llm.complete span so
+    eaap.error.code='llm.empty_response' is auto-emitted."""
+    settings = AppSettings()
+    settings.llm.max_retries = 0
+
+    async def _empty_response(**kwargs: Any) -> Any:
+        return {
+            "model": "gpt-x",
+            "choices": [{"message": {"content": "", "tool_calls": []},
+                         "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 0, "total_tokens": 1},
+        }
+
+    monkeypatch.setattr("litellm.acompletion", _empty_response)
+
+    client = LiteLLMClient(
+        settings=settings,
+        budget=fake_budget,
+        observability=fake_observability,
+    )
+    with pytest.raises(LLMInvocationError) as exc:
+        await client.complete(model="gpt-x",
+                              messages=[{"role": "user", "content": "hi"}])
+    assert exc.value.error_code == "llm.empty_response"
+    spans = [s for s in fake_observability.spans if s.name == "llm.complete"]
+    assert len(spans) == 1
+    assert spans[0].error_code == "llm.empty_response"
