@@ -101,7 +101,8 @@ def test_init_renders_eaap_yaml(runner: CliRunner, tmp_path: Path) -> None:
 
 def test_init_env_example_includes_phase4_keys(runner: CliRunner, tmp_path: Path) -> None:
     """`.env.example` exposes Phase 4 env vars (commented)."""
-    runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    result = runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    assert result.exit_code == 0, result.output
     env_example = (tmp_path / "my-app" / ".env.example").read_text()
     assert "EAAP_LLM__PROMPT_CACHE_ENABLED" in env_example
     assert "EAAP_MCP__POOL_ENABLED" in env_example
@@ -113,7 +114,8 @@ def test_init_renders_starter_policies_with_content(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """`policies/agent.rego` and `policies/api.rego` are rendered with non-trivial content."""
-    runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    result = runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    assert result.exit_code == 0, result.output
     agent = (tmp_path / "my-app" / "policies" / "agent.rego").read_text()
     api = (tmp_path / "my-app" / "policies" / "api.rego").read_text()
     # Both files declare a Rego package and a default-deny rule.
