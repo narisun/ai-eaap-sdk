@@ -1,8 +1,10 @@
 """Meta-test: every IAuditSink implementation MUST swallow internal errors."""
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import pytest
 

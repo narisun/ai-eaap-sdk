@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from ai_core.audit import AuditEvent, AuditRecord
 from ai_core.audit.jsonl import JsonlFileAuditSink

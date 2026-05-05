@@ -1,9 +1,12 @@
 """Tests for AgentModule's audit-sink binding."""
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from ai_core.audit import IAuditSink, JsonlFileAuditSink, NullAuditSink, OTelEventAuditSink
 from ai_core.config.settings import AppSettings, AuditSettings
