@@ -280,10 +280,8 @@ class AgentModule(Module):
             DatabaseProbe,
             ModelLookupProbe,
             OPAReachabilityProbe,
-            SettingsProbe,
         )
         return [
-            SettingsProbe(settings),
             OPAReachabilityProbe(settings),
             DatabaseProbe(engine),
             ModelLookupProbe(settings),

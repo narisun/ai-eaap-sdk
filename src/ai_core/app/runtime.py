@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeVar
 
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
@@ -30,7 +31,7 @@ from ai_core.observability.logging import configure as _configure_logging
 from ai_core.tools.invoker import ToolInvoker
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from injector import Module
 
@@ -44,9 +45,17 @@ class HealthSnapshot:
     """Coarse application health snapshot returned by :py:meth:`AICoreApp.health`."""
 
     status: HealthStatus
-    components: dict[str, HealthStatus]
-    component_details: dict[str, str | None]
+    components: Mapping[str, HealthStatus]
+    component_details: Mapping[str, str | None]
     service_name: str
+
+    def __post_init__(self) -> None:
+        # Wrap the dicts in read-only MappingProxyType so callers can't mutate
+        # the snapshot. Mutation attempts raise TypeError, matching frozen=True semantics.
+        object.__setattr__(self, "components", MappingProxyType(dict(self.components)))
+        object.__setattr__(
+            self, "component_details", MappingProxyType(dict(self.component_details))
+        )
 
 
 class _HealthCheckRunner:

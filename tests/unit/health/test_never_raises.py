@@ -11,17 +11,9 @@ from ai_core.health.probes import (
     DatabaseProbe,
     ModelLookupProbe,
     OPAReachabilityProbe,
-    SettingsProbe,
 )
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.mark.asyncio
-async def test_settings_probe_never_raises() -> None:
-    probe = SettingsProbe(AppSettings())
-    result = await probe.probe()
-    assert result is not None  # always returns something
 
 
 @pytest.mark.asyncio

@@ -193,6 +193,14 @@ class SecuritySettings(BaseSettings):
         default=True,
         description="If True, deny on OPA error; if False, allow (use with caution).",
     )
+    opa_health_path: str = Field(
+        default="/health",
+        description=(
+            "Path appended to opa_url for the reachability probe. Override for "
+            "deployments where OPA is mounted at a non-standard prefix "
+            "(e.g., '/opa/health' behind an API gateway)."
+        ),
+    )
     jwt_audience: str | None = None
     jwt_issuer: str | None = None
 

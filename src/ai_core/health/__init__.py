@@ -7,11 +7,9 @@ from ai_core.health.probes import (
     DatabaseProbe,
     ModelLookupProbe,
     OPAReachabilityProbe,
-    SettingsProbe,
 )
 
 __all__ = [
     "DatabaseProbe", "HealthStatus", "IHealthProbe",
     "ModelLookupProbe", "OPAReachabilityProbe", "ProbeResult",
-    "SettingsProbe",
 ]

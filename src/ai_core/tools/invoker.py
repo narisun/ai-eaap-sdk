@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
-from ai_core.audit import AuditEvent, AuditRecord, NullAuditSink
+from ai_core.audit import AuditEvent, AuditRecord
 from ai_core.exceptions import (
     PolicyDenialError,
     SchemaValidationError,
@@ -64,10 +64,13 @@ class ToolInvoker:
         registry: SchemaRegistry | None = None,
         audit: IAuditSink | None = None,
     ) -> None:
+        from ai_core.audit.null import NullAuditSink as _NullAuditSink  # noqa: PLC0415
         self._observability = observability
         self._policy = policy
         self._registry = registry
-        self._audit: IAuditSink = audit or NullAuditSink()
+        self._audit: IAuditSink = audit or _NullAuditSink()
+        # Phase 4: skip AuditRecord.now() allocation entirely when the sink is no-op.
+        self._records_audit: bool = not isinstance(self._audit, _NullAuditSink)
 
     def register(self, spec: ToolSpec) -> None:
         """Register a spec with the underlying :class:`SchemaRegistry`. Idempotent.
@@ -139,17 +142,21 @@ class ToolInvoker:
                             "tenant_id": tenant_id,
                         },
                     )
-                    await self._audit.record(AuditRecord.now(
-                        AuditEvent.POLICY_DECISION,
-                        tool_name=spec.name,
-                        tool_version=spec.version,
-                        agent_id=agent_id,
-                        tenant_id=tenant_id,
-                        decision_path=spec.opa_path,
-                        decision_allowed=decision.allowed,
-                        decision_reason=decision.reason,
-                        payload={"input": payload.model_dump()},
-                    ))
+                    if self._records_audit:
+                        await self._audit.record(AuditRecord.now(
+                            AuditEvent.POLICY_DECISION,
+                            tool_name=spec.name,
+                            tool_version=spec.version,
+                            agent_id=agent_id,
+                            tenant_id=tenant_id,
+                            decision_path=spec.opa_path,
+                            decision_allowed=decision.allowed,
+                            decision_reason=decision.reason,
+                            payload={
+                            "input": payload.model_dump(),
+                            "user": dict(principal or {}),
+                        },
+                        ))
                     if not decision.allowed:
                         raise PolicyDenialError(
                             f"Tool '{spec.name}' v{spec.version} denied by policy: "
@@ -200,28 +207,40 @@ class ToolInvoker:
 
             # ----- 6. Completion event + audit (outside span — span already closed) --
             latency_ms = (time.monotonic() - started) * 1000.0
-            await self._observability.record_event("tool.completed", attributes=attrs)
-            await self._audit.record(AuditRecord.now(
-                AuditEvent.TOOL_INVOCATION_COMPLETED,
-                tool_name=spec.name,
-                tool_version=spec.version,
-                agent_id=agent_id,
-                tenant_id=tenant_id,
-                latency_ms=latency_ms,
-            ))
+            try:
+                await self._observability.record_event(
+                    "tool.completed",
+                    attributes=attrs,
+                )
+            except Exception as exc:  # observability boundary; never fail the tool result
+                _logger.warning(
+                    "tool.completed_event_failed",
+                    tool_name=spec.name, agent_id=agent_id, tenant_id=tenant_id,
+                    error=str(exc), error_type=type(exc).__name__,
+                )
+            if self._records_audit:
+                await self._audit.record(AuditRecord.now(
+                    AuditEvent.TOOL_INVOCATION_COMPLETED,
+                    tool_name=spec.name,
+                    tool_version=spec.version,
+                    agent_id=agent_id,
+                    tenant_id=tenant_id,
+                    latency_ms=latency_ms,
+                ))
             return validated.model_dump(mode="json")
 
         except (ToolValidationError, PolicyDenialError, ToolExecutionError) as exc:
             latency_ms = (time.monotonic() - started) * 1000.0
-            await self._audit.record(AuditRecord.now(
-                AuditEvent.TOOL_INVOCATION_FAILED,
-                tool_name=spec.name,
-                tool_version=spec.version,
-                agent_id=agent_id,
-                tenant_id=tenant_id,
-                error_code=exc.error_code,
-                latency_ms=latency_ms,
-            ))
+            if self._records_audit:
+                await self._audit.record(AuditRecord.now(
+                    AuditEvent.TOOL_INVOCATION_FAILED,
+                    tool_name=spec.name,
+                    tool_version=spec.version,
+                    agent_id=agent_id,
+                    tenant_id=tenant_id,
+                    error_code=exc.error_code,
+                    latency_ms=latency_ms,
+                ))
             raise
 
 

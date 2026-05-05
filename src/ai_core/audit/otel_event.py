@@ -56,7 +56,7 @@ def _record_to_attributes(record: AuditRecord) -> dict[str, Any]:
         "audit.tenant_id": record.tenant_id or "",
         "audit.decision_path": record.decision_path or "",
         "audit.decision_allowed": (
-            record.decision_allowed if record.decision_allowed is not None else False
+            record.decision_allowed if record.decision_allowed is not None else ""
         ),
         "audit.decision_reason": record.decision_reason or "",
         "audit.error_code": record.error_code or "",

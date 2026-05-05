@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -23,7 +24,7 @@ from ai_core.tools import tool
 from ai_core.tools.invoker import ToolInvoker
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Sequence
 
     from tests.conftest import FakeObservabilityProvider, FakePolicyEvaluator
 
@@ -174,12 +175,13 @@ async def test_health_components_populated_after_entry(
     app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
     async with app:
         snap = await app.health()
-        # Probe-based health: check that "settings" probe is always present.
-        assert "settings" in snap.components
-        assert snap.components["settings"] == "ok"
+        # Probe-based health: check that real probes are present.
+        assert "opa" in snap.components
+        assert "database" in snap.components
+        assert "model_lookup" in snap.components
         # component_details is populated (values may be None or str).
-        assert isinstance(snap.component_details, dict)
-        assert "settings" in snap.component_details
+        assert isinstance(snap.component_details, Mapping)
+        assert "opa" in snap.component_details
 
 
 @pytest.mark.asyncio
@@ -215,7 +217,7 @@ async def test_async_health_returns_health_snapshot(
     async with app:
         snap = await app.health()
         assert isinstance(snap, HealthSnapshot)
-        assert "settings" in snap.components
+        assert "opa" in snap.components
 
 
 @pytest.mark.asyncio
@@ -247,6 +249,23 @@ async def test_health_rolls_up_to_down_when_any_probe_down() -> None:
     assert snap.components["good"] == "ok"
     assert snap.components["bad"] == "down"
     assert snap.component_details["bad"] == "boom"
+
+
+@pytest.mark.asyncio
+async def test_health_snapshot_components_is_read_only(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """HealthSnapshot.components should be a read-only Mapping (MappingProxyType)
+    so callers can't mutate the snapshot."""
+    app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
+    async with app:
+        snap = await app.health()
+    # Mutation should raise TypeError (frozen-style behavior).
+    with pytest.raises(TypeError):
+        snap.components["x"] = "ok"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        snap.component_details["x"] = "y"  # type: ignore[index]
 
 
 @pytest.mark.asyncio

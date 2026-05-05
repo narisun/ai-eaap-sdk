@@ -19,25 +19,17 @@ if TYPE_CHECKING:
 _HTTP_ERROR_THRESHOLD = 500
 
 
-class SettingsProbe(IHealthProbe):
-    """Always returns ``ok`` if settings loaded successfully."""
-
-    component = "settings"
-
-    def __init__(self, settings: AppSettings) -> None:
-        self._settings = settings
-
-    async def probe(self) -> ProbeResult:
-        return ProbeResult(component=self.component, status="ok")
-
-
 class OPAReachabilityProbe(IHealthProbe):
     """Sends ``GET <opa_url>/health`` to verify OPA is reachable."""
 
     component = "opa"
 
     def __init__(self, settings: AppSettings) -> None:
-        self._url = str(settings.security.opa_url).rstrip("/") + "/health"
+        base = str(settings.security.opa_url).rstrip("/")
+        path = settings.security.opa_health_path
+        if not path.startswith("/"):
+            path = "/" + path
+        self._url = base + path
         self._timeout = settings.security.opa_request_timeout_seconds
 
     async def probe(self) -> ProbeResult:
@@ -116,4 +108,4 @@ class ModelLookupProbe(IHealthProbe):
             )
 
 
-__all__ = ["DatabaseProbe", "ModelLookupProbe", "OPAReachabilityProbe", "SettingsProbe"]
+__all__ = ["DatabaseProbe", "ModelLookupProbe", "OPAReachabilityProbe"]
