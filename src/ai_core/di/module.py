@@ -44,7 +44,7 @@ from ai_core.health import IHealthProbe  # noqa: TC001
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
-from ai_core.mcp.transports import FastMCPConnectionFactory, IMCPConnectionFactory
+from ai_core.mcp.transports import IMCPConnectionFactory, PoolingMCPConnectionFactory
 from ai_core.observability.real import RealObservabilityProvider
 from ai_core.persistence.checkpoint import PostgresCheckpointSaver
 from ai_core.persistence.engine import EngineFactory
@@ -201,9 +201,12 @@ class AgentModule(Module):
 
     @singleton
     @provider
-    def provide_mcp_connection_factory(self) -> IMCPConnectionFactory:
-        """Return the default FastMCP connection factory."""
-        return FastMCPConnectionFactory()
+    def provide_mcp_connection_factory(self, settings: AppSettings) -> IMCPConnectionFactory:
+        """Return the pooling MCP connection factory."""
+        return PoolingMCPConnectionFactory(
+            pool_enabled=settings.mcp.pool_enabled,
+            pool_idle_seconds=settings.mcp.pool_idle_seconds,
+        )
 
     # ----- Security ---------------------------------------------------------
     @singleton

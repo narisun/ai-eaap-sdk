@@ -237,6 +237,29 @@ class HealthSettings(BaseSettings):
     probe_timeout_seconds: float = Field(default=2.0, gt=0)
 
 
+class MCPSettings(BaseSettings):
+    """MCP transport / pool configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    pool_enabled: bool = Field(
+        default=True,
+        description=(
+            "When True (default), MCP connections are pooled per component_id "
+            "and reused across calls. Set False for debugging or to ensure "
+            "every call uses a fresh transport."
+        ),
+    )
+    pool_idle_seconds: float = Field(
+        default=300.0,
+        gt=0.0,
+        description=(
+            "Connections idle longer than this are closed and reopened on next "
+            "checkout. Default 5 minutes — matches typical server-side timeout."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Top-level settings
 # ---------------------------------------------------------------------------
@@ -285,6 +308,7 @@ class AppSettings(BaseSettings):
     agent: AgentSettings = Field(default_factory=AgentSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     health: HealthSettings = Field(default_factory=HealthSettings)
+    mcp: MCPSettings = Field(default_factory=MCPSettings)
 
     @field_validator("service_name")
     @classmethod
