@@ -158,6 +158,7 @@ class LLMResponse:
     tool_calls: Sequence[Mapping[str, Any]]
     usage: LLMUsage
     raw: Mapping[str, Any]
+    finish_reason: str | None = None   # None means upstream didn't report
 
 
 class ILLMClient(ABC):
