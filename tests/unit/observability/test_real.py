@@ -282,7 +282,7 @@ async def test_fail_open_false_raises_backend_error() -> None:
 
 @pytest.mark.asyncio
 async def test_eaap_exception_tags_error_code_on_span() -> None:
-    """When an EAAPBaseException propagates inside a span, span.set_attribute fires with error.code."""
+    """When an EAAPBaseException propagates inside a span, set_attribute fires with error.code."""
     provider = RealObservabilityProvider(_settings(fail_open=True))
 
     # Build a mock span context object with integer trace/span ids so that
@@ -308,8 +308,8 @@ async def test_eaap_exception_tags_error_code_on_span() -> None:
                 details={"model": "gpt-x", "attempts": 3},
             )
 
-    # Verify error.code attribute was set.
-    fake_span.set_attribute.assert_any_call("error.code", "llm.invocation_failed")
+    # Verify eaap.error.code attribute was set.
+    fake_span.set_attribute.assert_any_call("eaap.error.code", "llm.invocation_failed")
     # Verify scalar details landed as attributes.
-    fake_span.set_attribute.assert_any_call("error.details.model", "gpt-x")
-    fake_span.set_attribute.assert_any_call("error.details.attempts", 3)
+    fake_span.set_attribute.assert_any_call("eaap.error.details.model", "gpt-x")
+    fake_span.set_attribute.assert_any_call("eaap.error.details.attempts", 3)

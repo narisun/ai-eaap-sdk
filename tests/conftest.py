@@ -179,34 +179,6 @@ def fake_observability() -> FakeObservabilityProvider:
     return FakeObservabilityProvider()
 
 
-class FakeBrokenObservabilityProvider(IObservabilityProvider):
-    """Observability provider whose start_span raises immediately on enter — useful
-    for testing fail_open behaviour at the consumer (e.g., LiteLLMClient).
-    """
-
-    def start_span(self, name: str, *, attributes: Mapping[str, Any] | None = None) -> Any:
-        @asynccontextmanager
-        async def _cm() -> AsyncIterator[SpanContext]:
-            raise RuntimeError(f"observability backend down (start_span '{name}')")
-            yield  # type: ignore[unreachable]  # for static checker
-
-        return _cm()
-
-    async def record_llm_usage(self, **kwargs: Any) -> None:
-        raise RuntimeError("observability backend down (record_llm_usage)")
-
-    async def record_event(self, name: str, *, attributes: Mapping[str, Any] | None = None) -> None:
-        raise RuntimeError("observability backend down (record_event)")
-
-    async def shutdown(self) -> None:
-        return None  # shutdown intentionally tolerant
-
-
-@pytest.fixture
-def fake_broken_observability() -> FakeBrokenObservabilityProvider:
-    return FakeBrokenObservabilityProvider()
-
-
 # ---------------------------------------------------------------------------
 # FakeSecretManager
 # ---------------------------------------------------------------------------
