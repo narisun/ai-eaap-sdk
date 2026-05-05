@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from ai_core.audit import AuditRecord, IAuditSink
 from ai_core.config.secrets import ISecretManager, SecretRef
 from ai_core.config.settings import AppSettings, get_settings
 from ai_core.di.interfaces import (
@@ -260,3 +261,25 @@ class FakeBudgetService(IBudgetService):
 @pytest.fixture
 def fake_budget() -> FakeBudgetService:
     return FakeBudgetService()
+
+
+# ---------------------------------------------------------------------------
+# FakeAuditSink — Phase 3 Task 3
+# ---------------------------------------------------------------------------
+class FakeAuditSink(IAuditSink):
+    """Records audit records for assertion in tests."""
+
+    def __init__(self) -> None:
+        self.records: list[AuditRecord] = []
+        self.flushes: int = 0
+
+    async def record(self, record: AuditRecord) -> None:
+        self.records.append(record)
+
+    async def flush(self) -> None:
+        self.flushes += 1
+
+
+@pytest.fixture
+def fake_audit_sink() -> FakeAuditSink:
+    return FakeAuditSink()

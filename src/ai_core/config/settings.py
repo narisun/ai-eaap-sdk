@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import enum
 from functools import lru_cache
+from pathlib import Path  # noqa: TC003
 from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
@@ -211,6 +212,15 @@ class AgentSettings(BaseSettings):
     )
 
 
+class AuditSettings(BaseSettings):
+    """Audit-sink configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    sink_type: Literal["null", "otel_event", "jsonl"] = "null"
+    jsonl_path: Path | None = None  # required when sink_type == "jsonl"
+
+
 # ---------------------------------------------------------------------------
 # Top-level settings
 # ---------------------------------------------------------------------------
@@ -257,6 +267,7 @@ class AppSettings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    audit: AuditSettings = Field(default_factory=AuditSettings)
 
     @field_validator("service_name")
     @classmethod

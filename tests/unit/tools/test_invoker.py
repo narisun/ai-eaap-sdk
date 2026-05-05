@@ -21,7 +21,7 @@ from ai_core.tools.invoker import ToolInvoker
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.conftest import FakeObservabilityProvider, FakePolicyEvaluator
+    from tests.conftest import FakeAuditSink, FakeObservabilityProvider, FakePolicyEvaluator
 
 pytestmark = pytest.mark.unit
 
@@ -305,3 +305,52 @@ async def test_output_validation_error_tags_tool_invoke_span(
     spans = [s for s in fake_observability.spans if s.name == "tool.invoke"]
     assert len(spans) == 1
     assert spans[0].error_code == "tool.validation_failed"
+
+
+@pytest.mark.asyncio
+async def test_invoker_records_policy_decision(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+    fake_audit_sink: FakeAuditSink,
+) -> None:
+    """ToolInvoker records POLICY_DECISION audit event after OPA evaluation."""
+    from ai_core.audit import AuditEvent  # noqa: PLC0415
+
+    inv = ToolInvoker(
+        observability=fake_observability,
+        policy=fake_policy_evaluator_factory(default_allow=True, reason="ok"),
+        registry=SchemaRegistry(),
+        audit=fake_audit_sink,
+    )
+    await inv.invoke(_search, {"q": "x", "limit": 1}, agent_id="a", tenant_id="t")
+    events = [r.event for r in fake_audit_sink.records]
+    assert AuditEvent.POLICY_DECISION in events
+    assert AuditEvent.TOOL_INVOCATION_COMPLETED in events
+
+
+@pytest.mark.asyncio
+async def test_invoker_records_failure_on_handler_raise(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+    fake_audit_sink: FakeAuditSink,
+) -> None:
+    """ToolInvoker records TOOL_INVOCATION_FAILED with error_code on handler raise."""
+    from ai_core.audit import AuditEvent  # noqa: PLC0415
+
+    @tool(name="boom", version=1)
+    async def boom(payload: _In) -> _Out:
+        raise RuntimeError("kaboom")
+
+    inv = ToolInvoker(
+        observability=fake_observability,
+        policy=fake_policy_evaluator_factory(),
+        registry=SchemaRegistry(),
+        audit=fake_audit_sink,
+    )
+    with pytest.raises(ToolExecutionError):
+        await inv.invoke(boom, {"q": "x", "limit": 1}, agent_id="a")
+
+    failed = [r for r in fake_audit_sink.records if r.event == AuditEvent.TOOL_INVOCATION_FAILED]
+    assert len(failed) == 1
+    assert failed[0].error_code == "tool.execution_failed"
+    assert failed[0].agent_id == "a"

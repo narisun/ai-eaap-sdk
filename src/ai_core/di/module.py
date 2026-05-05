@@ -29,6 +29,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
+from ai_core.audit import IAuditSink  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -38,6 +39,7 @@ from ai_core.di.interfaces import (
     IObservabilityProvider,
     IPolicyEvaluator,
 )
+from ai_core.exceptions import ConfigurationError
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
@@ -235,6 +237,35 @@ class AgentModule(Module):
         """Return the in-process versioned-schema registry singleton."""
         return SchemaRegistry()
 
+    # ----- Audit sink -------------------------------------------------------
+    @singleton
+    @provider
+    def provide_audit_sink(
+        self,
+        settings: AppSettings,
+        observability: IObservabilityProvider,
+    ) -> IAuditSink:
+        """Default audit sink — switchable via settings.audit.sink_type."""
+        sink_type = settings.audit.sink_type
+        if sink_type == "null":
+            from ai_core.audit.null import NullAuditSink  # noqa: PLC0415
+            return NullAuditSink()
+        if sink_type == "otel_event":
+            from ai_core.audit.otel_event import OTelEventAuditSink  # noqa: PLC0415
+            return OTelEventAuditSink(observability)
+        if sink_type == "jsonl":
+            from ai_core.audit.jsonl import JsonlFileAuditSink  # noqa: PLC0415
+            if settings.audit.jsonl_path is None:
+                raise ConfigurationError(
+                    "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
+                    error_code="config.invalid",
+                )
+            return JsonlFileAuditSink(settings.audit.jsonl_path)
+        raise ConfigurationError(
+            f"Unknown audit.sink_type: {sink_type!r}",
+            error_code="config.invalid",
+        )
+
     # ----- Tool invoker -----------------------------------------------------
     @singleton
     @provider
@@ -243,9 +274,15 @@ class AgentModule(Module):
         observability: IObservabilityProvider,
         policy: IPolicyEvaluator,
         registry: SchemaRegistry,
+        audit: IAuditSink,
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
-        return ToolInvoker(observability=observability, policy=policy, registry=registry)
+        return ToolInvoker(
+            observability=observability,
+            policy=policy,
+            registry=registry,
+            audit=audit,
+        )
 
 
 class ProductionSecurityModule(Module):

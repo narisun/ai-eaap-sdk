@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from ai_core.agents import AgentState, BaseAgent, new_agent_state
 from ai_core.app import AICoreApp, HealthSnapshot
+from ai_core.audit import AuditEvent, AuditRecord, IAuditSink
 from ai_core.exceptions import (
     AgentRecursionLimitError,
     AgentRuntimeError,
@@ -58,12 +59,15 @@ __all__ = [
     "AgentRecursionLimitError",
     "AgentRuntimeError",
     "AgentState",
+    "AuditEvent",
+    "AuditRecord",
     "BaseAgent",
     "BudgetExceededError",
     "ConfigurationError",
     "DependencyResolutionError",
     "EAAPBaseException",
     "HealthSnapshot",
+    "IAuditSink",
     "LLMInvocationError",
     "LLMTimeoutError",
     "MCPTransportError",

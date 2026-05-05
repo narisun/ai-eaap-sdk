@@ -200,10 +200,12 @@ class Container:
         # cycles when the container is built without these bindings.
         from sqlalchemy.ext.asyncio import AsyncEngine
 
+        from ai_core.audit import IAuditSink  # noqa: PLC0415
         from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
 
         steps: list[tuple[str, type[Any], tuple[str, ...]]] = [
             ("observability.shutdown", IObservabilityProvider, ("shutdown",)),
+            ("audit.flush", IAuditSink, ("flush",)),
             ("policy_evaluator.aclose", IPolicyEvaluator, ("aclose",)),
             ("engine.dispose", AsyncEngine, ("dispose",)),
         ]
