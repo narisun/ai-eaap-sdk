@@ -161,4 +161,45 @@ async def test_methods_raise_before_entry() -> None:
     # health is the exception — must return status="down" without raising
     snap = app.health
     assert snap.status == "down"
-    assert snap.settings_version == ""
+    assert snap.service_name == ""
+
+
+@pytest.mark.asyncio
+async def test_health_components_populated_after_entry(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
+    async with app:
+        snap = app.health
+        assert snap.status == "ok"
+        assert snap.components == {
+            "settings": "ok",
+            "container": "ok",
+            "tool_invoker": "unknown",
+            "policy_evaluator": "unknown",
+            "observability": "unknown",
+        }
+
+
+@pytest.mark.asyncio
+async def test_health_service_name_field(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """HealthSnapshot has a `service_name` field (renamed from settings_version)."""
+    app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
+    async with app:
+        snap = app.health
+        assert snap.service_name == app.settings.service_name
+        assert not hasattr(snap, "settings_version")
+
+
+@pytest.mark.asyncio
+async def test_health_before_entry_has_empty_components_and_blank_service_name() -> None:
+    """Before __aenter__, components is empty dict and service_name is empty string."""
+    app = AICoreApp()
+    snap = app.health
+    assert snap.status == "down"
+    assert snap.components == {}
+    assert snap.service_name == ""

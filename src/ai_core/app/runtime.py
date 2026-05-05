@@ -42,7 +42,7 @@ class HealthSnapshot:
 
     status: Literal["ok", "degraded", "down"]
     components: dict[str, Literal["ok", "unknown"]]
-    settings_version: str
+    service_name: str  # was settings_version (Phase 2 rename)
 
 
 class AICoreApp:
@@ -167,12 +167,18 @@ class AICoreApp:
             return HealthSnapshot(
                 status="down",
                 components={},
-                settings_version="",
+                service_name="",
             )
         return HealthSnapshot(
             status="ok" if not self._closed else "down",
-            components={},
-            settings_version=self._settings.service_name,
+            components={
+                "settings": "ok",
+                "container": "ok",
+                "tool_invoker": "unknown",
+                "policy_evaluator": "unknown",
+                "observability": "unknown",
+            },
+            service_name=self._settings.service_name,
         )
 
     # ----- Internal -----------------------------------------------------------
