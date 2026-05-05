@@ -16,7 +16,7 @@ from ai_core.di.interfaces import (
     PolicyDecision,
     SpanContext,
 )
-from ai_core.exceptions import SecretResolutionError
+from ai_core.exceptions import EAAPBaseException, SecretResolutionError
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator, Mapping
@@ -135,9 +135,7 @@ class FakeObservabilityProvider(IObservabilityProvider):
             except BaseException as exc:
                 recorded.exception = exc
                 # Mirror RealObservabilityProvider's error_code tagging behavior.
-                from ai_core.exceptions import EAAPBaseException as _EAAP  # noqa: PLC0415, N814
-
-                if isinstance(exc, _EAAP):
+                if isinstance(exc, EAAPBaseException):
                     recorded.error_code = exc.error_code
                 raise
 
@@ -179,34 +177,6 @@ class FakeObservabilityProvider(IObservabilityProvider):
 @pytest.fixture
 def fake_observability() -> FakeObservabilityProvider:
     return FakeObservabilityProvider()
-
-
-class FakeBrokenObservabilityProvider(IObservabilityProvider):
-    """Observability provider whose start_span raises immediately on enter — useful
-    for testing fail_open behaviour at the consumer (e.g., LiteLLMClient).
-    """
-
-    def start_span(self, name: str, *, attributes: Mapping[str, Any] | None = None) -> Any:
-        @asynccontextmanager
-        async def _cm() -> AsyncIterator[SpanContext]:
-            raise RuntimeError(f"observability backend down (start_span '{name}')")
-            yield  # type: ignore[unreachable]  # for static checker
-
-        return _cm()
-
-    async def record_llm_usage(self, **kwargs: Any) -> None:
-        raise RuntimeError("observability backend down (record_llm_usage)")
-
-    async def record_event(self, name: str, *, attributes: Mapping[str, Any] | None = None) -> None:
-        raise RuntimeError("observability backend down (record_event)")
-
-    async def shutdown(self) -> None:
-        return None  # shutdown intentionally tolerant
-
-
-@pytest.fixture
-def fake_broken_observability() -> FakeBrokenObservabilityProvider:
-    return FakeBrokenObservabilityProvider()
 
 
 # ---------------------------------------------------------------------------
