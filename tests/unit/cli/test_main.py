@@ -84,6 +84,45 @@ def test_init_force_overrides_non_empty_target(runner: CliRunner, tmp_path: Path
     assert (target / "pyproject.toml").is_file()
 
 
+def test_init_renders_eaap_yaml(runner: CliRunner, tmp_path: Path) -> None:
+    """`eaap init NAME` renders an eaap.yaml with commented Phase 4 keys."""
+    result = runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    yaml_path = tmp_path / "my-app" / "eaap.yaml"
+    assert yaml_path.is_file()
+    content = yaml_path.read_text()
+    # Commented top-level groups demonstrating Phase 4 settings.
+    assert "# llm:" in content
+    assert "# mcp:" in content
+    assert "# security:" in content
+    # Inline comment explaining precedence.
+    assert "env vars" in content.lower()
+
+
+def test_init_env_example_includes_phase4_keys(runner: CliRunner, tmp_path: Path) -> None:
+    """`.env.example` exposes Phase 4 env vars (commented)."""
+    runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    env_example = (tmp_path / "my-app" / ".env.example").read_text()
+    assert "EAAP_LLM__PROMPT_CACHE_ENABLED" in env_example
+    assert "EAAP_MCP__POOL_ENABLED" in env_example
+    assert "EAAP_SECURITY__OPA_HEALTH_PATH" in env_example
+    assert "EAAP_CONFIG_PATH" in env_example
+
+
+def test_init_renders_starter_policies_with_content(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """`policies/agent.rego` and `policies/api.rego` are rendered with non-trivial content."""
+    runner.invoke(app, ["init", "my-app", "--path", str(tmp_path)])
+    agent = (tmp_path / "my-app" / "policies" / "agent.rego").read_text()
+    api = (tmp_path / "my-app" / "policies" / "api.rego").read_text()
+    # Both files declare a Rego package and a default-deny rule.
+    assert "package eaap.agent" in agent
+    assert "default allow := false" in agent
+    assert "package eaap.api" in api
+    assert "default allow := false" in api
+
+
 # ---------------------------------------------------------------------------
 # eaap generate agent
 # ---------------------------------------------------------------------------
