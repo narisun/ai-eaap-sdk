@@ -69,20 +69,20 @@ def apply_prompt_cache(
 
     # Convert all messages to a fresh list (cache-control blocks are added in place).
     cached_messages: list[Mapping[str, Any]] = [
-        _with_cache_control(m, breakpoint=False) for m in messages
+        _with_cache_control(m, add_breakpoint=False) for m in messages
     ]
 
     # Breakpoint 1: end of the first system message.
     for i, m in enumerate(cached_messages):
         if m.get("role") == "system":
-            cached_messages[i] = _with_cache_control(m, breakpoint=True)
+            cached_messages[i] = _with_cache_control(m, add_breakpoint=True)
             break
 
     # Breakpoint 2: last assistant message before the trailing user turn.
     last_assistant_idx = _find_last_stable_assistant(cached_messages)
     if last_assistant_idx is not None:
         cached_messages[last_assistant_idx] = _with_cache_control(
-            cached_messages[last_assistant_idx], breakpoint=True
+            cached_messages[last_assistant_idx], add_breakpoint=True
         )
 
     # Breakpoint 3: last tool schema (if present).
@@ -94,16 +94,16 @@ def apply_prompt_cache(
 
 
 def _with_cache_control(
-    message: Mapping[str, Any], *, breakpoint: bool
+    message: Mapping[str, Any], *, add_breakpoint: bool
 ) -> dict[str, Any]:
     """Convert message.content to structured form; tag last block as breakpoint if asked."""
     content = message.get("content")
     if isinstance(content, str):
         block: dict[str, Any] = {"type": "text", "text": content}
-        if breakpoint:
+        if add_breakpoint:
             block["cache_control"] = {"type": "ephemeral"}
         return {**message, "content": [block]}
-    if breakpoint and isinstance(content, list) and content:
+    if add_breakpoint and isinstance(content, list) and content:
         new_content = list(content)
         last_block = dict(new_content[-1])
         last_block["cache_control"] = {"type": "ephemeral"}

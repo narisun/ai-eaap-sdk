@@ -59,8 +59,10 @@ def test_apply_skipped_when_disabled() -> None:
         enabled=False, min_messages=2, min_estimated_tokens=100,
         estimated_tokens=2048,
     )
-    # Returns originals — no cache_control inserted.
-    assert all(isinstance(m["content"], str) for m in result_msgs)
+    # Returns equivalent messages, but as a fresh list (defensive copy).
+    assert result_msgs == list(msgs)
+    assert result_msgs is not msgs
+    assert result_tools is None
 
 
 def test_apply_skipped_for_non_anthropic_model() -> None:
@@ -91,6 +93,19 @@ def test_apply_skipped_below_token_threshold() -> None:
         estimated_tokens=500,
     )
     assert all(isinstance(m["content"], str) for m in result_msgs)
+
+
+def test_apply_skipped_returns_fresh_tools_list() -> None:
+    """When skipped, the returned tools list is a fresh copy, not the caller's list."""
+    msgs = [_msg("system", "sys"), _msg("user", "hi")]
+    tools = [{"type": "function", "function": {"name": "x"}}]
+    _, result_tools = apply_prompt_cache(
+        msgs, tools=tools, model="openai/gpt-4o",
+        enabled=True, min_messages=2, min_estimated_tokens=100,
+        estimated_tokens=2048,
+    )
+    assert result_tools == tools
+    assert result_tools is not tools  # fresh list, not aliased
 
 
 # --- apply_prompt_cache: applied cases ---
@@ -169,8 +184,12 @@ def test_apply_handles_pre_structured_content() -> None:
 def test_apply_caches_last_tool_when_tools_present() -> None:
     msgs = _conversation()
     tools = [
-        {"type": "function", "function": {"name": "tool_a", "description": "...", "parameters": {}}},
-        {"type": "function", "function": {"name": "tool_b", "description": "...", "parameters": {}}},
+        {"type": "function", "function": {
+            "name": "tool_a", "description": "...", "parameters": {},
+        }},
+        {"type": "function", "function": {
+            "name": "tool_b", "description": "...", "parameters": {},
+        }},
     ]
     _, result_tools = apply_prompt_cache(
         msgs, tools=tools, model="claude-3-5-sonnet",
