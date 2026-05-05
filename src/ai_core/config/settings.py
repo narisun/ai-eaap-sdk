@@ -16,16 +16,52 @@ configuration through DI rather than instantiating settings themselves.
 from __future__ import annotations
 
 import enum
+import os
 from functools import lru_cache
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 from ai_core.config.secrets import ISecretManager
 from ai_core.config.validation import ValidationContext
 from ai_core.exceptions import ConfigurationError
+
+# ---------------------------------------------------------------------------
+# YAML config support (Phase 5)
+# ---------------------------------------------------------------------------
+_EAAP_CONFIG_PATH_ENV = "EAAP_CONFIG_PATH"
+
+
+def _resolve_config_path() -> Path | None:
+    """Resolve the YAML config file location, or ``None`` if no YAML in this run.
+
+    Resolution order:
+        1. ``EAAP_CONFIG_PATH`` env var (explicit; missing-file is an error).
+        2. ``./eaap.yaml`` in the current working directory (auto-discover; missing is silent).
+        3. ``None`` (no YAML configured).
+
+    Raises:
+        FileNotFoundError: If ``EAAP_CONFIG_PATH`` is set but points to a
+            non-existent file. Explicit configuration must succeed.
+    """
+    explicit = os.environ.get(_EAAP_CONFIG_PATH_ENV, "").strip()
+    if explicit:
+        path = Path(explicit)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"{_EAAP_CONFIG_PATH_ENV}={explicit!r} but the file does not exist"
+            )
+        return path
+    auto = Path.cwd() / "eaap.yaml"
+    return auto if auto.is_file() else None
+
 
 # ---------------------------------------------------------------------------
 # Enums / aliases
@@ -422,6 +458,57 @@ class AppSettings(BaseSettings):
                     for i in ctx.issues
                 ]},
             )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Insert YAML between dotenv and file-secret; resolution is left-to-right.
+
+        Order returned (highest precedence first):
+            init args > env vars > .env file > eaap.yaml > file-secret > field defaults.
+
+        Auto-discovery and explicit-path semantics live in :func:`_resolve_config_path`.
+        Parse / shape errors are wrapped in :class:`ConfigurationError`.
+        """
+        try:
+            yaml_path = _resolve_config_path()
+        except FileNotFoundError as exc:
+            raise ConfigurationError(
+                str(exc),
+                error_code="config.yaml_path_missing",
+                details={"env_var": _EAAP_CONFIG_PATH_ENV},
+                cause=exc,
+            ) from exc
+
+        if yaml_path is None:
+            return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
+        try:
+            yaml_settings = YamlConfigSettingsSource(settings_cls, yaml_file=yaml_path)
+            # Force eager parse + shape check so errors come back as ConfigurationError
+            # rather than as raw YAMLError / TypeError / SettingsError later.
+            yaml_settings()
+        except Exception as exc:  # wrap any parse/shape error uniformly
+            raise ConfigurationError(
+                f"Failed to load eaap.yaml at {yaml_path}: {exc}",
+                error_code="config.yaml_parse_failed",
+                details={"path": str(yaml_path)},
+                cause=exc,
+            ) from exc
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            yaml_settings,
+            file_secret_settings,
+        )
 
 
 # ---------------------------------------------------------------------------
