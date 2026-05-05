@@ -23,3 +23,20 @@ EAAP_SECURITY__OPA_DECISION_PATH=eaap/api/allow
 EAAP_SECURITY__FAIL_CLOSED=true
 # EAAP_SECURITY__JWT_AUDIENCE=
 # EAAP_SECURITY__JWT_ISSUER=
+
+# --- Phase 4 settings (uncomment and customize per-deployment) ---
+
+# Anthropic prompt caching (LLMSettings)
+# EAAP_LLM__PROMPT_CACHE_ENABLED=true
+# EAAP_LLM__PROMPT_CACHE_MIN_MESSAGES=6
+# EAAP_LLM__PROMPT_CACHE_MIN_TOKENS=1024
+
+# MCP connection pooling (MCPSettings)
+# EAAP_MCP__POOL_ENABLED=true
+# EAAP_MCP__POOL_IDLE_SECONDS=300.0
+
+# OPA health probe path (SecuritySettings)
+# EAAP_SECURITY__OPA_HEALTH_PATH=/health
+
+# Optional: explicit YAML config path (auto-discovers ./eaap.yaml otherwise)
+# EAAP_CONFIG_PATH=/etc/eaap/config.yaml
