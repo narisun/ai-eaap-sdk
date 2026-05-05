@@ -469,3 +469,133 @@ async def test_empty_response_tags_llm_complete_span(
     spans = [s for s in fake_observability.spans if s.name == "llm.complete"]
     assert len(spans) == 1
     assert spans[0].error_code == "llm.empty_response"
+
+
+@pytest.mark.asyncio
+async def test_complete_applies_cache_for_anthropic_above_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_observability: Any,
+    fake_budget: Any,
+) -> None:
+    """For Anthropic models above the threshold, cache_control should be added."""
+    settings = AppSettings()
+    settings.llm.prompt_cache_enabled = True
+    settings.llm.prompt_cache_min_messages = 2
+    settings.llm.prompt_cache_min_tokens = 1  # force cache application
+
+    captured: dict[str, Any] = {}
+
+    async def _capture_call(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return {
+            "model": "claude-3-5-sonnet",
+            "choices": [{"message": {"content": "ok", "tool_calls": []},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    monkeypatch.setattr("litellm.acompletion", _capture_call)
+
+    client = LiteLLMClient(
+        settings=settings, budget=fake_budget, observability=fake_observability,
+    )
+    await client.complete(
+        model="anthropic/claude-3-5-sonnet",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "user", "content": "follow-up"},
+        ],
+    )
+
+    sent_messages = captured["messages"]
+    # System message should have cache_control.
+    sys_content = sent_messages[0]["content"]
+    assert isinstance(sys_content, list)
+    assert sys_content[-1].get("cache_control") == {"type": "ephemeral"}
+
+
+@pytest.mark.asyncio
+async def test_complete_skips_cache_for_openai(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_observability: Any,
+    fake_budget: Any,
+) -> None:
+    """OpenAI models should not get cache_control added."""
+    settings = AppSettings()
+    settings.llm.prompt_cache_enabled = True
+    settings.llm.prompt_cache_min_messages = 2
+    settings.llm.prompt_cache_min_tokens = 1
+
+    captured: dict[str, Any] = {}
+
+    async def _capture_call(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return {
+            "model": "gpt-4o",
+            "choices": [{"message": {"content": "ok", "tool_calls": []},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    monkeypatch.setattr("litellm.acompletion", _capture_call)
+
+    client = LiteLLMClient(
+        settings=settings, budget=fake_budget, observability=fake_observability,
+    )
+    await client.complete(
+        model="openai/gpt-4o",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "user", "content": "follow-up"},
+        ],
+    )
+
+    sent_messages = captured["messages"]
+    # OpenAI: messages should still have str content (no cache_control).
+    for m in sent_messages:
+        assert isinstance(m["content"], str)
+
+
+@pytest.mark.asyncio
+async def test_complete_skips_cache_when_setting_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_observability: Any,
+    fake_budget: Any,
+) -> None:
+    """prompt_cache_enabled=False — even Anthropic above threshold should not get cache_control."""
+    settings = AppSettings()
+    settings.llm.prompt_cache_enabled = False  # disabled
+
+    captured: dict[str, Any] = {}
+
+    async def _capture_call(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return {
+            "model": "claude-3-5-sonnet",
+            "choices": [{"message": {"content": "ok", "tool_calls": []},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    monkeypatch.setattr("litellm.acompletion", _capture_call)
+
+    client = LiteLLMClient(
+        settings=settings, budget=fake_budget, observability=fake_observability,
+    )
+    await client.complete(
+        model="anthropic/claude-3-5-sonnet",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+            {"role": "user", "content": "follow-up"},
+        ],
+    )
+
+    sent_messages = captured["messages"]
+    for m in sent_messages:
+        assert isinstance(m["content"], str)

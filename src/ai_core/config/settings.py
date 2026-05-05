@@ -120,6 +120,18 @@ class LLMSettings(BaseSettings):
     retry_max_backoff_seconds: float = Field(default=10.0, gt=0)
     proxy_base_url: AnyHttpUrl | None = None
     proxy_api_key: SecretStr | None = None
+    prompt_cache_enabled: bool = Field(
+        default=True,
+        description=(
+            "When True (default), automatically apply Anthropic cache_control "
+            "headers to system prompts and stable conversation history. Skipped "
+            "for non-Anthropic providers and for prompts below the configured "
+            "thresholds. Set False to disable for tests that require deterministic "
+            "cache-miss responses."
+        ),
+    )
+    prompt_cache_min_messages: int = Field(default=6, ge=2)
+    prompt_cache_min_tokens: int = Field(default=1024, ge=512)
 
 
 class BudgetSettings(BaseSettings):

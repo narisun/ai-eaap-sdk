@@ -49,6 +49,7 @@ from ai_core.di.interfaces import (
     LLMUsage,
 )
 from ai_core.exceptions import BudgetExceededError, LLMInvocationError, LLMTimeoutError
+from ai_core.llm._prompt_cache import apply_prompt_cache
 
 # Tenacity retries on these error types only — auth / bad-request must surface immediately.
 _TRANSIENT_LLM_ERRORS: tuple[type[BaseException], ...] = (
@@ -129,13 +130,25 @@ class LiteLLMClient(ILLMClient):
             )
 
         # --- 2. Retry-wrapped LLM call -------------------------------------------
+        # Phase 4: apply prompt cache control if model supports it
+        cache_cfg = self._settings.llm
+        cached_messages, cached_tools = apply_prompt_cache(
+            messages,
+            tools=tools,
+            model=resolved_model,
+            enabled=cache_cfg.prompt_cache_enabled,
+            min_messages=cache_cfg.prompt_cache_min_messages,
+            min_estimated_tokens=cache_cfg.prompt_cache_min_tokens,
+            estimated_tokens=estimated,
+        )
+
         request_kwargs: dict[str, Any] = {
             "model": resolved_model,
-            "messages": list(messages),
+            "messages": cached_messages,
             "timeout": cfg.request_timeout_seconds,
         }
-        if tools is not None:
-            request_kwargs["tools"] = list(tools)
+        if cached_tools is not None:
+            request_kwargs["tools"] = cached_tools
         if temperature is not None:
             request_kwargs["temperature"] = temperature
         if max_tokens is not None:
