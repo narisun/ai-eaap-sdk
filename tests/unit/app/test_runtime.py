@@ -158,3 +158,7 @@ async def test_methods_raise_before_entry() -> None:
         _ = app.settings
     with pytest.raises(RuntimeError):
         _ = app.container
+    # health is the exception — must return status="down" without raising
+    snap = app.health
+    assert snap.status == "down"
+    assert snap.settings_version == ""

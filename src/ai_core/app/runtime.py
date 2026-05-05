@@ -163,10 +163,16 @@ class AICoreApp:
 
     @property
     def health(self) -> HealthSnapshot:
+        if not self._entered or self._settings is None:
+            return HealthSnapshot(
+                status="down",
+                components={},
+                settings_version="",
+            )
         return HealthSnapshot(
-            status="ok" if self._entered and not self._closed else "down",
+            status="ok" if not self._closed else "down",
             components={},
-            settings_version=self.settings.service_name,
+            settings_version=self._settings.service_name,
         )
 
     # ----- Internal -----------------------------------------------------------
