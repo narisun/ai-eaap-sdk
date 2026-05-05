@@ -25,7 +25,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 from ai_core.exceptions import MCPTransportError, RegistryError
 
@@ -65,29 +68,38 @@ class IMCPConnectionFactory(ABC):
         """Return an async context manager yielding a connected MCP client."""
 
 
-class FastMCPConnectionFactory(IMCPConnectionFactory):
-    """Default :class:`IMCPConnectionFactory` powered by FastMCP transports."""
+class PoolingMCPConnectionFactory(IMCPConnectionFactory):
+    """FastMCP-backed factory with optional per-spec connection pooling.
+
+    When ``pool_enabled=True`` (default), connections are reused across calls
+    until they exceed ``pool_idle_seconds`` of inactivity. When ``False``,
+    each ``open()`` returns a fresh CM (pre-Phase-4 behaviour).
+
+    Closed at app shutdown via :meth:`aclose` (called by
+    ``Container._teardown_sdk_resources``).
+
+    Raises:
+        MCPTransportError: If FastMCP is not installed, transport-class import
+            fails, or the connection itself fails.
+        RegistryError: If ``spec.transport`` is not a supported value.
+    """
+
+    def __init__(self, *, pool_enabled: bool = True,
+                 pool_idle_seconds: float = 300.0) -> None:
+        from ai_core.mcp._pool import _MCPConnectionPool  # noqa: PLC0415
+        self._pool_enabled = pool_enabled
+        self._pool: _MCPConnectionPool | None = (
+            _MCPConnectionPool(opener=self._open, idle_seconds=pool_idle_seconds)
+            if pool_enabled else None
+        )
 
     def open(self, spec: MCPServerSpec) -> AbstractAsyncContextManager[Any]:
-        """Open a FastMCP client for ``spec``.
-
-        Args:
-            spec: Server connection specification.
-
-        Returns:
-            Async context manager yielding a connected FastMCP ``Client``.
-
-        Raises:
-            MCPTransportError: If FastMCP is not installed or a transport-class
-                import fails, or if the connection itself fails (httpx/anyio/OS
-                errors during open).
-            RegistryError: If ``spec.transport`` is not a supported value
-                (defensive — the ``Literal`` type prevents this at static-check time).
-        """
+        if self._pool is not None:
+            return self._pool.acquire(spec)
         return self._open(spec)
 
     @asynccontextmanager
-    async def _open(self, spec: MCPServerSpec) -> Any:
+    async def _open(self, spec: MCPServerSpec) -> AsyncIterator[Any]:
         _transport_details = {
             "component_id": spec.component_id,
             "transport": spec.transport,
@@ -147,10 +159,19 @@ class FastMCPConnectionFactory(IMCPConnectionFactory):
                 cause=exc,
             ) from exc
 
+    async def aclose(self) -> None:
+        """Close all pooled connections. Idempotent. No-op when pool disabled."""
+        if self._pool is not None:
+            await self._pool.aclose()
+
+
+# Pre-1.0 alias — kept for downstream importers.
+FastMCPConnectionFactory = PoolingMCPConnectionFactory
 
 __all__ = [
     "MCPServerSpec",
     "MCPTransport",
     "IMCPConnectionFactory",
-    "FastMCPConnectionFactory",
+    "PoolingMCPConnectionFactory",
+    "FastMCPConnectionFactory",  # alias
 ]

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json as _json
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 from uuid import UUID
@@ -9,6 +10,9 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, Field
 
+from ai_core.audit import AuditEvent, AuditRecord
+from ai_core.audit.null import NullAuditSink
+from ai_core.di.interfaces import SpanContext
 from ai_core.exceptions import (
     PolicyDenialError,
     ToolExecutionError,
@@ -84,9 +88,16 @@ async def test_happy_path(
     assert span.attributes["tool.version"] == 1
     assert span.attributes["agent_id"] == "a"
     assert span.attributes["tenant_id"] == "t"
-    assert ("tool.completed", {
-        "tool.name": "search", "tool.version": 1, "agent_id": "a", "tenant_id": "t",
-    }) in [(n, dict(a)) for n, a in fake_observability.events]
+    completed_events = [
+        dict(a) for n, a in fake_observability.events if n == "tool.completed"
+    ]
+    assert len(completed_events) == 1
+    attrs = completed_events[0]
+    assert attrs["tool.name"] == "search"
+    assert attrs["tool.version"] == 1
+    assert attrs["agent_id"] == "a"
+    assert attrs["tenant_id"] == "t"
+    assert "latency_ms" in attrs and isinstance(attrs["latency_ms"], float)
 
 
 @pytest.mark.asyncio
@@ -314,8 +325,6 @@ async def test_invoker_records_policy_decision(
     fake_audit_sink: FakeAuditSink,
 ) -> None:
     """ToolInvoker records POLICY_DECISION audit event after OPA evaluation."""
-    from ai_core.audit import AuditEvent  # noqa: PLC0415
-
     inv = ToolInvoker(
         observability=fake_observability,
         policy=fake_policy_evaluator_factory(default_allow=True, reason="ok"),
@@ -329,14 +338,96 @@ async def test_invoker_records_policy_decision(
 
 
 @pytest.mark.asyncio
+async def test_invoker_skips_audit_record_allocation_for_null_sink(
+    fake_observability, fake_policy_evaluator_factory, monkeypatch
+) -> None:
+    """When the audit sink is NullAuditSink (default), AuditRecord.now() should not be called."""
+    inv = ToolInvoker(
+        observability=fake_observability,
+        policy=fake_policy_evaluator_factory(default_allow=True),
+        registry=SchemaRegistry(),
+        audit=NullAuditSink(),  # default
+    )
+
+    # Spy on AuditRecord.now to verify it is NOT called.
+    call_count = 0
+    original_now = AuditRecord.now
+
+    @classmethod  # type: ignore[misc]
+    def _spy_now(cls, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return original_now(*args, **kwargs)
+
+    monkeypatch.setattr(AuditRecord, "now", _spy_now)
+
+    await inv.invoke(_search, {"q": "x", "limit": 1}, agent_id="a")
+    assert call_count == 0, f"AuditRecord.now called {call_count} times for NullAuditSink"
+
+
+@pytest.mark.asyncio
+async def test_invoker_records_principal_in_audit_payload(
+    fake_observability, fake_policy_evaluator_factory, fake_audit_sink
+) -> None:
+    """POLICY_DECISION audit record should include 'user' field with principal data."""
+    inv = ToolInvoker(
+        observability=fake_observability,
+        policy=fake_policy_evaluator_factory(default_allow=True),
+        registry=SchemaRegistry(),
+        audit=fake_audit_sink,
+    )
+    await inv.invoke(
+        _search, {"q": "x", "limit": 1},
+        principal={"sub": "user-42", "groups": ["admin"]},
+        agent_id="a", tenant_id="t",
+    )
+
+    policy_records = [r for r in fake_audit_sink.records if r.event == AuditEvent.POLICY_DECISION]
+    assert len(policy_records) == 1
+    payload = policy_records[0].payload
+    assert "user" in payload
+    assert payload["user"] == {"sub": "user-42", "groups": ["admin"]}
+    # Also: the existing input field is preserved.
+    assert "input" in payload
+
+
+@pytest.mark.asyncio
+async def test_invoker_swallows_tool_completed_event_failure(
+    fake_policy_evaluator_factory, fake_audit_sink
+) -> None:
+    """A failure in the post-span record_event('tool.completed') must NOT propagate
+    as a tool failure — the user's tool call already succeeded."""
+    # FakeObservabilityProvider that fails on record_event.
+    class _BadObs:
+        def start_span(self, name, *, attributes=None):
+            @asynccontextmanager
+            async def _cm():
+                yield SpanContext(name=name, trace_id="t", span_id="s",
+                                  backend_handles={})
+            return _cm()
+        async def record_llm_usage(self, **kwargs): pass  # noqa: ANN
+        async def record_event(self, name, *, attributes=None):  # noqa: ANN
+            raise RuntimeError("backend down (test-injected)")
+        async def shutdown(self): pass  # noqa: ANN
+
+    inv = ToolInvoker(
+        observability=_BadObs(),  # type: ignore[arg-type]
+        policy=fake_policy_evaluator_factory(default_allow=True),
+        registry=SchemaRegistry(),
+        audit=fake_audit_sink,
+    )
+    # Should NOT raise — the user's tool call returns successfully.
+    result = await inv.invoke(_search, {"q": "x", "limit": 1}, agent_id="a")
+    assert result == {"items": ["x"]}
+
+
+@pytest.mark.asyncio
 async def test_invoker_records_failure_on_handler_raise(
     fake_observability: FakeObservabilityProvider,
     fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
     fake_audit_sink: FakeAuditSink,
 ) -> None:
     """ToolInvoker records TOOL_INVOCATION_FAILED with error_code on handler raise."""
-    from ai_core.audit import AuditEvent  # noqa: PLC0415
-
     @tool(name="boom", version=1)
     async def boom(payload: _In) -> _Out:
         raise RuntimeError("kaboom")

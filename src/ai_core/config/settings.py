@@ -120,6 +120,18 @@ class LLMSettings(BaseSettings):
     retry_max_backoff_seconds: float = Field(default=10.0, gt=0)
     proxy_base_url: AnyHttpUrl | None = None
     proxy_api_key: SecretStr | None = None
+    prompt_cache_enabled: bool = Field(
+        default=True,
+        description=(
+            "When True (default), automatically apply Anthropic cache_control "
+            "headers to system prompts and stable conversation history. Skipped "
+            "for non-Anthropic providers and for prompts below the configured "
+            "thresholds. Set False to disable for tests that require deterministic "
+            "cache-miss responses."
+        ),
+    )
+    prompt_cache_min_messages: int = Field(default=6, ge=2)
+    prompt_cache_min_tokens: int = Field(default=1024, ge=512)
 
 
 class BudgetSettings(BaseSettings):
@@ -193,6 +205,14 @@ class SecuritySettings(BaseSettings):
         default=True,
         description="If True, deny on OPA error; if False, allow (use with caution).",
     )
+    opa_health_path: str = Field(
+        default="/health",
+        description=(
+            "Path appended to opa_url for the reachability probe. Override for "
+            "deployments where OPA is mounted at a non-standard prefix "
+            "(e.g., '/opa/health' behind an API gateway)."
+        ),
+    )
     jwt_audience: str | None = None
     jwt_issuer: str | None = None
 
@@ -229,6 +249,29 @@ class HealthSettings(BaseSettings):
     probe_timeout_seconds: float = Field(default=2.0, gt=0)
 
 
+class MCPSettings(BaseSettings):
+    """MCP transport / pool configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    pool_enabled: bool = Field(
+        default=True,
+        description=(
+            "When True (default), MCP connections are pooled per component_id "
+            "and reused across calls. Set False for debugging or to ensure "
+            "every call uses a fresh transport."
+        ),
+    )
+    pool_idle_seconds: float = Field(
+        default=300.0,
+        gt=0.0,
+        description=(
+            "Connections idle longer than this are closed and reopened on next "
+            "checkout. Default 5 minutes — matches typical server-side timeout."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Top-level settings
 # ---------------------------------------------------------------------------
@@ -253,6 +296,7 @@ class AppSettings(BaseSettings):
         observability: OpenTelemetry + LangFuse configuration.
         security: OPA / authz configuration.
         agent: Agent runtime defaults.
+        mcp: MCP transport / pool configuration (connection pooling, idle TTL).
     """
 
     model_config = SettingsConfigDict(
@@ -277,6 +321,7 @@ class AppSettings(BaseSettings):
     agent: AgentSettings = Field(default_factory=AgentSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     health: HealthSettings = Field(default_factory=HealthSettings)
+    mcp: MCPSettings = Field(default_factory=MCPSettings)
 
     @field_validator("service_name")
     @classmethod

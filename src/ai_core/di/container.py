@@ -202,10 +202,12 @@ class Container:
 
         from ai_core.audit import IAuditSink  # noqa: PLC0415
         from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
+        from ai_core.mcp.transports import IMCPConnectionFactory  # noqa: PLC0415
 
         steps: list[tuple[str, type[Any], tuple[str, ...]]] = [
             ("observability.shutdown", IObservabilityProvider, ("shutdown",)),
             ("audit.flush", IAuditSink, ("flush",)),
+            ("mcp_pool.aclose", IMCPConnectionFactory, ("aclose",)),
             ("policy_evaluator.aclose", IPolicyEvaluator, ("aclose",)),
             ("engine.dispose", AsyncEngine, ("dispose",)),
         ]

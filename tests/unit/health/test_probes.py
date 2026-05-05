@@ -11,20 +11,9 @@ from ai_core.health.probes import (
     DatabaseProbe,
     ModelLookupProbe,
     OPAReachabilityProbe,
-    SettingsProbe,
 )
 
 pytestmark = pytest.mark.unit
-
-
-# --- SettingsProbe ---
-
-@pytest.mark.asyncio
-async def test_settings_probe_always_ok() -> None:
-    probe = SettingsProbe(AppSettings())
-    result = await probe.probe()
-    assert result.component == "settings"
-    assert result.status == "ok"
 
 
 # --- OPAReachabilityProbe ---

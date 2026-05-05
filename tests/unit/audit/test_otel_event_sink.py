@@ -46,6 +46,26 @@ async def test_otel_event_sink_swallows_backend_errors(fake_observability) -> No
 
 
 @pytest.mark.asyncio
+async def test_otel_event_sink_emits_empty_string_for_undefined_decision(
+    fake_observability,
+) -> None:
+    """When AuditRecord.decision_allowed is None (no policy decision),
+    OTel attribute audit.decision_allowed should be empty string, not False."""
+    sink = OTelEventAuditSink(fake_observability)
+    await sink.record(AuditRecord.now(
+        AuditEvent.TOOL_INVOCATION_COMPLETED,
+        tool_name="x", tool_version=1,
+        agent_id="a", tenant_id="t",
+        # decision_allowed not set — defaults to None
+    ))
+
+    events = fake_observability.events
+    matching = next(attrs for name, attrs in events
+                     if name == "eaap.audit.tool.invocation.completed")
+    assert matching["audit.decision_allowed"] == ""
+
+
+@pytest.mark.asyncio
 async def test_otel_event_sink_flush_is_noop() -> None:
     """OTelEventAuditSink.flush is a no-op (observability owns its flush)."""
     class _NoopObs:

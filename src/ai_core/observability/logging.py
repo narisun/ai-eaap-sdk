@@ -19,6 +19,9 @@ Asyncio task isolation: ``bind_context`` writes to ContextVar instances,
 which are isolated per asyncio task. Two concurrent agents invoking
 ``ainvoke`` will never see each other's ``agent_id`` / ``tenant_id``
 fields. See ``test_asyncio_task_isolation`` for the regression test.
+
+The merge precedence is **explicit kwargs > ContextVar fields**: a per-call
+``logger.warning("event", agent_id="B")`` overrides ``bind_context(agent_id="A")``.
 """
 
 from __future__ import annotations
@@ -88,7 +91,17 @@ def configure(
 
 
 def bind_context(**kwargs: Any) -> dict[str, contextvars.Token[Any]]:  # noqa: ANN401
-    """Push ``kwargs`` into the request-scoped structlog ContextVars; return reset tokens."""
+    """Bind ``kwargs`` as ContextVar fields visible on every log line.
+
+    Returns a token-map; pass it to :func:`unbind_context` to release.
+
+    Precedence:
+        Explicit logger keyword arguments take precedence over ContextVar-bound
+        values when keys collide. After ``bind_context(agent_id="A")``, a call
+        ``logger.warning("event", agent_id="B")`` emits ``agent_id="B"``. This
+        matches structlog's ``_ContextVarMergingDict`` semantics — the per-call
+        kwargs are the most specific binding.
+    """
     return dict(structlog.contextvars.bind_contextvars(**kwargs))
 
 
