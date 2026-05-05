@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import sys
+import types
 from typing import Any
 from unittest.mock import patch
 
@@ -59,3 +61,42 @@ def test_missing_fastmcp_raises_mcp_transport_error() -> None:
     ).lower()
     assert exc.value.details["component_id"] == "test-server"
     assert exc.value.details["transport"] == "stdio"
+
+
+def test_runtime_oserror_is_wrapped_as_mcp_transport_error() -> None:
+    """An OSError raised inside the async-with block must surface as MCPTransportError."""
+    factory = FastMCPConnectionFactory()
+    spec = _spec()
+
+    class _BoomClient:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            return None
+
+        async def __aenter__(self) -> object:
+            raise OSError("connection refused (test-injected)")
+
+        async def __aexit__(self, *_exc_info: object) -> None:
+            return None
+
+    fake_fastmcp = types.SimpleNamespace(Client=_BoomClient)
+    fake_transports = types.SimpleNamespace(
+        StdioTransport=lambda **kw: object(),
+        SSETransport=lambda **kw: object(),
+        StreamableHttpTransport=lambda **kw: object(),
+    )
+
+    async def _enter() -> None:
+        with patch.dict(sys.modules, {
+            "fastmcp": fake_fastmcp,
+            "fastmcp.client.transports": fake_transports,
+        }):
+            async with factory.open(spec):
+                pass
+
+    with pytest.raises(MCPTransportError) as exc:
+        asyncio.run(_enter())
+
+    assert exc.value.error_code == "mcp.transport_failed"
+    assert exc.value.details["component_id"] == "test-server"
+    assert exc.value.details["transport"] == "stdio"
+    assert "connection refused" in str(exc.value.cause)

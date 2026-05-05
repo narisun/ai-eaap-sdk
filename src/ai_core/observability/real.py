@@ -144,8 +144,7 @@ class RealObservabilityProvider(IObservabilityProvider):
                     metadata={k: v for k, v in attrs.items() if not k.startswith("llm.")},
                 )
             except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
-                if not self._should_swallow(exc, "record_llm_usage"):
-                    raise
+                self._swallow_or_raise(exc, "record_llm_usage")
 
     async def record_event(
         self,
@@ -166,8 +165,7 @@ class RealObservabilityProvider(IObservabilityProvider):
             try:
                 trace_handle.event(name=name, metadata=attrs)
             except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
-                if not self._should_swallow(exc, "record_event"):
-                    raise
+                self._swallow_or_raise(exc, "record_event")
 
     async def shutdown(self) -> None:
         """Flush both backends. Idempotent and exception-safe."""
@@ -203,9 +201,8 @@ class RealObservabilityProvider(IObservabilityProvider):
         # Attempt to start the OTel span; respect fail_open on backend failure.
         try:
             _otel_cm = self._tracer.start_as_current_span(name, attributes=attrs)
-        except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
-            if not self._should_swallow(exc, "start_span"):
-                raise
+        except Exception as exc:  # observability boundary, controlled by fail_open
+            self._swallow_or_raise(exc, "start_span")
             # fail_open=True path: yield a no-op fallback so the caller's body still runs.
             yield SpanContext(name=name, trace_id="0" * 32, span_id="0" * 16, backend_handles={})
             return
@@ -243,10 +240,10 @@ class RealObservabilityProvider(IObservabilityProvider):
                 yield ctx
             except BaseException as exc:  # noqa: BLE001 — record then re-raise
                 if isinstance(exc, EAAPBaseException):
-                    otel_span.set_attribute("eaap.error.code", exc.error_code)
+                    otel_span.set_attribute("error.code", exc.error_code)
                     for k, v in (exc.details or {}).items():
                         if isinstance(v, (str, int, float, bool)):
-                            otel_span.set_attribute(f"eaap.error.details.{k}", v)
+                            otel_span.set_attribute(f"error.details.{k}", v)
                 otel_span.record_exception(exc)
                 otel_span.set_status(otel_trace.Status(otel_trace.StatusCode.ERROR, str(exc)))
                 if lf_span is not None:
@@ -342,21 +339,12 @@ class RealObservabilityProvider(IObservabilityProvider):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _should_swallow(self, exc: BaseException, context: str) -> bool:
-        """Return True if the caller should swallow the error (fail_open).
-        Return False if the caller should re-raise via bare ``raise``.
-
-        Always logs at WARNING level regardless of return value.
-        """
+    def _swallow_or_raise(self, exc: BaseException, context: str) -> None:
+        """Either log-and-suppress (fail_open=True) or re-raise."""
         if self._fail_open:
             _logger.warning("Observability backend error in %s: %s", context, exc)
-            return True
-        _logger.warning(
-            "Observability backend error in %s (re-raising under fail_open=False): %s",
-            context,
-            exc,
-        )
-        return False
+            return
+        raise exc
 
     def _ensure_lf_trace(self, *, name: str) -> Any | None:
         """Return the active LangFuse trace, creating one if necessary."""

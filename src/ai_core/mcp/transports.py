@@ -78,7 +78,11 @@ class FastMCPConnectionFactory(IMCPConnectionFactory):
             Async context manager yielding a connected FastMCP ``Client``.
 
         Raises:
-            RegistryError: If the transport is unsupported or FastMCP is missing.
+            MCPTransportError: If FastMCP is not installed or a transport-class
+                import fails, or if the connection itself fails (httpx/anyio/OS
+                errors during open).
+            RegistryError: If ``spec.transport`` is not a supported value
+                (defensive — the ``Literal`` type prevents this at static-check time).
         """
         return self._open(spec)
 
@@ -122,7 +126,9 @@ class FastMCPConnectionFactory(IMCPConnectionFactory):
                 )
         except ImportError as exc:
             raise MCPTransportError(
-                "FastMCP is not installed; install with `pip install ai-core-sdk[mcp]`",
+                f"FastMCP transport class for {spec.transport!r} not found "
+                "(version mismatch or partial install); "
+                "upgrade with `pip install -U ai-core-sdk[mcp]`",
                 details=_transport_details,
                 cause=exc,
             ) from exc
@@ -131,25 +137,15 @@ class FastMCPConnectionFactory(IMCPConnectionFactory):
         try:
             async with client:
                 yield client
-        except OSError as exc:
+        except (KeyboardInterrupt, SystemExit, GeneratorExit):
+            # Preserve cancellation/exit semantics for the async-context-manager unwind.
+            raise
+        except Exception as exc:
             raise MCPTransportError(
                 f"MCP transport '{spec.transport}' connection failed: {exc}",
                 details=_transport_details,
                 cause=exc,
             ) from exc
-        except Exception as exc:
-            # Catch httpx / anyio runtime errors without importing those libraries.
-            exc_type = type(exc).__name__
-            if any(
-                exc_type.endswith(suffix)
-                for suffix in ("HTTPError", "BrokenResourceError", "ClosedResourceError")
-            ):
-                raise MCPTransportError(
-                    f"MCP transport '{spec.transport}' connection failed: {exc}",
-                    details=_transport_details,
-                    cause=exc,
-                ) from exc
-            raise
 
 
 __all__ = [
