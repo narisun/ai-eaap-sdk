@@ -153,9 +153,9 @@ class ToolInvoker:
                             decision_allowed=decision.allowed,
                             decision_reason=decision.reason,
                             payload={
-                            "input": payload.model_dump(),
-                            "user": dict(principal or {}),
-                        },
+                                "input": payload.model_dump(),
+                                "user": dict(principal or {}),
+                            },
                         ))
                     if not decision.allowed:
                         raise PolicyDenialError(
@@ -210,9 +210,9 @@ class ToolInvoker:
             try:
                 await self._observability.record_event(
                     "tool.completed",
-                    attributes=attrs,
+                    attributes={**attrs, "latency_ms": latency_ms},
                 )
-            except Exception as exc:  # observability boundary; never fail the tool result
+            except Exception as exc:  # noqa: BLE001 — observability boundary; never fail the tool result
                 _logger.warning(
                     "tool.completed_event_failed",
                     tool_name=spec.name, agent_id=agent_id, tenant_id=tenant_id,

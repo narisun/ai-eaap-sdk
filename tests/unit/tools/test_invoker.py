@@ -88,9 +88,16 @@ async def test_happy_path(
     assert span.attributes["tool.version"] == 1
     assert span.attributes["agent_id"] == "a"
     assert span.attributes["tenant_id"] == "t"
-    assert ("tool.completed", {
-        "tool.name": "search", "tool.version": 1, "agent_id": "a", "tenant_id": "t",
-    }) in [(n, dict(a)) for n, a in fake_observability.events]
+    completed_events = [
+        dict(a) for n, a in fake_observability.events if n == "tool.completed"
+    ]
+    assert len(completed_events) == 1
+    attrs = completed_events[0]
+    assert attrs["tool.name"] == "search"
+    assert attrs["tool.version"] == 1
+    assert attrs["agent_id"] == "a"
+    assert attrs["tenant_id"] == "t"
+    assert "latency_ms" in attrs and isinstance(attrs["latency_ms"], float)
 
 
 @pytest.mark.asyncio
