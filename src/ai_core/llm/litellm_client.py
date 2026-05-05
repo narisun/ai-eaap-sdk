@@ -171,18 +171,6 @@ class LiteLLMClient(ILLMClient):
                     details={"model": resolved_model, "attempts": cfg.max_retries + 1},
                     cause=last,
                 ) from last
-            except Timeout as exc:
-                raise LLMTimeoutError(
-                    f"LLM call timed out after {cfg.max_retries + 1} attempts",
-                    details={"model": resolved_model, "attempts": cfg.max_retries + 1},
-                    cause=exc,
-                ) from exc
-            except _TRANSIENT_LLM_ERRORS as exc:
-                raise LLMInvocationError(
-                    "LLM invocation failed",
-                    details={"model": resolved_model},
-                    cause=exc,
-                ) from exc
             except APIError as exc:
                 # Non-transient LiteLLM errors (auth, bad request, etc.) — bubble verbatim semantics.
                 raise LLMInvocationError(
@@ -219,7 +207,7 @@ class LiteLLMClient(ILLMClient):
     async def _call_with_retry(self, request_kwargs: Mapping[str, Any]) -> Any:
         cfg = self._settings.llm
         retrying = AsyncRetrying(
-            reraise=True,
+            reraise=False,  # Wrap exhausted retries in RetryError so we see attempts info.
             stop=stop_after_attempt(cfg.max_retries + 1),
             wait=wait_exponential(
                 multiplier=cfg.retry_initial_backoff_seconds,
@@ -230,7 +218,7 @@ class LiteLLMClient(ILLMClient):
         async for attempt in retrying:
             with attempt:
                 return await litellm.acompletion(**request_kwargs)
-        # Unreachable: AsyncRetrying with reraise=True always returns or raises.
+        # Unreachable: AsyncRetrying with reraise=False raises RetryError on exhaustion.
         raise LLMInvocationError("Unreachable retry exit")  # pragma: no cover
 
 

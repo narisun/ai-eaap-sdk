@@ -420,6 +420,9 @@ async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pyt
         await client.complete(model="gpt-x", messages=[{"role": "user", "content": "hi"}])
     assert exc.value.error_code == "llm.timeout"
     assert exc.value.details["model"] == "gpt-x"
+    # Assert we went through the RetryError path (not a direct exception type).
+    assert exc.value.details["attempts"] == 1  # max_retries=0 -> 1 attempt total
+    assert "after" in exc.value.message.lower() or "timed out" in exc.value.message.lower()
 
 
 @pytest.mark.asyncio
@@ -449,3 +452,6 @@ async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypat
     # Generic invocation_failed, NOT llm.timeout.
     assert exc.value.error_code == "llm.invocation_failed"
     assert not isinstance(exc.value, LLMTimeoutError)
+    # Assert we went through the RetryError path (not _TRANSIENT_LLM_ERRORS).
+    assert exc.value.details["attempts"] == 1
+    assert "after retries" in exc.value.message
