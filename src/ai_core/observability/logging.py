@@ -7,6 +7,18 @@ later without touching every callsite.
 The :func:`configure` function is called once by :class:`AICoreApp`
 during ``__aenter__``. Tests may call it directly with their preferred
 shape.
+
+Internal: a custom :class:`_ContextVarMergingDict` is registered as
+structlog's ``context_class`` so that ``bind_context`` fields propagate
+correctly through ``structlog.testing.capture_logs`` (which replaces
+the configured processor chain). The hook is :meth:`dict.copy`, called
+by ``BoundLoggerBase._process_event`` at the start of every log emission.
+This is a stable structlog internal (verified against 25.x).
+
+Asyncio task isolation: ``bind_context`` writes to ContextVar instances,
+which are isolated per asyncio task. Two concurrent agents invoking
+``ainvoke`` will never see each other's ``agent_id`` / ``tenant_id``
+fields. See ``test_asyncio_task_isolation`` for the regression test.
 """
 
 from __future__ import annotations
@@ -45,7 +57,14 @@ def configure(
     log_format: Literal["text", "structured"] = "text",
     log_level: str = "INFO",
 ) -> None:
-    """Configure structlog. Idempotent — safe to call multiple times."""
+    """Configure structlog. Idempotent — safe to call multiple times.
+
+    Warning:
+        Calling :func:`configure` while a :func:`structlog.testing.capture_logs`
+        context manager is active will discard the test swap and any subsequent
+        log calls inside that context will not be captured. Always configure
+        BEFORE entering ``capture_logs()`` in tests.
+    """
     structlog.reset_defaults()
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
