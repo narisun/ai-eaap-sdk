@@ -44,6 +44,14 @@ class _MCPConnectionPool:
         ``connections`` dict is guarded by ``self._lock`` to avoid races
         when two callers race for a missing connection.
 
+        Known v1 limitation: ``self._lock`` is held while a missing connection
+        is opened (and while a stale connection is closed before reopen).
+        During those awaited operations, acquires for *other* component_ids
+        will block on ``self._lock`` even though they target unrelated
+        connections. Acceptable for current single-tenant SDK consumption
+        (low spec cardinality, infrequent opens once warm). Multi-component_id
+        parallel opens are a Phase 5+ follow-up.
+
     Lifecycle:
         ``aclose()`` closes every pooled connection. Called by Container teardown.
 

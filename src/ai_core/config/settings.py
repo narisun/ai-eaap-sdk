@@ -284,6 +284,7 @@ class AppSettings(BaseSettings):
         observability: OpenTelemetry + LangFuse configuration.
         security: OPA / authz configuration.
         agent: Agent runtime defaults.
+        mcp: MCP transport / pool configuration (connection pooling, idle TTL).
     """
 
     model_config = SettingsConfigDict(
