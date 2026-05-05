@@ -96,7 +96,7 @@ async def test_database_probe_ok() -> None:
 
 @pytest.mark.asyncio
 async def test_database_probe_down_on_connect_failure() -> None:
-    fake_engine = AsyncMock()
+    fake_engine = MagicMock()
     fake_engine.connect.side_effect = ConnectionError("db unreachable")
 
     probe = DatabaseProbe(fake_engine)
