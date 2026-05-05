@@ -32,6 +32,8 @@ history and compaction would grow tokens instead of compressing them.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
@@ -44,6 +46,8 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from ai_core.agents.state import AgentState
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +173,41 @@ class MemoryManager(IMemoryManager):
         agent_id: str | None = None,
     ) -> AgentState:
         """Summarise the message history while preserving Essential Entities.
+
+        Wraps :meth:`_do_compact` in :func:`asyncio.wait_for` using the
+        configured ``compaction_timeout_seconds`` budget. On timeout, logs
+        a WARNING and returns the input state unchanged so the agent run
+        continues. The state may exceed the threshold next turn; the
+        next-turn ``should_compact`` check will retry.
+        """
+        timeout = self._settings.agent.compaction_timeout_seconds
+        try:
+            return await asyncio.wait_for(
+                self._do_compact(
+                    state,
+                    model=model,
+                    tenant_id=tenant_id,
+                    agent_id=agent_id,
+                ),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            _logger.warning(
+                "Compaction skipped: LLM call exceeded %.1fs timeout "
+                "(agent_id=%s, tenant_id=%s)",
+                timeout, agent_id, tenant_id,
+            )
+            return state
+
+    async def _do_compact(
+        self,
+        state: AgentState,
+        *,
+        model: str | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> AgentState:
+        """Internal compaction implementation — called by :meth:`compact`.
 
         Returns a new :class:`AgentState` whose ``messages`` field starts
         with a :class:`RemoveMessage` marker so the ``add_messages``

@@ -187,6 +187,7 @@ class AgentSettings(BaseSettings):
 
     memory_compaction_token_threshold: int = Field(default=8_000, ge=512)
     memory_compaction_target_tokens: int = Field(default=2_000, ge=128)
+    compaction_timeout_seconds: float = Field(default=30.0, gt=0)  # NEW
     max_recursion_depth: int = Field(default=25, ge=1, le=200)
     essential_entity_keys: list[str] = Field(
         default_factory=lambda: ["user_id", "tenant_id", "session_id", "task_id"],
