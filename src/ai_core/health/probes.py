@@ -97,7 +97,8 @@ class ModelLookupProbe(IHealthProbe):
     async def probe(self) -> ProbeResult:
         try:
             params = await asyncio.to_thread(
-                litellm.utils.get_supported_openai_params, self._model
+                litellm.utils.get_supported_openai_params,  # type: ignore[attr-defined]
+                self._model,
             )
             if params is None:
                 return ProbeResult(
