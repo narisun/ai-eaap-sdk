@@ -38,15 +38,16 @@ _logger = logging.getLogger(__name__)
 class ToolInvoker:
     """Runs ``ToolSpec`` instances through the SDK's standard tool-call pipeline.
 
-    Pipeline:
+    Pipeline (all steps wrapped in a single ``tool.invoke`` span):
 
     1. Validate ``raw_args`` -> ``spec.input_model`` (``ToolValidationError`` on fail).
     2. If ``spec.opa_path`` and a policy evaluator is wired, evaluate;
        deny -> ``PolicyDenialError``.
-    3. Open OTel span ``"tool.invoke"`` carrying tool/version/agent/tenant attributes.
-    4. ``await spec.handler(payload)``; raise -> ``ToolExecutionError`` chained.
-    5. Validate output via ``spec.output_model.model_validate`` (``ToolValidationError``).
-    6. Emit ``"tool.completed"`` event and return ``output.model_dump(mode="json")``.
+    3. ``await spec.handler(payload)``; raise -> ``ToolExecutionError`` chained.
+    4. Validate output via ``spec.output_model.model_validate`` (``ToolValidationError``).
+
+    After the span closes cleanly, emit a ``"tool.completed"`` event and return
+    ``output.model_dump(mode="json")``.
     """
 
     def __init__(

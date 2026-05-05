@@ -295,13 +295,13 @@ async def test_output_validation_error_tags_tool_invoke_span(
 ) -> None:
     """ToolValidationError(side='output') must propagate inside the tool.invoke span."""
 
-    @tool(name="lying_v2", version=1)
-    async def lying_v2(payload: _In) -> _Out:
+    @tool(name="lying", version=1)
+    async def lying(payload: _In) -> _Out:
         return {"wrong": True}  # type: ignore[return-value]
 
     inv = _invoker(fake_observability, fake_policy_evaluator_factory)
     with pytest.raises(ToolValidationError):
-        await inv.invoke(lying_v2, {"q": "x", "limit": 1})
+        await inv.invoke(lying, {"q": "x", "limit": 1})
     spans = [s for s in fake_observability.spans if s.name == "tool.invoke"]
     assert len(spans) == 1
     assert spans[0].error_code == "tool.validation_failed"
