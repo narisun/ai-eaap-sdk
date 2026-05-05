@@ -48,8 +48,10 @@ class EAAPBaseException(Exception):
         self.message: str = message
         self.details: dict[str, Any] = dict(details or {})
         self.error_code: str = error_code or type(self).DEFAULT_CODE
-        # Auto-populate so observability surfaces that walk `details` pick it up.
-        self.details.setdefault("error_code", self.error_code)
+        # Mirror error_code into details so observability surfaces that walk
+        # the dict see the same value as `self.error_code`. Last-write-wins —
+        # any pre-existing details["error_code"] from the caller is overwritten.
+        self.details["error_code"] = self.error_code
         self.cause: BaseException | None = cause
         if cause is not None:
             self.__cause__ = cause

@@ -102,8 +102,9 @@ def test_per_instance_override_wins() -> None:
     assert err.details["error_code"] == "llm.context_length_exceeded"
 
 
-def test_subclass_default_codes() -> None:
-    cases: list[tuple[type[EAAPBaseException], str]] = [
+@pytest.mark.parametrize(
+    ("cls", "expected_code"),
+    [
         (ConfigurationError, "config.invalid"),
         (SecretResolutionError, "config.secret_not_resolved"),
         (DependencyResolutionError, "di.resolution_failed"),
@@ -120,11 +121,15 @@ def test_subclass_default_codes() -> None:
         (AgentRecursionLimitError, "agent.recursion_limit"),
         (RegistryError, "registry.error"),
         (MCPTransportError, "mcp.transport_failed"),
-    ]
-    for cls, expected_code in cases:
-        err = cls("msg")
-        assert err.error_code == expected_code, f"{cls.__name__} got {err.error_code}"
-        assert err.details["error_code"] == expected_code
+    ],
+    ids=lambda v: v.__name__ if isinstance(v, type) else str(v),
+)
+def test_subclass_default_codes(
+    cls: type[EAAPBaseException], expected_code: str
+) -> None:
+    err = cls("msg")
+    assert err.error_code == expected_code
+    assert err.details["error_code"] == expected_code
 
 
 def test_existing_details_preserved_with_error_code_added() -> None:
@@ -138,15 +143,24 @@ def test_existing_details_preserved_with_error_code_added() -> None:
     }
 
 
-def test_explicit_details_error_code_is_preserved() -> None:
-    """If caller passes details with 'error_code' key, that value wins."""
+def test_error_code_arg_overrides_details_error_code() -> None:
+    """The error_code arg always wins; details['error_code'] mirrors self.error_code."""
     err = LLMInvocationError(
         "x", details={"error_code": "llm.custom"}, error_code="llm.timeout"
     )
-    # The error_code arg sets self.error_code; setdefault leaves the explicit
-    # details["error_code"] intact.
+    # error_code arg sets self.error_code AND overwrites any details["error_code"]
+    # so dashboards never see divergence between the attribute and the dict.
     assert err.error_code == "llm.timeout"
-    assert err.details["error_code"] == "llm.custom"
+    assert err.details["error_code"] == "llm.timeout"
+
+
+def test_details_error_code_used_when_no_arg_given() -> None:
+    """If no error_code arg is given, the subclass DEFAULT_CODE wins (still overwriting)."""
+    err = LLMInvocationError("x", details={"error_code": "llm.something_else"})
+    # No explicit error_code arg → DEFAULT_CODE is used, AND it overwrites
+    # whatever the caller put in details. This is intentional last-write-wins.
+    assert err.error_code == "llm.invocation_failed"
+    assert err.details["error_code"] == "llm.invocation_failed"
 
 
 def test_llm_timeout_error_lineage() -> None:
