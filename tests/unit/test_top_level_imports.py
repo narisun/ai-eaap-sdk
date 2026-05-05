@@ -19,6 +19,8 @@ def test_canonical_imports_exist() -> None:
         EAAPBaseException,
         HealthSnapshot,
         LLMInvocationError,
+        LLMTimeoutError,
+        MCPTransportError,
         PolicyDenialError,
         RegistryError,
         SchemaValidationError,
@@ -37,10 +39,11 @@ def test_canonical_imports_exist() -> None:
         "AICoreApp", "AgentRecursionLimitError", "AgentRuntimeError",
         "AgentState", "BaseAgent", "BudgetExceededError", "ConfigurationError",
         "DependencyResolutionError", "EAAPBaseException", "HealthSnapshot",
-        "LLMInvocationError", "PolicyDenialError", "RegistryError",
-        "SchemaValidationError", "SecretResolutionError", "StorageError",
-        "Tool", "ToolExecutionError", "ToolSpec", "ToolValidationError",
-        "new_agent_state", "tool",
+        "LLMInvocationError", "LLMTimeoutError",
+        "MCPTransportError",
+        "PolicyDenialError", "RegistryError", "SchemaValidationError",
+        "SecretResolutionError", "StorageError", "Tool", "ToolExecutionError",
+        "ToolSpec", "ToolValidationError", "new_agent_state", "tool",
     ]:
         assert locals_dict[name] is not None
 
