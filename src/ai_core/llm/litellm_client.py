@@ -262,7 +262,7 @@ def _normalise_response(model: str, raw: Any) -> LLMResponse:
             details={
                 "model": model,
                 "finish_reason": finish_reason,
-                "raw_keys": sorted(str(k) for k in payload.keys()),
+                "raw_keys": sorted(str(k) for k in payload),
             },
             error_code="llm.empty_response",
         )

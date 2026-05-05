@@ -395,7 +395,7 @@ class _NoOpObservability(IObservabilityProvider):
 
 
 @pytest.mark.asyncio
-async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     """litellm.Timeout after retry exhaustion -> LLMTimeoutError (not LLMInvocationError)."""
     settings = AppSettings()
     settings.llm.max_retries = 0  # one attempt; fail fast
@@ -423,7 +423,7 @@ async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pyt
 
 
 @pytest.mark.asyncio
-async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
     """Non-timeout transient error after retries -> generic LLMInvocationError."""
     settings = AppSettings()
     settings.llm.max_retries = 0
