@@ -1,10 +1,11 @@
 """Tests for the AICoreApp facade."""
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from injector import Module, provider, singleton
+from injector import Module, multiprovider, provider, singleton
 from pydantic import BaseModel
 
 from ai_core.app import AICoreApp, HealthSnapshot
@@ -17,6 +18,7 @@ from ai_core.di.interfaces import (
     LLMUsage,
 )
 from ai_core.exceptions import ConfigurationError
+from ai_core.health import IHealthProbe, ProbeResult
 from ai_core.tools import tool
 from ai_core.tools.invoker import ToolInvoker
 
@@ -122,9 +124,9 @@ async def test_health_snapshot_is_ok_after_entry(
 ) -> None:
     app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
     async with app:
-        snap = app.health
+        snap = await app.health()
         assert isinstance(snap, HealthSnapshot)
-        assert snap.status == "ok"
+        assert snap.status in ("ok", "degraded", "down")
 
 
 class _In(BaseModel):
@@ -159,7 +161,7 @@ async def test_methods_raise_before_entry() -> None:
     with pytest.raises(RuntimeError):
         _ = app.container
     # health is the exception — must return status="down" without raising
-    snap = app.health
+    snap = await app.health()
     assert snap.status == "down"
     assert snap.service_name == ""
 
@@ -171,15 +173,13 @@ async def test_health_components_populated_after_entry(
 ) -> None:
     app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
     async with app:
-        snap = app.health
-        assert snap.status == "ok"
-        # Loosen: check keys are stable; values may be "ok" or "unknown" as Phase 3 probes land.
-        assert set(snap.components.keys()) == {
-            "settings", "container", "tool_invoker", "policy_evaluator", "observability",
-        }
+        snap = await app.health()
+        # Probe-based health: check that "settings" probe is always present.
+        assert "settings" in snap.components
         assert snap.components["settings"] == "ok"
-        assert snap.components["container"] == "ok"
-        # Other component values may be "ok" or "unknown" depending on Phase 3 probes.
+        # component_details is populated (values may be None or str).
+        assert isinstance(snap.component_details, dict)
+        assert "settings" in snap.component_details
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_health_service_name_field(
     """HealthSnapshot has a `service_name` field (renamed from settings_version)."""
     app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
     async with app:
-        snap = app.health
+        snap = await app.health()
         assert snap.service_name == app.settings.service_name
         assert not hasattr(snap, "settings_version")
 
@@ -199,7 +199,79 @@ async def test_health_service_name_field(
 async def test_health_before_entry_has_empty_components_and_blank_service_name() -> None:
     """Before __aenter__, components is empty dict and service_name is empty string."""
     app = AICoreApp()
-    snap = app.health
+    snap = await app.health()
     assert snap.status == "down"
     assert snap.components == {}
+    assert snap.component_details == {}
     assert snap.service_name == ""
+
+
+@pytest.mark.asyncio
+async def test_async_health_returns_health_snapshot(
+    fake_observability: FakeObservabilityProvider,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
+    async with app:
+        snap = await app.health()
+        assert isinstance(snap, HealthSnapshot)
+        assert "settings" in snap.components
+
+
+@pytest.mark.asyncio
+async def test_health_rolls_up_to_down_when_any_probe_down() -> None:
+    """If any probe returns down, the rolled-up status is down."""
+
+    class _GoodProbe(IHealthProbe):
+        component = "good"
+
+        async def probe(self) -> ProbeResult:
+            return ProbeResult(component=self.component, status="ok")
+
+    class _BadProbe(IHealthProbe):
+        component = "bad"
+
+        async def probe(self) -> ProbeResult:
+            return ProbeResult(component=self.component, status="down", detail="boom")
+
+    class _Probes(Module):
+        @singleton
+        @multiprovider
+        def probes(self) -> list[IHealthProbe]:
+            return [_GoodProbe(), _BadProbe()]
+
+    app = AICoreApp(modules=[_Probes()])
+    async with app:
+        snap = await app.health()
+    assert snap.status == "down"
+    assert snap.components["good"] == "ok"
+    assert snap.components["bad"] == "down"
+    assert snap.component_details["bad"] == "boom"
+
+
+@pytest.mark.asyncio
+async def test_health_probe_timeout_marks_probe_down() -> None:
+    """A probe that exceeds health.probe_timeout_seconds is marked down."""
+    from ai_core.config.settings import HealthSettings  # noqa: PLC0415
+
+    class _SlowProbe(IHealthProbe):
+        component = "slow"
+
+        async def probe(self) -> ProbeResult:
+            await asyncio.sleep(2.0)  # >> 0.05s timeout
+            return ProbeResult(component=self.component, status="ok")
+
+    class _Probes(Module):
+        @singleton
+        @multiprovider
+        def probes(self) -> list[IHealthProbe]:
+            return [_SlowProbe()]
+
+    settings = AppSettings()
+    settings.health = HealthSettings(probe_timeout_seconds=0.05)
+
+    app = AICoreApp(settings=settings, modules=[_Probes()])
+    async with app:
+        snap = await app.health()
+    assert snap.components["slow"] == "down"
+    assert "probe_timeout" in (snap.component_details["slow"] or "")

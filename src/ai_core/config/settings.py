@@ -221,6 +221,14 @@ class AuditSettings(BaseSettings):
     jsonl_path: Path | None = None  # required when sink_type == "jsonl"
 
 
+class HealthSettings(BaseSettings):
+    """Health-probe configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    probe_timeout_seconds: float = Field(default=2.0, gt=0)
+
+
 # ---------------------------------------------------------------------------
 # Top-level settings
 # ---------------------------------------------------------------------------
@@ -268,6 +276,7 @@ class AppSettings(BaseSettings):
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
+    health: HealthSettings = Field(default_factory=HealthSettings)
 
     @field_validator("service_name")
     @classmethod

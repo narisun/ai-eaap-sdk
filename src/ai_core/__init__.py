@@ -52,6 +52,7 @@ from ai_core.exceptions import (
     ToolExecutionError,
     ToolValidationError,
 )
+from ai_core.health import IHealthProbe, ProbeResult
 from ai_core.tools import Tool, ToolSpec, tool
 
 __all__ = [
@@ -68,10 +69,13 @@ __all__ = [
     "EAAPBaseException",
     "HealthSnapshot",
     "IAuditSink",
+    # Health
+    "IHealthProbe",
     "LLMInvocationError",
     "LLMTimeoutError",
     "MCPTransportError",
     "PolicyDenialError",
+    "ProbeResult",
     "RegistryError",
     "SchemaValidationError",
     "SecretResolutionError",

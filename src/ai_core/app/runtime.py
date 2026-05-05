@@ -11,14 +11,16 @@ is the documented "pit of success" path.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings, get_settings
 from ai_core.di.container import Container
 from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
 from ai_core.di.module import AgentModule
+from ai_core.health.interface import HealthStatus, IHealthProbe, ProbeResult
 from ai_core.mcp.registry import ComponentRegistry, RegisteredComponent
 from ai_core.mcp.transports import (
     IMCPConnectionFactory,
@@ -39,11 +41,37 @@ A = TypeVar("A")
 
 @dataclass(frozen=True, slots=True)
 class HealthSnapshot:
-    """Coarse application health snapshot returned by :py:attr:`AICoreApp.health`."""
+    """Coarse application health snapshot returned by :py:meth:`AICoreApp.health`."""
 
-    status: Literal["ok", "degraded", "down"]
-    components: dict[str, Literal["ok", "unknown"]]
-    service_name: str  # was settings_version (Phase 2 rename)
+    status: HealthStatus
+    components: dict[str, HealthStatus]
+    component_details: dict[str, str | None]
+    service_name: str
+
+
+class _HealthCheckRunner:
+    """Fans out IHealthProbe instances in parallel with a per-probe timeout."""
+
+    def __init__(self, probes: Sequence[IHealthProbe], *,
+                 timeout_seconds: float) -> None:
+        self._probes = list(probes)
+        self._timeout = timeout_seconds
+
+    async def run(self) -> list[ProbeResult]:
+        async def _run_one(probe: IHealthProbe) -> ProbeResult:
+            try:
+                return await asyncio.wait_for(probe.probe(), timeout=self._timeout)
+            except TimeoutError:
+                return ProbeResult(
+                    component=probe.component, status="down",
+                    detail=f"probe_timeout_{self._timeout}s",
+                )
+            except Exception as exc:  # runner defence-in-depth — never raises
+                return ProbeResult(
+                    component=probe.component, status="down",
+                    detail=f"probe_error: {type(exc).__name__}",
+                )
+        return list(await asyncio.gather(*(_run_one(p) for p in self._probes)))
 
 
 class AICoreApp:
@@ -148,6 +176,37 @@ class AICoreApp:
             wrapper, component_type="mcp_server", replace=replace
         )
 
+    async def health(self) -> HealthSnapshot:
+        """Run all configured health probes in parallel and return the snapshot."""
+        if not self._entered or self._settings is None:
+            return HealthSnapshot(
+                status="down",
+                components={},
+                component_details={},
+                service_name="",
+            )
+        runner = _HealthCheckRunner(
+            self._require_container().get(list[IHealthProbe]),
+            timeout_seconds=self._settings.health.probe_timeout_seconds,
+        )
+        results = await runner.run()
+        components: dict[str, HealthStatus] = {r.component: r.status for r in results}
+        details: dict[str, str | None] = {r.component: r.detail for r in results}
+        if any(s == "down" for s in components.values()):
+            roll_up: HealthStatus = "down"
+        elif any(s == "degraded" for s in components.values()):
+            roll_up = "degraded"
+        else:
+            roll_up = "ok"
+        if self._closed:
+            roll_up = "down"
+        return HealthSnapshot(
+            status=roll_up,
+            components=components,
+            component_details=details,
+            service_name=self._settings.service_name,
+        )
+
     # ----- Properties ---------------------------------------------------------
     @property
     def settings(self) -> AppSettings:
@@ -166,26 +225,6 @@ class AICoreApp:
     @property
     def observability(self) -> IObservabilityProvider:
         return self._require_container().get(IObservabilityProvider)  # type: ignore[type-abstract]
-
-    @property
-    def health(self) -> HealthSnapshot:
-        if not self._entered or self._settings is None:
-            return HealthSnapshot(
-                status="down",
-                components={},
-                service_name="",
-            )
-        return HealthSnapshot(
-            status="ok" if not self._closed else "down",
-            components={
-                "settings": "ok",
-                "container": "ok",
-                "tool_invoker": "unknown",
-                "policy_evaluator": "unknown",
-                "observability": "unknown",
-            },
-            service_name=self._settings.service_name,
-        )
 
     # ----- Internal -----------------------------------------------------------
     def _require_container(self) -> Container:

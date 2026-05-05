@@ -20,7 +20,7 @@ Note:
 
 from __future__ import annotations
 
-from injector import Module, provider, singleton
+from injector import Module, multiprovider, provider, singleton
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from ai_core.agents.memory import (
@@ -40,6 +40,7 @@ from ai_core.di.interfaces import (
     IPolicyEvaluator,
 )
 from ai_core.exceptions import ConfigurationError
+from ai_core.health import IHealthProbe  # noqa: TC001
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
@@ -265,6 +266,28 @@ class AgentModule(Module):
             f"Unknown audit.sink_type: {sink_type!r}",
             error_code="config.invalid",
         )
+
+    # ----- Health probes ----------------------------------------------------
+    @singleton
+    @multiprovider
+    def provide_health_probes(
+        self,
+        settings: AppSettings,
+        engine: AsyncEngine,
+    ) -> list[IHealthProbe]:
+        """Default health-probe set. Override in a custom module to add probes."""
+        from ai_core.health.probes import (  # noqa: PLC0415
+            DatabaseProbe,
+            ModelLookupProbe,
+            OPAReachabilityProbe,
+            SettingsProbe,
+        )
+        return [
+            SettingsProbe(settings),
+            OPAReachabilityProbe(settings),
+            DatabaseProbe(engine),
+            ModelLookupProbe(settings),
+        ]
 
     # ----- Tool invoker -----------------------------------------------------
     @singleton
