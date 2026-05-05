@@ -9,11 +9,12 @@ provider's interactions can be observed deterministically.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import AppSettings, ObservabilitySettings
+from ai_core.exceptions import LLMInvocationError
 from ai_core.observability.real import RealObservabilityProvider
 
 
@@ -243,3 +244,72 @@ async def test_baggage_promoted_into_langfuse_metadata(
     # The metadata kwarg passed to lf.span() should include eaap.tenant_id.
     metadata_seen = fake_trace.span.call_args.kwargs["metadata"]
     assert metadata_seen.get("eaap.tenant_id") == "acme"
+
+
+# ---------------------------------------------------------------------------
+# fail_open toggle + error.code emission (Phase 2 Task 4)
+# ---------------------------------------------------------------------------
+def _settings(*, fail_open: bool) -> AppSettings:
+    s = AppSettings()
+    s.observability = ObservabilitySettings(fail_open=fail_open)
+    return s
+
+
+@pytest.mark.asyncio
+async def test_fail_open_true_swallows_backend_error() -> None:
+    """When fail_open=True (default), backend errors are logged but not raised."""
+    provider = RealObservabilityProvider(_settings(fail_open=True))
+
+    # Force an exception inside the span's tracer code by patching the tracer.
+    with patch.object(provider, "_tracer", new=MagicMock()):
+        provider._tracer.start_as_current_span.side_effect = RuntimeError("backend down")
+        # start_span must not raise — fail_open swallows.
+        async with provider.start_span("x", attributes={}):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_fail_open_false_raises_backend_error() -> None:
+    """When fail_open=False, backend errors propagate."""
+    provider = RealObservabilityProvider(_settings(fail_open=False))
+
+    with patch.object(provider, "_tracer", new=MagicMock()):
+        provider._tracer.start_as_current_span.side_effect = RuntimeError("backend down")
+        with pytest.raises(RuntimeError, match="backend down"):
+            async with provider.start_span("x", attributes={}):
+                pass
+
+
+@pytest.mark.asyncio
+async def test_eaap_exception_tags_error_code_on_span() -> None:
+    """When an EAAPBaseException propagates inside a span, set_attribute fires with error.code."""
+    provider = RealObservabilityProvider(_settings(fail_open=True))
+
+    # Build a mock span context object with integer trace/span ids so that
+    # format(..., "032x") / format(..., "016x") in _span() succeeds.
+    fake_span_context = MagicMock()
+    fake_span_context.trace_id = 0
+    fake_span_context.span_id = 0
+
+    fake_span = MagicMock()
+    fake_span.get_span_context.return_value = fake_span_context
+
+    fake_cm = MagicMock()
+    fake_cm.__enter__ = MagicMock(return_value=fake_span)
+    fake_cm.__exit__ = MagicMock(return_value=False)
+
+    fake_tracer = MagicMock()
+    fake_tracer.start_as_current_span.return_value = fake_cm
+
+    with patch.object(provider, "_tracer", new=fake_tracer), pytest.raises(LLMInvocationError):
+        async with provider.start_span("test.span", attributes={}):
+            raise LLMInvocationError(
+                "some failure",
+                details={"model": "gpt-x", "attempts": 3},
+            )
+
+    # Verify error.code attribute was set.
+    fake_span.set_attribute.assert_any_call("error.code", "llm.invocation_failed")
+    # Verify scalar details landed as attributes.
+    fake_span.set_attribute.assert_any_call("error.details.model", "gpt-x")
+    fake_span.set_attribute.assert_any_call("error.details.attempts", 3)

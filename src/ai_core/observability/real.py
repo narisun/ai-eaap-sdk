@@ -56,6 +56,7 @@ from opentelemetry.sdk.trace.export import (
 
 from ai_core.config.settings import AppSettings, Environment, ObservabilitySettings
 from ai_core.di.interfaces import IObservabilityProvider, SpanContext
+from ai_core.exceptions import EAAPBaseException
 
 _logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ class RealObservabilityProvider(IObservabilityProvider):
         self._cfg: ObservabilitySettings = settings.observability
         self._service_name = settings.service_name
         self._environment: Environment = settings.environment
+        self._fail_open: bool = settings.observability.fail_open
         self._tracer = self._init_otel()
         self._langfuse = self._init_langfuse()
 
@@ -138,8 +140,8 @@ class RealObservabilityProvider(IObservabilityProvider):
                     },
                     metadata={k: v for k, v in attrs.items() if not k.startswith("llm.")},
                 )
-            except Exception as exc:  # noqa: BLE001 — observability must never raise
-                _logger.warning("LangFuse generation() failed: %s", exc)
+            except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
+                self._swallow_or_raise(exc, "record_llm_usage")
 
     async def record_event(
         self,
@@ -159,8 +161,8 @@ class RealObservabilityProvider(IObservabilityProvider):
         if trace_handle is not None:
             try:
                 trace_handle.event(name=name, metadata=attrs)
-            except Exception as exc:  # noqa: BLE001
-                _logger.warning("LangFuse event() failed: %s", exc)
+            except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
+                self._swallow_or_raise(exc, "record_event")
 
     async def shutdown(self) -> None:
         """Flush both backends. Idempotent and exception-safe."""
@@ -181,7 +183,7 @@ class RealObservabilityProvider(IObservabilityProvider):
     # Span context manager
     # ------------------------------------------------------------------
     @asynccontextmanager
-    async def _span(
+    async def _span(  # noqa: PLR0912 — graceful-degradation paths add necessary branches
         self,
         name: str,
         attributes: Mapping[str, Any] | None,
@@ -193,10 +195,19 @@ class RealObservabilityProvider(IObservabilityProvider):
 
         outer_trace_token: contextvars.Token[Any | None] | None = None
 
-        with self._tracer.start_as_current_span(name, attributes=attrs) as otel_span:
-            otel_ctx = otel_span.get_span_context()
-            trace_id_hex = format(otel_ctx.trace_id, "032x")
-            span_id_hex = format(otel_ctx.span_id, "016x")
+        # Attempt to start the OTel span; respect fail_open on backend failure.
+        try:
+            _otel_cm = self._tracer.start_as_current_span(name, attributes=attrs)
+        except Exception as exc:  # observability boundary, controlled by fail_open
+            self._swallow_or_raise(exc, "start_span")
+            # fail_open=True path: yield a no-op fallback so the caller's body still runs.
+            yield SpanContext(name=name, trace_id="0" * 32, span_id="0" * 16, backend_handles={})
+            return
+
+        with _otel_cm as otel_span:
+            otel_span_ctx = otel_span.get_span_context()
+            trace_id_hex = format(otel_span_ctx.trace_id, "032x")
+            span_id_hex = format(otel_span_ctx.span_id, "016x")
 
             lf_span: Any = None
             current_trace = _active_lf_trace.get()
@@ -225,6 +236,11 @@ class RealObservabilityProvider(IObservabilityProvider):
             try:
                 yield ctx
             except BaseException as exc:  # noqa: BLE001 — record then re-raise
+                if isinstance(exc, EAAPBaseException):
+                    otel_span.set_attribute("error.code", exc.error_code)
+                    for k, v in (exc.details or {}).items():
+                        if isinstance(v, (str, int, float, bool)):
+                            otel_span.set_attribute(f"error.details.{k}", v)
                 otel_span.record_exception(exc)
                 otel_span.set_status(otel_trace.Status(otel_trace.StatusCode.ERROR, str(exc)))
                 if lf_span is not None:
@@ -320,6 +336,13 @@ class RealObservabilityProvider(IObservabilityProvider):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _swallow_or_raise(self, exc: BaseException, context: str) -> None:
+        """Either log-and-suppress (fail_open=True) or re-raise."""
+        if self._fail_open:
+            _logger.warning("Observability backend error in %s: %s", context, exc)
+            return
+        raise exc
+
     def _ensure_lf_trace(self, *, name: str) -> Any | None:
         """Return the active LangFuse trace, creating one if necessary."""
         if self._langfuse is None:
@@ -332,12 +355,11 @@ class RealObservabilityProvider(IObservabilityProvider):
             _active_lf_trace.set(new_trace)
         return new_trace
 
-    @staticmethod
-    def _safe_lf_call(call: Any) -> Any:
+    def _safe_lf_call(self, call: Any) -> Any:
         try:
             return call()
-        except Exception as exc:  # noqa: BLE001
-            _logger.warning("LangFuse call failed: %s", exc)
+        except Exception as exc:  # observability boundary, controlled by fail_open
+            self._swallow_or_raise(exc, "langfuse_call")
             return None
 
 

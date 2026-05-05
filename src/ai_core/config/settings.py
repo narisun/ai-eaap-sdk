@@ -156,6 +156,15 @@ class ObservabilitySettings(BaseSettings):
     langfuse_public_key: SecretStr | None = None
     langfuse_secret_key: SecretStr | None = None
     log_level: LogLevel = LogLevel.INFO
+    fail_open: bool = Field(
+        default=True,
+        description=(
+            "When True (default, recommended for production), backend errors "
+            "(OTel exporter, LangFuse client) are caught and logged. When False "
+            "(recommended for local/dev), they re-raise so misconfigured "
+            "exporters surface immediately."
+        ),
+    )
 
 
 class SecuritySettings(BaseSettings):
