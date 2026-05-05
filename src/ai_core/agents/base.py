@@ -145,6 +145,12 @@ class BaseAgent(ABC):
         graph.add_node("agent", self._agent_node)
 
         sdk_tools = [t for t in self.tools() if isinstance(t, ToolSpec)]
+
+        # Phase 2: auto-register each ToolSpec with the SchemaRegistry so that
+        # `app.register_tools(*specs)` is optional. Idempotent — re-compile is fine.
+        for spec in sdk_tools:
+            self._tool_invoker.register(spec)
+
         install_loop = self.auto_tool_loop and bool(sdk_tools)
 
         # START routing is invariant across branches.

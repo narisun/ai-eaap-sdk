@@ -1,8 +1,7 @@
 """Component tests for BaseAgent + @tool integration."""
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from injector import Module, provider, singleton
@@ -17,7 +16,12 @@ from ai_core.di.interfaces import (
     LLMResponse,
     LLMUsage,
 )
+from ai_core.exceptions import SchemaValidationError
+from ai_core.schema.registry import SchemaRegistry
 from ai_core.tools import Tool, tool
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 pytestmark = pytest.mark.component
 
@@ -264,3 +268,27 @@ async def test_multiple_tool_calls_in_one_turn(
     final = state["messages"][-1]
     final_content = getattr(final, "content", None) or final["content"]
     assert "3" in final_content and "5" in final_content
+
+
+@pytest.mark.asyncio
+async def test_compile_auto_registers_tools_with_schema_registry(
+    fake_observability, fake_policy_evaluator_factory
+) -> None:
+    """compile() must populate SchemaRegistry with every ToolSpec returned by tools()."""
+    llm = _ScriptedLLM([_llm_msg(content="ok")])
+    container = _build(llm, fake_observability, fake_policy_evaluator_factory)
+    agent = container.get(_DemoAgent)
+
+    # Before compile: registry has no record of count_tool.
+    registry = container.get(SchemaRegistry)
+    with pytest.raises(SchemaValidationError):
+        registry.get("count", version=1)
+
+    # Compile and verify registration happened.
+    agent.compile()
+    record = registry.get("count", version=1)
+    assert record.input_schema is _In
+    assert record.output_schema is _Out
+
+    # Re-compile must be idempotent — no double-registration error.
+    agent.compile()
