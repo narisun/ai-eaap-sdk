@@ -193,3 +193,4 @@ def test_app_settings_explicit_path_missing_raises_configuration_error(
     with pytest.raises(ConfigurationError) as exc:
         AppSettings()
     assert exc.value.error_code == "config.yaml_path_missing"
+    assert exc.value.details["env_var"] == "EAAP_CONFIG_PATH"

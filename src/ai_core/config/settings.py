@@ -491,8 +491,10 @@ class AppSettings(BaseSettings):
 
         try:
             yaml_settings = YamlConfigSettingsSource(settings_cls, yaml_file=yaml_path)
-            # Force eager parse + shape check so errors come back as ConfigurationError
-            # rather than as raw YAMLError / TypeError / SettingsError later.
+            # YamlConfigSettingsSource.__init__ already calls yaml.safe_load, so most
+            # parse / shape errors surface above. Calling the source once more is
+            # defence-in-depth: any post-construction error (e.g. type-adapter
+            # rejection during merge) also gets wrapped as ConfigurationError below.
             yaml_settings()
         except Exception as exc:  # wrap any parse/shape error uniformly
             raise ConfigurationError(
