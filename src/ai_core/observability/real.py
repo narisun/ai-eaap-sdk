@@ -38,7 +38,6 @@ the same ContextVar so generations land on the right trace.
 from __future__ import annotations
 
 import contextvars
-import logging
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
@@ -60,8 +59,9 @@ from opentelemetry.sdk.trace.export import (
 from ai_core.config.settings import AppSettings, Environment, ObservabilitySettings
 from ai_core.di.interfaces import IObservabilityProvider, SpanContext
 from ai_core.exceptions import EAAPBaseException
+from ai_core.observability.logging import get_logger
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 # Track the active LangFuse trace per async task.
 _active_lf_trace: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
@@ -349,11 +349,16 @@ class RealObservabilityProvider(IObservabilityProvider):
         Always logs at WARNING level regardless of return value.
         """
         if self._fail_open:
-            _logger.warning("Observability backend error in %s: %s", context, exc)
+            _logger.warning(
+                "observability.backend_error",
+                context=context, error=str(exc), error_type=type(exc).__name__,
+                fail_open=True,
+            )
             return True
         _logger.warning(
-            "Observability backend error in %s (re-raising under fail_open=False): %s",
-            context, exc,
+            "observability.backend_error",
+            context=context, error=str(exc), error_type=type(exc).__name__,
+            fail_open=False,
         )
         return False
 
@@ -378,7 +383,10 @@ class RealObservabilityProvider(IObservabilityProvider):
         try:
             return call()
         except Exception as exc:  # teardown helper; always tolerant
-            _logger.warning("LangFuse helper call failed (always-swallowed): %s", exc)
+            _logger.warning(
+                "langfuse.helper_failed",
+                error=str(exc), error_type=type(exc).__name__,
+            )
             return None
 
 

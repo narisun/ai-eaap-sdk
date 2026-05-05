@@ -33,7 +33,6 @@ history and compaction would grow tokens instead of compressing them.
 from __future__ import annotations
 
 import asyncio
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
@@ -47,8 +46,9 @@ from ai_core.agents.state import AgentState
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient
 from ai_core.exceptions import LLMTimeoutError
+from ai_core.observability.logging import get_logger
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -194,16 +194,14 @@ class MemoryManager(IMemoryManager):
             )
         except TimeoutError:
             _logger.warning(
-                "Compaction skipped: LLM call exceeded %.1fs timeout "
-                "(agent_id=%s, tenant_id=%s)",
-                timeout, agent_id, tenant_id,
+                "compaction.skipped.budget_exceeded",
+                timeout_seconds=timeout, agent_id=agent_id, tenant_id=tenant_id,
             )
             return state
         except LLMTimeoutError as exc:
             _logger.warning(
-                "Compaction skipped: LLM client timeout (agent_id=%s, tenant_id=%s, "
-                "error_code=%s)",
-                agent_id, tenant_id, exc.error_code,
+                "compaction.skipped.llm_timeout",
+                agent_id=agent_id, tenant_id=tenant_id, error_code=exc.error_code,
             )
             return state
 

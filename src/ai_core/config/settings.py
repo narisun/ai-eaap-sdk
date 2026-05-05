@@ -156,6 +156,13 @@ class ObservabilitySettings(BaseSettings):
     langfuse_public_key: SecretStr | None = None
     langfuse_secret_key: SecretStr | None = None
     log_level: LogLevel = LogLevel.INFO
+    log_format: Literal["text", "structured"] = Field(
+        default="text",
+        description=(
+            "When 'text' (default), logs render as colorized key=value for local dev. "
+            "When 'structured', logs render as JSON for production ingestion."
+        ),
+    )
     fail_open: bool = Field(
         default=True,
         description=(

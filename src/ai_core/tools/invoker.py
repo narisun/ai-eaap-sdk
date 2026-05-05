@@ -13,7 +13,6 @@ as a parameter so the same invoker handles every tool in the application.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
@@ -24,6 +23,7 @@ from ai_core.exceptions import (
     ToolExecutionError,
     ToolValidationError,
 )
+from ai_core.observability.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from ai_core.schema.registry import SchemaRegistry
     from ai_core.tools.spec import ToolSpec
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 class ToolInvoker:
@@ -162,12 +162,9 @@ class ToolInvoker:
                 validated: BaseModel = spec.output_model.model_validate(result)
             except ValidationError as exc:
                 _logger.warning(
-                    "Tool '%s' v%s returned a non-conforming object "
-                    "(agent_id=%s, tenant_id=%s); this is a handler bug.",
-                    spec.name,
-                    spec.version,
-                    agent_id,
-                    tenant_id,
+                    "tool.output_validation_failed",
+                    tool_name=spec.name, tool_version=spec.version,
+                    agent_id=agent_id, tenant_id=tenant_id,
                 )
                 raise ToolValidationError(
                     f"Tool '{spec.name}' v{spec.version} returned invalid data.",

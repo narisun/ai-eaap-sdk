@@ -29,7 +29,6 @@ The base class wires:
 from __future__ import annotations
 
 import json
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -51,10 +50,11 @@ from ai_core.exceptions import (
     ToolExecutionError,
     ToolValidationError,
 )
+from ai_core.observability.logging import bind_context, get_logger, unbind_context
 from ai_core.tools.invoker import ToolInvoker
 from ai_core.tools.spec import Tool, ToolSpec
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 def _parse_tool_call_args(arguments: str | None) -> dict[str, Any]:
@@ -199,42 +199,50 @@ class BaseAgent(ABC):
             AgentRecursionLimitError: If the graph exceeds
                 :attr:`AgentSettings.max_recursion_depth`.
         """
-        compiled = self.compile()
-        initial = new_agent_state(
-            initial_messages=list(messages),
-            essential={**(essential or {}), "tenant_id": tenant_id or ""},
-            metadata={"agent_id": self.agent_id},
+        log_token = bind_context(
+            agent_id=self.agent_id,
+            tenant_id=tenant_id,
+            thread_id=thread_id,
         )
-
-        recursion_limit = self._settings.agent.max_recursion_depth
-        config: dict[str, Any] = {"recursion_limit": recursion_limit}
-        if thread_id is not None:
-            config["configurable"] = {"thread_id": thread_id}
-
-        attributes = {"agent.id": self.agent_id, "agent.tenant_id": tenant_id or ""}
-
-        # Stash agent context in OTel Baggage so every downstream span (LLM
-        # call, tool call, MCP request) is automatically tagged for
-        # cross-tenant aggregation in OTel + LangFuse.
-        token = otel_context.attach(self._build_baggage(tenant_id, thread_id, essential))
         try:
-            async with self._observability.start_span("agent.ainvoke", attributes=attributes):
-                try:
-                    result = await compiled.ainvoke(initial, config=config)
-                except GraphRecursionError as exc:
-                    raise AgentRecursionLimitError(
-                        "Agent exceeded recursion limit",
-                        details={
-                            "agent_id": self.agent_id,
-                            "tenant_id": tenant_id,
-                            "thread_id": thread_id,
-                            "limit": recursion_limit,
-                        },
-                        cause=exc,
-                    ) from exc
+            compiled = self.compile()
+            initial = new_agent_state(
+                initial_messages=list(messages),
+                essential={**(essential or {}), "tenant_id": tenant_id or ""},
+                metadata={"agent_id": self.agent_id},
+            )
+
+            recursion_limit = self._settings.agent.max_recursion_depth
+            config: dict[str, Any] = {"recursion_limit": recursion_limit}
+            if thread_id is not None:
+                config["configurable"] = {"thread_id": thread_id}
+
+            attributes = {"agent.id": self.agent_id, "agent.tenant_id": tenant_id or ""}
+
+            # Stash agent context in OTel Baggage so every downstream span (LLM
+            # call, tool call, MCP request) is automatically tagged for
+            # cross-tenant aggregation in OTel + LangFuse.
+            token = otel_context.attach(self._build_baggage(tenant_id, thread_id, essential))
+            try:
+                async with self._observability.start_span("agent.ainvoke", attributes=attributes):
+                    try:
+                        result = await compiled.ainvoke(initial, config=config)
+                    except GraphRecursionError as exc:
+                        raise AgentRecursionLimitError(
+                            "Agent exceeded recursion limit",
+                            details={
+                                "agent_id": self.agent_id,
+                                "tenant_id": tenant_id,
+                                "thread_id": thread_id,
+                                "limit": recursion_limit,
+                            },
+                            cause=exc,
+                        ) from exc
+            finally:
+                otel_context.detach(token)
+            return result
         finally:
-            otel_context.detach(token)
-        return result
+            unbind_context(log_token)
 
     # ------------------------------------------------------------------
     # Graph nodes
@@ -342,7 +350,11 @@ class BaseAgent(ABC):
                     name=name,
                 ))
             except ToolExecutionError as exc:
-                _logger.error("Tool '%s' execution error", name, exc_info=exc)
+                _logger.error(
+                    "tool.execution_error",
+                    tool_name=name, agent_id=self.agent_id,
+                    exc_info=exc,
+                )
                 appended.append(ToolMessage(
                     content=f"Tool '{name}' failed: {exc.message}",
                     tool_call_id=tc_id or "",

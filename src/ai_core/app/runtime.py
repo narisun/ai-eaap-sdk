@@ -24,6 +24,7 @@ from ai_core.mcp.transports import (
     IMCPConnectionFactory,
     MCPServerSpec,
 )
+from ai_core.observability.logging import configure as _configure_logging
 from ai_core.tools.invoker import ToolInvoker
 
 if TYPE_CHECKING:
@@ -87,6 +88,11 @@ class AICoreApp:
         self._secret_manager = self._user_secret_manager or EnvSecretManager()
         # Fail fast — collect-all validation surfaces every issue at once.
         self._settings.validate_for_runtime(secret_manager=self._secret_manager)
+        # Phase 3: configure structlog before any code logs.
+        _configure_logging(
+            log_format=self._settings.observability.log_format,
+            log_level=self._settings.observability.log_level.value,
+        )
         self._container = Container.build([
             AgentModule(
                 settings=self._settings,
