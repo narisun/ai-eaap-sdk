@@ -13,6 +13,7 @@ from ai_core.agents.memory import MemoryManager, TokenCounter
 from ai_core.agents.state import new_agent_state
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
+from ai_core.exceptions import LLMTimeoutError
 
 
 def _content_messages(state_messages: list[Any]) -> list[Any]:
@@ -246,3 +247,117 @@ async def test_compact_increments_count_across_invocations() -> None:
     s2 = await mgr.compact(s1)
     assert s1["compaction_count"] == 1
     assert s2["compaction_count"] == 2
+
+
+import asyncio as _asyncio  # noqa: E402
+
+
+class _SlowFakeLLM(ILLMClient):
+    """Sleeps before returning, simulating a slow upstream."""
+
+    def __init__(self, sleep_seconds: float) -> None:
+        self._sleep = sleep_seconds
+        self.calls = 0
+
+    async def complete(
+        self,
+        *,
+        model: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+        extra: Mapping[str, Any] | None = None,
+    ) -> LLMResponse:
+        self.calls += 1
+        await _asyncio.sleep(self._sleep)
+        return LLMResponse(
+            model=model or "fake",
+            content="summary",
+            tool_calls=[],
+            usage=LLMUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30, cost_usd=0.0),
+            raw={},
+            finish_reason="stop",
+        )
+
+
+@pytest.mark.asyncio
+async def test_compact_skips_on_timeout() -> None:
+    """When the LLM takes longer than compaction_timeout_seconds, compact() returns
+    state unchanged and logs a WARNING — no crash."""
+    settings = AppSettings()
+    settings.agent.compaction_timeout_seconds = 0.05  # 50ms cap
+    slow_llm = _SlowFakeLLM(sleep_seconds=0.2)  # 200ms hang
+    counter = FakeTokenCounter([10_000, 0, 0])
+    mgr = MemoryManager(settings=settings, llm=slow_llm, token_counter=counter)
+
+    state = new_agent_state(
+        initial_messages=[{"role": "user", "content": "hi"}],
+        essential={"tenant_id": "t1"},
+        metadata={"agent_id": "a1"},
+    )
+
+    result = await mgr.compact(state, agent_id="a1", tenant_id="t1")
+    # State returned unchanged on timeout (skip-and-warn).
+    assert result is state
+    assert slow_llm.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_compact_succeeds_within_timeout() -> None:
+    """Compaction completes normally when LLM responds within the budget."""
+    settings = AppSettings()
+    settings.agent.compaction_timeout_seconds = 1.0
+    fast_llm = FakeLLM(summary="hello world")
+    counter = FakeTokenCounter([10_000, 0, 0])
+    mgr = MemoryManager(settings=settings, llm=fast_llm, token_counter=counter)
+
+    state = new_agent_state(
+        initial_messages=[{"role": "user", "content": "hi"}],
+        essential={"tenant_id": "t1"},
+    )
+
+    result = await mgr.compact(state, agent_id="a1", tenant_id="t1")
+    # Compaction succeeded — state has summary attached.
+    assert result is not state
+    assert result.get("summary") == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_compact_skips_on_llm_timeout_error() -> None:
+    """LLMTimeoutError raised by the LLM client must trigger skip-and-WARN
+    (no agent crash). Distinct from asyncio.TimeoutError (which is the
+    compaction-budget timeout we already handle)."""
+
+    class _RaisingLLM(ILLMClient):
+        async def complete(
+            self,
+            *,
+            model: str | None,
+            messages: Sequence[Mapping[str, Any]],
+            tools: Sequence[Mapping[str, Any]] | None = None,
+            temperature: float | None = None,
+            max_tokens: int | None = None,
+            tenant_id: str | None = None,
+            agent_id: str | None = None,
+            extra: Mapping[str, Any] | None = None,
+        ) -> LLMResponse:
+            raise LLMTimeoutError(
+                "client-level timeout",
+                details={"model": "fake", "attempts": 1},
+            )
+
+    settings = AppSettings()
+    counter = FakeTokenCounter([10_000, 0, 0])
+    mgr = MemoryManager(settings=settings, llm=_RaisingLLM(), token_counter=counter)
+
+    state = new_agent_state(
+        initial_messages=[{"role": "user", "content": "hi"}],
+        essential={"tenant_id": "t1"},
+    )
+
+    result = await mgr.compact(state, agent_id="a1", tenant_id="t1")
+    # Skip-and-WARN: state returned unchanged, no exception.
+    assert result is state

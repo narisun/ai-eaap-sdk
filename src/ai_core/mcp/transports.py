@@ -27,7 +27,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ai_core.exceptions import RegistryError
+from ai_core.exceptions import MCPTransportError, RegistryError
 
 MCPTransport = Literal["stdio", "http", "sse"]
 
@@ -78,46 +78,74 @@ class FastMCPConnectionFactory(IMCPConnectionFactory):
             Async context manager yielding a connected FastMCP ``Client``.
 
         Raises:
-            RegistryError: If the transport is unsupported or FastMCP is missing.
+            MCPTransportError: If FastMCP is not installed or a transport-class
+                import fails, or if the connection itself fails (httpx/anyio/OS
+                errors during open).
+            RegistryError: If ``spec.transport`` is not a supported value
+                (defensive — the ``Literal`` type prevents this at static-check time).
         """
         return self._open(spec)
 
     @asynccontextmanager
     async def _open(self, spec: MCPServerSpec) -> Any:
+        _transport_details = {
+            "component_id": spec.component_id,
+            "transport": spec.transport,
+        }
+
         try:
             from fastmcp import Client  # local import keeps fastmcp optional at import time
-        except ImportError as exc:  # pragma: no cover - import-time error path
-            raise RegistryError(
-                "fastmcp is required to open MCP connections",
-                details={"component_id": spec.component_id},
+        except ImportError as exc:
+            raise MCPTransportError(
+                "FastMCP is not installed; install with `pip install ai-core-sdk[mcp]`",
+                details=_transport_details,
                 cause=exc,
             ) from exc
 
-        if spec.transport == "stdio":
-            from fastmcp.client.transports import StdioTransport
+        try:
+            if spec.transport == "stdio":
+                from fastmcp.client.transports import StdioTransport
 
-            transport = StdioTransport(
-                command=spec.target,
-                args=list(spec.args),
-                env=dict(spec.env),
-            )
-        elif spec.transport == "sse":
-            from fastmcp.client.transports import SSETransport
+                transport = StdioTransport(
+                    command=spec.target,
+                    args=list(spec.args),
+                    env=dict(spec.env),
+                )
+            elif spec.transport == "sse":
+                from fastmcp.client.transports import SSETransport
 
-            transport = SSETransport(url=spec.target, headers=dict(spec.headers))
-        elif spec.transport == "http":
-            from fastmcp.client.transports import StreamableHttpTransport
+                transport = SSETransport(url=spec.target, headers=dict(spec.headers))
+            elif spec.transport == "http":
+                from fastmcp.client.transports import StreamableHttpTransport
 
-            transport = StreamableHttpTransport(url=spec.target, headers=dict(spec.headers))
-        else:  # pragma: no cover - exhaustive Literal check
-            raise RegistryError(
-                f"Unsupported MCP transport {spec.transport!r}",
-                details={"component_id": spec.component_id, "transport": spec.transport},
-            )
+                transport = StreamableHttpTransport(url=spec.target, headers=dict(spec.headers))
+            else:  # pragma: no cover - exhaustive Literal check
+                raise RegistryError(
+                    f"Unsupported MCP transport {spec.transport!r}",
+                    details=_transport_details,
+                )
+        except ImportError as exc:
+            raise MCPTransportError(
+                f"FastMCP transport class for {spec.transport!r} not found "
+                "(version mismatch or partial install); "
+                "upgrade with `pip install -U ai-core-sdk[mcp]`",
+                details=_transport_details,
+                cause=exc,
+            ) from exc
 
         client = Client(transport, timeout=spec.timeout_seconds)
-        async with client:
-            yield client
+        try:
+            async with client:
+                yield client
+        except (KeyboardInterrupt, SystemExit, GeneratorExit):
+            # Preserve cancellation/exit semantics for the async-context-manager unwind.
+            raise
+        except Exception as exc:
+            raise MCPTransportError(
+                f"MCP transport '{spec.transport}' connection failed: {exc}",
+                details=_transport_details,
+                cause=exc,
+            ) from exc
 
 
 __all__ = [

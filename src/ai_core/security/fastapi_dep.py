@@ -3,10 +3,11 @@
 Usage::
 
     from fastapi import FastAPI, Depends
-    from ai_core.di import Container, AgentModule
+    from ai_core.di import Container
+    from ai_core.di.module import AgentModule, ProductionSecurityModule
     from ai_core.security import OPAAuthorization, AuthorizedPrincipal
 
-    container = Container.build([AgentModule()])
+    container = Container.build([AgentModule(), ProductionSecurityModule()])
     authz = OPAAuthorization(container, decision_path="eaap/api/allow")
 
     app = FastAPI()
@@ -19,6 +20,10 @@ Usage::
         ),
     ) -> ...:
         ...
+
+The :class:`ProductionSecurityModule` is REQUIRED for actual policy enforcement —
+:class:`AgentModule` alone binds the always-allow :class:`NoOpPolicyEvaluator`,
+which is appropriate for local development but not for any production deployment.
 
 The dependency:
 

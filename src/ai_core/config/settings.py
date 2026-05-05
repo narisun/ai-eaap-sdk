@@ -17,10 +17,15 @@ from __future__ import annotations
 
 import enum
 from functools import lru_cache
+from pathlib import Path  # noqa: TC003
 from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from ai_core.config.secrets import ISecretManager
+from ai_core.config.validation import ValidationContext
+from ai_core.exceptions import ConfigurationError
 
 # ---------------------------------------------------------------------------
 # Enums / aliases
@@ -152,6 +157,22 @@ class ObservabilitySettings(BaseSettings):
     langfuse_public_key: SecretStr | None = None
     langfuse_secret_key: SecretStr | None = None
     log_level: LogLevel = LogLevel.INFO
+    log_format: Literal["text", "structured"] = Field(
+        default="text",
+        description=(
+            "When 'text' (default), logs render as colorized key=value for local dev. "
+            "When 'structured', logs render as JSON for production ingestion."
+        ),
+    )
+    fail_open: bool = Field(
+        default=True,
+        description=(
+            "When True (default, recommended for production), backend errors "
+            "(OTel exporter, LangFuse client) are caught and logged. When False "
+            "(recommended for local/dev), they re-raise so misconfigured "
+            "exporters surface immediately."
+        ),
+    )
 
 
 class SecuritySettings(BaseSettings):
@@ -183,11 +204,29 @@ class AgentSettings(BaseSettings):
 
     memory_compaction_token_threshold: int = Field(default=8_000, ge=512)
     memory_compaction_target_tokens: int = Field(default=2_000, ge=128)
+    compaction_timeout_seconds: float = Field(default=30.0, gt=0)  # NEW
     max_recursion_depth: int = Field(default=25, ge=1, le=200)
     essential_entity_keys: list[str] = Field(
         default_factory=lambda: ["user_id", "tenant_id", "session_id", "task_id"],
         description="State keys that must be preserved across compactions.",
     )
+
+
+class AuditSettings(BaseSettings):
+    """Audit-sink configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    sink_type: Literal["null", "otel_event", "jsonl"] = "null"
+    jsonl_path: Path | None = None  # required when sink_type == "jsonl"
+
+
+class HealthSettings(BaseSettings):
+    """Health-probe configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    probe_timeout_seconds: float = Field(default=2.0, gt=0)
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +275,8 @@ class AppSettings(BaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    audit: AuditSettings = Field(default_factory=AuditSettings)
+    health: HealthSettings = Field(default_factory=HealthSettings)
 
     @field_validator("service_name")
     @classmethod
@@ -247,6 +288,95 @@ class AppSettings(BaseSettings):
     def is_production(self) -> bool:
         """Return ``True`` when running in a production-like environment."""
         return self.environment is Environment.PROD
+
+    def validate_for_runtime(
+        self,
+        *,
+        secret_manager: ISecretManager | None = None,
+    ) -> None:
+        """Collect-all runtime validation. Raises :class:`ConfigurationError` once.
+
+        Pydantic enforces type and ``Field`` constraints at construction time,
+        but a few real-world invariants slip through:
+
+        * Required strings can be set to the empty string by an environment
+          override.
+        * Cross-field invariants (e.g. compaction target < threshold) cannot
+          be expressed as single-field constraints.
+        * The ``secret_manager`` parameter is forward-looking: future
+          settings groups may carry :class:`SecretRef` instances, and we
+          want the wiring to be in place before that happens.
+
+        Args:
+            secret_manager: Optional :class:`ISecretManager` used to resolve
+                any :class:`SecretRef` instances reachable from this settings
+                tree. If ``None``, secret-resolution checks are skipped.
+
+        Raises:
+            ConfigurationError: If at least one issue is found. The exception
+                ``details["issues"]`` field is a list of
+                ``{"path", "message", "hint"}`` dicts — one per problem.
+        """
+        ctx = ValidationContext()
+
+        # llm.default_model must be a non-empty, non-blank string.
+        if not (self.llm.default_model and self.llm.default_model.strip()):
+            ctx.fail(
+                path="llm.default_model",
+                message="must be a non-empty model identifier",
+                hint=(
+                    "set env var EAAP_LLM__DEFAULT_MODEL=<model-id> "
+                    "or override AppSettings.llm.default_model in code"
+                ),
+            )
+
+        # llm.fallback_models entries must be non-blank.
+        for idx, model in enumerate(self.llm.fallback_models):
+            if not (model and model.strip()):
+                ctx.fail(
+                    path=f"llm.fallback_models[{idx}]",
+                    message="fallback model identifier must be non-empty",
+                    hint="remove the entry or set a real model id",
+                )
+
+        # Cross-field: compaction target must be strictly less than threshold.
+        if (
+            self.agent.memory_compaction_target_tokens
+            >= self.agent.memory_compaction_token_threshold
+        ):
+            ctx.fail(
+                path="agent.memory_compaction_target_tokens",
+                message=(
+                    "must be strictly less than "
+                    "agent.memory_compaction_token_threshold "
+                    f"(target={self.agent.memory_compaction_target_tokens}, "
+                    f"threshold={self.agent.memory_compaction_token_threshold})"
+                ),
+                hint=(
+                    "set EAAP_AGENT__MEMORY_COMPACTION_TARGET_TOKENS to a value "
+                    "strictly less than EAAP_AGENT__MEMORY_COMPACTION_TOKEN_THRESHOLD"
+                ),
+            )
+
+        # secret_manager type-check (forward-looking).
+        # The isinstance guard is intentional: callers may pass a wrong type at
+        # runtime even though the static type is ISecretManager | None.
+        _sm: object = secret_manager  # widen to object so mypy does not mark the branch unreachable
+        if _sm is not None and not isinstance(_sm, ISecretManager):
+            ctx.fail(
+                path="secret_manager",
+                message=f"must be an ISecretManager, got {type(_sm).__name__}",
+                hint="pass an instance of ai_core.config.secrets.ISecretManager",
+            )
+
+        if ctx.has_issues:
+            raise ConfigurationError(
+                f"Runtime configuration is invalid: {len(ctx.issues)} issue(s) found.",
+                details={"issues": [
+                    {"path": i.path, "message": i.message, "hint": i.hint}
+                    for i in ctx.issues
+                ]},
+            )
 
 
 # ---------------------------------------------------------------------------

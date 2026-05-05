@@ -48,7 +48,7 @@ from ai_core.di.interfaces import (
     LLMResponse,
     LLMUsage,
 )
-from ai_core.exceptions import BudgetExceededError, LLMInvocationError
+from ai_core.exceptions import BudgetExceededError, LLMInvocationError, LLMTimeoutError
 
 # Tenacity retries on these error types only — auth / bad-request must surface immediately.
 _TRANSIENT_LLM_ERRORS: tuple[type[BaseException], ...] = (
@@ -160,17 +160,17 @@ class LiteLLMClient(ILLMClient):
                 raw = await self._call_with_retry(request_kwargs)
             except RetryError as exc:
                 last = exc.last_attempt.exception() if exc.last_attempt else exc
+                if isinstance(last, Timeout):
+                    raise LLMTimeoutError(
+                        f"LLM call timed out after {cfg.max_retries + 1} attempts",
+                        details={"model": resolved_model, "attempts": cfg.max_retries + 1},
+                        cause=last,
+                    ) from last
                 raise LLMInvocationError(
                     "LLM invocation failed after retries",
                     details={"model": resolved_model, "attempts": cfg.max_retries + 1},
                     cause=last,
                 ) from last
-            except _TRANSIENT_LLM_ERRORS as exc:
-                raise LLMInvocationError(
-                    "LLM invocation failed",
-                    details={"model": resolved_model},
-                    cause=exc,
-                ) from exc
             except APIError as exc:
                 # Non-transient LiteLLM errors (auth, bad request, etc.) — bubble verbatim semantics.
                 raise LLMInvocationError(
@@ -179,9 +179,9 @@ class LiteLLMClient(ILLMClient):
                     cause=exc,
                 ) from exc
             latency_ms = (time.monotonic() - started) * 1000.0
+            response = _normalise_response(resolved_model, raw)  # inside span: errors get tagged
 
-        # --- 3. Normalise response + record usage -------------------------------
-        response = _normalise_response(resolved_model, raw)
+        # --- 3. Record usage (outside span — pure metric emit) ------------------
         cost_usd = _extract_cost(raw)
 
         await self._observability.record_llm_usage(
@@ -207,7 +207,7 @@ class LiteLLMClient(ILLMClient):
     async def _call_with_retry(self, request_kwargs: Mapping[str, Any]) -> Any:
         cfg = self._settings.llm
         retrying = AsyncRetrying(
-            reraise=True,
+            reraise=False,  # Wrap exhausted retries in RetryError so we see attempts info.
             stop=stop_after_attempt(cfg.max_retries + 1),
             wait=wait_exponential(
                 multiplier=cfg.retry_initial_backoff_seconds,
@@ -218,7 +218,7 @@ class LiteLLMClient(ILLMClient):
         async for attempt in retrying:
             with attempt:
                 return await litellm.acompletion(**request_kwargs)
-        # Unreachable: AsyncRetrying with reraise=True always returns or raises.
+        # Unreachable: AsyncRetrying with reraise=False raises RetryError on exhaustion.
         raise LLMInvocationError("Unreachable retry exit")  # pragma: no cover
 
 
@@ -226,7 +226,12 @@ class LiteLLMClient(ILLMClient):
 # Normalisation helpers
 # ---------------------------------------------------------------------------
 def _normalise_response(model: str, raw: Any) -> LLMResponse:
-    """Convert a LiteLLM response object/dict into an :class:`LLMResponse`."""
+    """Convert a LiteLLM response object/dict into an :class:`LLMResponse`.
+
+    Raises:
+        LLMInvocationError: If the response has neither content nor tool_calls
+            (silent-data-loss case — likely truncation or content filter).
+    """
     payload: Mapping[str, Any] = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
 
     choices = payload.get("choices") or []
@@ -234,6 +239,21 @@ def _normalise_response(model: str, raw: Any) -> LLMResponse:
     message = first.get("message") or {}
     content = message.get("content") or ""
     tool_calls = list(message.get("tool_calls") or [])
+    finish_reason = first.get("finish_reason")
+
+    # Silent-data-loss detection: no content AND no tool_calls means the response
+    # was either truncated, content-filtered, or malformed upstream. Raise so the
+    # caller doesn't silently propagate an empty assistant turn into the agent loop.
+    if not content and not tool_calls:
+        raise LLMInvocationError(
+            f"LLM returned empty response (finish_reason={finish_reason!r})",
+            details={
+                "model": model,
+                "finish_reason": finish_reason,
+                "raw_keys": sorted(str(k) for k in payload),
+            },
+            error_code="llm.empty_response",
+        )
 
     usage_blob = payload.get("usage") or {}
     usage = LLMUsage(
@@ -242,7 +262,8 @@ def _normalise_response(model: str, raw: Any) -> LLMResponse:
         total_tokens=int(
             usage_blob.get(
                 "total_tokens",
-                int(usage_blob.get("prompt_tokens", 0)) + int(usage_blob.get("completion_tokens", 0)),
+                int(usage_blob.get("prompt_tokens", 0))
+                + int(usage_blob.get("completion_tokens", 0)),
             )
         ),
         cost_usd=_extract_cost(raw),
@@ -253,6 +274,7 @@ def _normalise_response(model: str, raw: Any) -> LLMResponse:
         tool_calls=tool_calls,
         usage=usage,
         raw=payload,
+        finish_reason=finish_reason,
     )
 
 

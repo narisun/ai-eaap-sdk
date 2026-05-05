@@ -146,7 +146,11 @@ def init(
         f"  cd {project_name}\n"
         f"  cp .env.example .env\n"
         f"  docker compose up -d\n"
-        f"  python -m {package}.main"
+        f"  pip install -e \".[dev]\"          # install this app (and its dev deps)\n"
+        f"  python -m {package}.main\n"
+        f"\n"
+        f"[dim]Note: ai-core-sdk is installed separately from source — see the\n"
+        f"generated README for details.[/dim]"
     )
 
 

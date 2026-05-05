@@ -20,7 +20,7 @@ Note:
 
 from __future__ import annotations
 
-from injector import Module, provider, singleton
+from injector import Module, multiprovider, provider, singleton
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from ai_core.agents.memory import (
@@ -29,6 +29,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
+from ai_core.audit import IAuditSink  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -38,6 +39,8 @@ from ai_core.di.interfaces import (
     IObservabilityProvider,
     IPolicyEvaluator,
 )
+from ai_core.exceptions import ConfigurationError
+from ai_core.health import IHealthProbe  # noqa: TC001
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
@@ -48,7 +51,7 @@ from ai_core.persistence.engine import EngineFactory
 from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
-from ai_core.security.opa import OPAPolicyEvaluator
+from ai_core.tools.invoker import ToolInvoker
 
 
 class AgentModule(Module):
@@ -205,9 +208,15 @@ class AgentModule(Module):
     # ----- Security ---------------------------------------------------------
     @singleton
     @provider
-    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
-        """Return the OPA-backed policy evaluator singleton."""
-        return OPAPolicyEvaluator(settings)
+    def provide_policy_evaluator(self) -> IPolicyEvaluator:
+        """Return the default :class:`NoOpPolicyEvaluator`.
+
+        Production deployments must override this binding with
+        :class:`ProductionSecurityModule` (or a custom module that binds a
+        real evaluator) to enable policy enforcement.
+        """
+        from ai_core.security.noop_policy import NoOpPolicyEvaluator  # noqa: PLC0415
+        return NoOpPolicyEvaluator()
 
     @singleton
     @provider
@@ -229,5 +238,96 @@ class AgentModule(Module):
         """Return the in-process versioned-schema registry singleton."""
         return SchemaRegistry()
 
+    # ----- Audit sink -------------------------------------------------------
+    @singleton
+    @provider
+    def provide_audit_sink(
+        self,
+        settings: AppSettings,
+        observability: IObservabilityProvider,
+    ) -> IAuditSink:
+        """Default audit sink — switchable via settings.audit.sink_type."""
+        sink_type = settings.audit.sink_type
+        if sink_type == "null":
+            from ai_core.audit.null import NullAuditSink  # noqa: PLC0415
+            return NullAuditSink()
+        if sink_type == "otel_event":
+            from ai_core.audit.otel_event import OTelEventAuditSink  # noqa: PLC0415
+            return OTelEventAuditSink(observability)
+        if sink_type == "jsonl":
+            from ai_core.audit.jsonl import JsonlFileAuditSink  # noqa: PLC0415
+            if settings.audit.jsonl_path is None:
+                raise ConfigurationError(
+                    "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
+                    error_code="config.invalid",
+                )
+            return JsonlFileAuditSink(settings.audit.jsonl_path)
+        raise ConfigurationError(
+            f"Unknown audit.sink_type: {sink_type!r}",
+            error_code="config.invalid",
+        )
 
-__all__ = ["AgentModule"]
+    # ----- Health probes ----------------------------------------------------
+    @singleton
+    @multiprovider
+    def provide_health_probes(
+        self,
+        settings: AppSettings,
+        engine: AsyncEngine,
+    ) -> list[IHealthProbe]:
+        """Default health-probe set. Override in a custom module to add probes."""
+        from ai_core.health.probes import (  # noqa: PLC0415
+            DatabaseProbe,
+            ModelLookupProbe,
+            OPAReachabilityProbe,
+            SettingsProbe,
+        )
+        return [
+            SettingsProbe(settings),
+            OPAReachabilityProbe(settings),
+            DatabaseProbe(engine),
+            ModelLookupProbe(settings),
+        ]
+
+    # ----- Tool invoker -----------------------------------------------------
+    @singleton
+    @provider
+    def provide_tool_invoker(
+        self,
+        observability: IObservabilityProvider,
+        policy: IPolicyEvaluator,
+        registry: SchemaRegistry,
+        audit: IAuditSink,
+    ) -> ToolInvoker:
+        """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
+        return ToolInvoker(
+            observability=observability,
+            policy=policy,
+            registry=registry,
+            audit=audit,
+        )
+
+
+class ProductionSecurityModule(Module):
+    """Opt-in DI module that binds :class:`OPAPolicyEvaluator` over the NoOp default.
+
+    Compose with :class:`AgentModule` for production:
+
+    .. code-block:: python
+
+        from ai_core.app import AICoreApp
+        from ai_core.di.module import ProductionSecurityModule
+
+        async with AICoreApp(modules=[ProductionSecurityModule()]) as app:
+            ...
+    """
+
+    @singleton
+    @provider
+    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
+        """Return the OPA-backed policy evaluator. Loaded from `ai_core.security.opa`."""
+        from ai_core.security.opa import OPAPolicyEvaluator  # noqa: PLC0415
+        return OPAPolicyEvaluator(settings)
+
+
+__all__ = ["AgentModule", "ProductionSecurityModule"]
