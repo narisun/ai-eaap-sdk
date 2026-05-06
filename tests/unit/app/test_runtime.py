@@ -25,7 +25,7 @@ from ai_core.tools.invoker import ToolInvoker
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.conftest import FakeObservabilityProvider, FakePolicyEvaluator
+    from ai_core.testing import FakeObservabilityProvider, FakePolicyEvaluator
 
 pytestmark = pytest.mark.unit
 
