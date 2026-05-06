@@ -47,14 +47,16 @@ class _FakeMCPClient:
         self._tools = tools
         self._call_results = call_results or {}
         self.list_tools_calls = 0
-        self.call_tool_invocations: list[tuple[str, dict[str, Any]]] = []
+        self.call_tool_invocations: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
 
     async def list_tools(self) -> list[_FakeFastMCPTool]:
         self.list_tools_calls += 1
         return list(self._tools)
 
-    async def call_tool(self, name: str, args: dict[str, Any]) -> _FakeCallToolResult:
-        self.call_tool_invocations.append((name, args))
+    async def call_tool(
+        self, name: str, args: dict[str, Any], **kwargs: Any,
+    ) -> _FakeCallToolResult:
+        self.call_tool_invocations.append((name, args, kwargs))
         if name in self._call_results:
             return self._call_results[name]
         return _FakeCallToolResult(is_error=False, data=f"called {name}", content=[])
@@ -223,3 +225,52 @@ async def test_handler_raises_tool_execution_error_on_is_error() -> None:
     assert "broken" in str(excinfo.value)
     assert excinfo.value.details.get("tool") == "broken"
     assert excinfo.value.details.get("server") == "svc"
+
+
+async def test_handler_passes_raise_on_error_false() -> None:
+    """The handler must pass raise_on_error=False so is_error maps to ToolExecutionError."""
+    server = MCPServerSpec(
+        component_id="svc", transport="stdio", target="/bin/true",
+    )
+    client = _FakeMCPClient(tools=[_FakeFastMCPTool("echo", None, {})])
+    factory = _FakeFactory({"svc": client})
+    specs = await resolve_mcp_tools([server], factory)
+
+    payload = _MCPPassthroughInput.model_validate({"text": "hi"})
+    await specs[0].handler(payload)
+
+    # Verify the call kwargs included raise_on_error=False.
+    assert len(client.call_tool_invocations) == 1
+    name, _args, kwargs = client.call_tool_invocations[0]
+    assert name == "echo"
+    assert kwargs.get("raise_on_error") is False
+
+
+async def test_handler_preserves_empty_input_schema() -> None:
+    """An empty {} inputSchema is preserved verbatim (not replaced with type:object stub)."""
+    server = MCPServerSpec(
+        component_id="svc", transport="stdio", target="/bin/true",
+    )
+    client = _FakeMCPClient(tools=[_FakeFastMCPTool("anything_goes", None, {})])
+    factory = _FakeFactory({"svc": client})
+    specs = await resolve_mcp_tools([server], factory)
+
+    assert specs[0].mcp_input_schema == {}
+
+
+async def test_handler_substitutes_default_when_input_schema_is_none() -> None:
+    """A None inputSchema (rare but defensive) gets the default object schema."""
+
+    class _ToolWithoutSchema:
+        name = "no-schema-tool"
+        description = None
+        inputSchema = None  # noqa: N815 — match FastMCP's attribute name
+
+    server = MCPServerSpec(
+        component_id="svc", transport="stdio", target="/bin/true",
+    )
+    factory = _FakeFactory({"svc": _FakeMCPClient(tools=[_ToolWithoutSchema()])})
+
+    specs = await resolve_mcp_tools([server], factory)
+
+    assert specs[0].mcp_input_schema == {"type": "object", "properties": {}}

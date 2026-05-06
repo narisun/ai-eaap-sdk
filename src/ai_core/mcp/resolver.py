@@ -69,14 +69,34 @@ def _build_mcp_tool_spec(
     fastmcp_tool: Any,  # noqa: ANN401 — intentionally untyped; FastMCP tool shape
     factory: IMCPConnectionFactory,
 ) -> MCPToolSpec:
-    """Construct an MCPToolSpec wrapping a closure handler that calls the remote tool."""
+    """Construct an MCPToolSpec wrapping a closure handler that calls the remote tool.
+
+    The closure captures `tool_name`, `component_id`, `server`, and `factory`
+    as locals of THIS function — not as references to outer-loop variables —
+    so multiple specs built from the same loop iteration each call the
+    correct server with the correct tool name. This is the standard
+    factory-function pattern that prevents Python's late-binding closure
+    footgun.
+
+    Args:
+        server: The MCP server this tool was discovered on. Captured by
+            the handler closure to pass to `factory.open()` on each call.
+        fastmcp_tool: The FastMCP `Tool` object returned by
+            `client.list_tools()` (duck-typed: only `.name`, `.description`,
+            `.inputSchema` are accessed).
+        factory: The connection factory; captured by the closure to open
+            a fresh pooled connection per invocation.
+
+    Returns:
+        A frozen `MCPToolSpec` ready to register with `ToolInvoker`.
+    """
     tool_name = fastmcp_tool.name
     component_id = server.component_id
 
     async def _handler(payload: _MCPPassthroughInput) -> _MCPPassthroughOutput:
         args_dict = payload.model_dump()
         async with factory.open(server) as client:
-            result = await client.call_tool(tool_name, args_dict)
+            result = await client.call_tool(tool_name, args_dict, raise_on_error=False)
 
         if result.is_error:
             content_text = _join_text_content(getattr(result, "content", ()))
@@ -86,6 +106,7 @@ def _build_mcp_tool_spec(
                     "tool": tool_name,
                     "server": component_id,
                     "content": content_text,
+                    "meta": getattr(result, "meta", None),
                 },
             )
 
@@ -96,6 +117,7 @@ def _build_mcp_tool_spec(
             value=_join_text_content(getattr(result, "content", ()))
         )
 
+    _input_schema = getattr(fastmcp_tool, "inputSchema", None)
     return MCPToolSpec(
         name=tool_name,
         version=1,
@@ -105,9 +127,10 @@ def _build_mcp_tool_spec(
         handler=_handler,
         opa_path=server.opa_decision_path,
         mcp_server_spec=server,
-        mcp_input_schema=getattr(fastmcp_tool, "inputSchema", None) or {
-            "type": "object", "properties": {},
-        },
+        mcp_input_schema=(
+            _input_schema if _input_schema is not None
+            else {"type": "object", "properties": {}}
+        ),
     )
 
 
