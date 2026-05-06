@@ -4,6 +4,15 @@
 
 set -u
 
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_CMD=(timeout 10)
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_CMD=(gtimeout 10)
+else
+    echo "warning: no timeout(1) or gtimeout(1) found — demos will run uncapped" >&2
+    TIMEOUT_CMD=()
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
@@ -15,15 +24,12 @@ run_demo() {
     local name="$1"; shift
     local cmd=("$@")
     echo "===== ${name} ====="
-    if timeout 10 "${cmd[@]}"; then
+    if "${TIMEOUT_CMD[@]+"${TIMEOUT_CMD[@]}"}" "${cmd[@]}"; then
         echo "  ✓ ${name}"
         ran=$((ran + 1))
     else
-        # Separate `local` and assignment so the exit code captured is
-        # the previous command's, not `local`'s — important on bash 3.2
-        # (macOS) where `local rc=$?` returns local's own exit code.
-        local rc
-        rc=$?
+        # Capture $? FIRST — any intervening command (echo, comment) clobbers it.
+        local rc=$?
         echo "  ✗ ${name} (exit ${rc})"
         failures=$((failures + 1))
     fi
