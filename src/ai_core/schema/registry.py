@@ -245,7 +245,7 @@ class SchemaRegistry:
         record = self.get(name, version)
 
         def _decorator(func: _F) -> _F:
-            if asyncio.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
+            if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
                 @functools.wraps(func)
                 async def _async_wrapper(payload: Any, /, *args: Any, **kwargs: Any) -> Any:
                     parsed = _parse_input(record, payload)

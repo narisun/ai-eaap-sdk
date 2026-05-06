@@ -24,6 +24,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "ConfigurationError",
     "DependencyResolutionError",
     "EAAPBaseException",
+    "ErrorCode",                        # NEW (Phase 8)
     "HealthSnapshot",
     "IAuditSink",
     "IHealthProbe",
