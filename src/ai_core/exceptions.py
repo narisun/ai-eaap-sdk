@@ -17,10 +17,73 @@ attribute ``error.code`` so dashboards can aggregate uniformly.
 
 from __future__ import annotations
 
+import enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+
+class ErrorCode(str, enum.Enum):  # noqa: UP042
+    """Canonical error codes for typed SDK exceptions.
+
+    Members exhaustively cover every ``error_code`` string referenced by
+    production code in Phases 1-6. Values are dotted-lowercase strings;
+    ``ErrorCode`` inherits from ``str`` so members are directly comparable
+    with raw strings::
+
+        if exc.error_code == ErrorCode.CONFIG_INVALID:
+            ...
+
+    Adding a new code requires:
+      1. Adding a member here (dotted-lowercase value).
+      2. Wiring it into the appropriate exception class's ``DEFAULT_CODE``
+         OR using ``ErrorCode.<member>`` directly at the construction site.
+
+    The contract test
+    ``test_every_concrete_exception_default_code_is_an_errorcode_member``
+    catches any new exception class that bypasses the enum.
+    """
+
+    # Configuration (Phases 1, 5, 6)
+    CONFIG_INVALID = "config.invalid"
+    CONFIG_SECRET_NOT_RESOLVED = "config.secret_not_resolved"  # noqa: S105
+    CONFIG_YAML_PATH_MISSING = "config.yaml_path_missing"
+    CONFIG_YAML_PARSE_FAILED = "config.yaml_parse_failed"
+    CONFIG_OPTIONAL_DEP_MISSING = "config.optional_dep_missing"
+
+    # Dependency injection (Phase 1)
+    DI_RESOLUTION_FAILED = "di.resolution_failed"
+
+    # Storage / persistence (Phase 1)
+    STORAGE_ERROR = "storage.error"
+    STORAGE_CHECKPOINT_FAILED = "storage.checkpoint_failed"
+
+    # Policy / authorization (Phase 1)
+    POLICY_DENIED = "policy.denied"
+
+    # LLM (Phase 1)
+    LLM_INVOCATION_FAILED = "llm.invocation_failed"
+    LLM_TIMEOUT = "llm.timeout"
+    LLM_BUDGET_EXCEEDED = "llm.budget_exceeded"
+    LLM_EMPTY_RESPONSE = "llm.empty_response"
+
+    # Schema / validation (Phase 1)
+    SCHEMA_INVALID = "schema.invalid"
+    TOOL_VALIDATION_FAILED = "tool.validation_failed"
+
+    # Tool execution (Phase 1)
+    TOOL_EXECUTION_FAILED = "tool.execution_failed"
+
+    # Agent runtime (Phase 1)
+    AGENT_RUNTIME_ERROR = "agent.runtime_error"
+    AGENT_RECURSION_LIMIT = "agent.recursion_limit"
+
+    # Registry (Phase 1)
+    REGISTRY_ERROR = "registry.error"
+
+    # MCP transport (Phase 1)
+    MCP_TRANSPORT_FAILED = "mcp.transport_failed"
 
 
 class EAAPBaseException(Exception):
@@ -70,13 +133,13 @@ class EAAPBaseException(Exception):
 class ConfigurationError(EAAPBaseException):
     """Raised when required configuration is missing or invalid."""
 
-    DEFAULT_CODE = "config.invalid"
+    DEFAULT_CODE = ErrorCode.CONFIG_INVALID
 
 
 class SecretResolutionError(ConfigurationError):
     """Raised when a secret cannot be resolved from a secret backend."""
 
-    DEFAULT_CODE = "config.secret_not_resolved"
+    DEFAULT_CODE = ErrorCode.CONFIG_SECRET_NOT_RESOLVED
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +148,7 @@ class SecretResolutionError(ConfigurationError):
 class DependencyResolutionError(EAAPBaseException):
     """Raised when the DI container cannot satisfy a binding."""
 
-    DEFAULT_CODE = "di.resolution_failed"
+    DEFAULT_CODE = ErrorCode.DI_RESOLUTION_FAILED
 
 
 # ---------------------------------------------------------------------------
@@ -94,13 +157,13 @@ class DependencyResolutionError(EAAPBaseException):
 class StorageError(EAAPBaseException):
     """Base class for persistence failures (SQL, vector, blob)."""
 
-    DEFAULT_CODE = "storage.error"
+    DEFAULT_CODE = ErrorCode.STORAGE_ERROR
 
 
 class CheckpointError(StorageError):
     """Raised when reading or writing a LangGraph checkpoint fails."""
 
-    DEFAULT_CODE = "storage.checkpoint_failed"
+    DEFAULT_CODE = ErrorCode.STORAGE_CHECKPOINT_FAILED
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +172,7 @@ class CheckpointError(StorageError):
 class PolicyDenialError(EAAPBaseException):
     """Raised when an OPA policy denies a request or tool invocation."""
 
-    DEFAULT_CODE = "policy.denied"
+    DEFAULT_CODE = ErrorCode.POLICY_DENIED
 
 
 # ---------------------------------------------------------------------------
@@ -118,19 +181,19 @@ class PolicyDenialError(EAAPBaseException):
 class LLMInvocationError(EAAPBaseException):
     """Raised when an LLM call fails after retry exhaustion."""
 
-    DEFAULT_CODE = "llm.invocation_failed"
+    DEFAULT_CODE = ErrorCode.LLM_INVOCATION_FAILED
 
 
 class LLMTimeoutError(LLMInvocationError):
     """Raised when an LLM call exceeds its configured timeout (post-retry)."""
 
-    DEFAULT_CODE = "llm.timeout"
+    DEFAULT_CODE = ErrorCode.LLM_TIMEOUT
 
 
 class BudgetExceededError(LLMInvocationError):
     """Raised when an agent or tenant has consumed its allocated quota."""
 
-    DEFAULT_CODE = "llm.budget_exceeded"
+    DEFAULT_CODE = ErrorCode.LLM_BUDGET_EXCEEDED
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +202,7 @@ class BudgetExceededError(LLMInvocationError):
 class SchemaValidationError(EAAPBaseException):
     """Raised when a payload does not match the expected versioned schema."""
 
-    DEFAULT_CODE = "schema.invalid"
+    DEFAULT_CODE = ErrorCode.SCHEMA_INVALID
 
 
 class ToolValidationError(SchemaValidationError):
@@ -153,7 +216,7 @@ class ToolValidationError(SchemaValidationError):
     * ``errors`` — Pydantic ``error.errors()`` list.
     """
 
-    DEFAULT_CODE = "tool.validation_failed"
+    DEFAULT_CODE = ErrorCode.TOOL_VALIDATION_FAILED
 
 
 class ToolExecutionError(EAAPBaseException):
@@ -164,7 +227,7 @@ class ToolExecutionError(EAAPBaseException):
     the calling agent.
     """
 
-    DEFAULT_CODE = "tool.execution_failed"
+    DEFAULT_CODE = ErrorCode.TOOL_EXECUTION_FAILED
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +236,7 @@ class ToolExecutionError(EAAPBaseException):
 class AgentRuntimeError(EAAPBaseException):
     """Base class for agent-runtime failures (recursion limit, etc.)."""
 
-    DEFAULT_CODE = "agent.runtime_error"
+    DEFAULT_CODE = ErrorCode.AGENT_RUNTIME_ERROR
 
 
 class AgentRecursionLimitError(AgentRuntimeError):
@@ -184,7 +247,7 @@ class AgentRecursionLimitError(AgentRuntimeError):
     looped.
     """
 
-    DEFAULT_CODE = "agent.recursion_limit"
+    DEFAULT_CODE = ErrorCode.AGENT_RECURSION_LIMIT
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +256,7 @@ class AgentRecursionLimitError(AgentRuntimeError):
 class RegistryError(EAAPBaseException):
     """Raised when a component registry operation fails."""
 
-    DEFAULT_CODE = "registry.error"
+    DEFAULT_CODE = ErrorCode.REGISTRY_ERROR
 
 
 class MCPTransportError(EAAPBaseException):
@@ -203,7 +266,7 @@ class MCPTransportError(EAAPBaseException):
     operators can identify which server failed.
     """
 
-    DEFAULT_CODE = "mcp.transport_failed"
+    DEFAULT_CODE = ErrorCode.MCP_TRANSPORT_FAILED
 
 
 __all__ = [
@@ -214,6 +277,7 @@ __all__ = [
     "ConfigurationError",
     "DependencyResolutionError",
     "EAAPBaseException",
+    "ErrorCode",
     "LLMInvocationError",
     "LLMTimeoutError",
     "MCPTransportError",

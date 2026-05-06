@@ -48,7 +48,7 @@ from ai_core.di.interfaces import (
     LLMResponse,
     LLMUsage,
 )
-from ai_core.exceptions import BudgetExceededError, LLMInvocationError, LLMTimeoutError
+from ai_core.exceptions import BudgetExceededError, ErrorCode, LLMInvocationError, LLMTimeoutError
 from ai_core.llm._prompt_cache import apply_prompt_cache
 
 # Tenacity retries on these error types only — auth / bad-request must surface immediately.
@@ -265,7 +265,7 @@ def _normalise_response(model: str, raw: Any) -> LLMResponse:
                 "finish_reason": finish_reason,
                 "raw_keys": sorted(str(k) for k in payload),
             },
-            error_code="llm.empty_response",
+            error_code=ErrorCode.LLM_EMPTY_RESPONSE,
         )
 
     usage_blob = payload.get("usage") or {}

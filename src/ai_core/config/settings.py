@@ -31,7 +31,7 @@ from pydantic_settings import (
 
 from ai_core.config.secrets import ISecretManager
 from ai_core.config.validation import ValidationContext
-from ai_core.exceptions import ConfigurationError
+from ai_core.exceptions import ConfigurationError, ErrorCode
 
 # ---------------------------------------------------------------------------
 # YAML config support (Phase 5)
@@ -535,7 +535,7 @@ class AppSettings(BaseSettings):
         except FileNotFoundError as exc:
             raise ConfigurationError(
                 str(exc),
-                error_code="config.yaml_path_missing",
+                error_code=ErrorCode.CONFIG_YAML_PATH_MISSING,
                 details={"env_var": _EAAP_CONFIG_PATH_ENV},
                 cause=exc,
             ) from exc
@@ -553,7 +553,7 @@ class AppSettings(BaseSettings):
         except Exception as exc:  # wrap any parse/shape error uniformly
             raise ConfigurationError(
                 f"Failed to load eaap.yaml at {yaml_path}: {exc}",
-                error_code="config.yaml_parse_failed",
+                error_code=ErrorCode.CONFIG_YAML_PARSE_FAILED,
                 details={"path": str(yaml_path)},
                 cause=exc,
             ) from exc

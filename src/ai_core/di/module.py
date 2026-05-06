@@ -39,7 +39,7 @@ from ai_core.di.interfaces import (
     IObservabilityProvider,
     IPolicyEvaluator,
 )
-from ai_core.exceptions import ConfigurationError
+from ai_core.exceptions import ConfigurationError, ErrorCode
 from ai_core.health import IHealthProbe  # noqa: TC001
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
@@ -285,7 +285,7 @@ class AgentModule(Module):
             if settings.audit.jsonl_path is None:
                 raise ConfigurationError(
                     "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
-                    error_code="config.invalid",
+                    error_code=ErrorCode.CONFIG_INVALID,
                 )
             return JsonlFileAuditSink(settings.audit.jsonl_path)
         if sink_type == "sentry":
@@ -293,7 +293,7 @@ class AgentModule(Module):
             if settings.audit.sentry_dsn is None:
                 raise ConfigurationError(
                     "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
-                    error_code="config.invalid",
+                    error_code=ErrorCode.CONFIG_INVALID,
                 )
             return SentryAuditSink(
                 dsn=settings.audit.sentry_dsn.get_secret_value(),
@@ -306,7 +306,7 @@ class AgentModule(Module):
             if settings.audit.datadog_api_key is None:
                 raise ConfigurationError(
                     "audit.sink_type='datadog' requires audit.datadog_api_key to be set",
-                    error_code="config.invalid",
+                    error_code=ErrorCode.CONFIG_INVALID,
                 )
             return DatadogAuditSink(
                 api_key=settings.audit.datadog_api_key.get_secret_value(),
@@ -321,7 +321,7 @@ class AgentModule(Module):
             )
         raise ConfigurationError(
             f"Unknown audit.sink_type: {sink_type!r}",
-            error_code="config.invalid",
+            error_code=ErrorCode.CONFIG_INVALID,
         )
 
     # ----- Health probes ----------------------------------------------------

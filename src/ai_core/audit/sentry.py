@@ -12,7 +12,7 @@ import logging
 from typing import Any
 
 from ai_core.audit.interface import AuditRecord, IAuditSink
-from ai_core.exceptions import ConfigurationError
+from ai_core.exceptions import ConfigurationError, ErrorCode
 
 _logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class SentryAuditSink(IAuditSink):
             raise ConfigurationError(
                 "Sentry sink requires the 'sentry' optional dependency. "
                 "Install with: pip install ai-core-sdk[sentry]",
-                error_code="config.optional_dep_missing",
+                error_code=ErrorCode.CONFIG_OPTIONAL_DEP_MISSING,
                 details={"extra": "sentry"},
                 cause=exc,
             ) from exc

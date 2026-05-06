@@ -41,6 +41,7 @@ from ai_core.exceptions import (
     ConfigurationError,
     DependencyResolutionError,
     EAAPBaseException,
+    ErrorCode,
     LLMInvocationError,
     LLMTimeoutError,
     MCPTransportError,
@@ -67,6 +68,7 @@ __all__ = [
     "ConfigurationError",
     "DependencyResolutionError",
     "EAAPBaseException",
+    "ErrorCode",
     "HealthSnapshot",
     "IAuditSink",
     # Health

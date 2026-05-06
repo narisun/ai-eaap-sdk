@@ -12,7 +12,7 @@ import json
 import logging
 
 from ai_core.audit.interface import AuditRecord, IAuditSink
-from ai_core.exceptions import ConfigurationError
+from ai_core.exceptions import ConfigurationError, ErrorCode
 
 _logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class DatadogAuditSink(IAuditSink):
             raise ConfigurationError(
                 "Datadog sink requires the 'datadog' optional dependency. "
                 "Install with: pip install ai-core-sdk[datadog]",
-                error_code="config.optional_dep_missing",
+                error_code=ErrorCode.CONFIG_OPTIONAL_DEP_MISSING,
                 details={"extra": "datadog"},
                 cause=exc,
             ) from exc
