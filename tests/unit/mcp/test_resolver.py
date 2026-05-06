@@ -331,7 +331,7 @@ def _make_method_not_found_error() -> Exception:
     return McpError(ErrorData(code=-32601, message="Method not found"))
 
 
-# ---- _is_method_not_found ------------------------------------------------------
+# ---- is_method_not_found -------------------------------------------------------
 
 def test_is_method_not_found_true_on_minus_32601() -> None:
     """The predicate accepts a real McpError with code -32601."""
