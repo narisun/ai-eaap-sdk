@@ -16,6 +16,7 @@ The handler that actually invokes the remote tool is built in
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -70,4 +71,36 @@ class MCPToolSpec(ToolSpec):
         }
 
 
-__all__ = ["MCPToolSpec"]
+def unwrap_mcp_tool_message(content: str) -> Any:  # noqa: ANN401
+    """Unwrap MCPToolSpec's {"value": ...} envelope from a ToolMessage.content string.
+
+    Returns the inner value when content is a JSON object with exactly one key
+    "value" (the standard MCPToolSpec/MCPResourceSpec envelope). Otherwise
+    returns the parsed JSON, or the raw string if it's not JSON at all.
+
+    Use this to display MCP tool results cleanly in user-facing UIs without
+    re-implementing the unwrap pattern inline.
+
+    Args:
+        content: The `ToolMessage.content` string from an MCP tool dispatch.
+
+    Returns:
+        The unwrapped value, parsed JSON, or raw string.
+
+    Raises:
+        TypeError: If `content` is not a string.
+    """
+    if not isinstance(content, str):
+        raise TypeError(
+            f"unwrap_mcp_tool_message expected str, got {type(content).__name__}"
+        )
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return content
+    if isinstance(parsed, dict) and set(parsed.keys()) == {"value"}:
+        return parsed["value"]
+    return parsed
+
+
+__all__ = ["MCPToolSpec", "unwrap_mcp_tool_message"]

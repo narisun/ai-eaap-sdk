@@ -8,6 +8,7 @@ from ai_core.mcp.tools import (
     MCPToolSpec,
     _MCPPassthroughInput,
     _MCPPassthroughOutput,
+    unwrap_mcp_tool_message,
 )
 
 pytestmark = pytest.mark.unit
@@ -116,3 +117,49 @@ def test_openai_schema_returned_dict_is_independent_of_source() -> None:
     assert "new_key" not in raw
     assert "INJECTED" not in spec.mcp_input_schema["properties"]["text"]
     assert "new_key" not in spec.mcp_input_schema
+
+
+# ---------------------------------------------------------------------------
+# unwrap_mcp_tool_message tests (Phase 12)
+# ---------------------------------------------------------------------------
+
+
+def test_unwrap_returns_value_for_single_key_envelope() -> None:
+    """{'value': X} → X."""
+    assert unwrap_mcp_tool_message('{"value": "hello"}') == "hello"
+    assert unwrap_mcp_tool_message('{"value": 42}') == 42
+    assert unwrap_mcp_tool_message('{"value": [1, 2]}') == [1, 2]
+    assert unwrap_mcp_tool_message('{"value": null}') is None
+
+
+def test_unwrap_returns_parsed_dict_when_multiple_keys() -> None:
+    """A dict with more than just 'value' is returned as-is (parsed)."""
+    raw = '{"value": "x", "meta": "y"}'
+    assert unwrap_mcp_tool_message(raw) == {"value": "x", "meta": "y"}
+
+
+def test_unwrap_returns_parsed_dict_when_no_value_key() -> None:
+    """A dict without a 'value' key is returned parsed."""
+    raw = '{"foo": "bar"}'
+    assert unwrap_mcp_tool_message(raw) == {"foo": "bar"}
+
+
+def test_unwrap_returns_parsed_non_dict() -> None:
+    """JSON list / scalar at the top level is returned parsed."""
+    assert unwrap_mcp_tool_message('[1, 2, 3]') == [1, 2, 3]
+    assert unwrap_mcp_tool_message('"plain"') == "plain"
+    assert unwrap_mcp_tool_message('42') == 42
+
+
+def test_unwrap_returns_raw_string_when_not_json() -> None:
+    """Non-JSON string is returned verbatim."""
+    assert unwrap_mcp_tool_message("not json") == "not json"
+    assert unwrap_mcp_tool_message("") == ""
+
+
+def test_unwrap_raises_typeerror_on_non_string() -> None:
+    """Non-string input is rejected."""
+    with pytest.raises(TypeError):
+        unwrap_mcp_tool_message(42)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        unwrap_mcp_tool_message(None)  # type: ignore[arg-type]
