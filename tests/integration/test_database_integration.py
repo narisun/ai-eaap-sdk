@@ -15,6 +15,8 @@ from ai_core.health.probes import DatabaseProbe
 if TYPE_CHECKING:
     from testcontainers.postgres import PostgresContainer
 
+pytestmark = pytest.mark.integration
+
 
 def _asyncpg_dsn(pg: PostgresContainer) -> str:
     """Convert Testcontainers' default psycopg2 DSN to asyncpg form."""

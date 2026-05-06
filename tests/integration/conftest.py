@@ -67,9 +67,11 @@ def opa_container(
         yield opa
 
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
-    """Tag every test in this directory with pytest.mark.integration."""
-    for item in items:
-        item.add_marker(pytest.mark.integration)
+# Each test file in this directory declares::
+#
+#     pytestmark = pytest.mark.integration
+#
+# at module top, which scopes the marker correctly without affecting tests
+# outside this directory (a directory-level conftest hook would receive ALL
+# session-collected items and mis-tag siblings — see tests/contract/conftest.py
+# for the same lesson).
