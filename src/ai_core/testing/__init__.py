@@ -1,12 +1,10 @@
 """Public testing surface for SDK consumers.
 
-Activate the pytest plugin in your conftest.py::
+Exports in-memory ``Fake*`` implementations of the SDK's public protocols
+so consumer tests can assert against observable state without setting up
+real backends::
 
-    pytest_plugins = ["ai_core.testing.pytest_plugin"]
-
-Then use the exported fakes (also importable directly here without pytest)::
-
-    from ai_core.testing import FakeAuditSink, ScriptedLLM, make_llm_response
+    from ai_core.testing import FakeAuditSink, FakePolicyEvaluator
 """
 
 from __future__ import annotations

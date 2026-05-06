@@ -82,7 +82,7 @@ class _RecordedSpan:
     name: str
     attributes: Mapping[str, Any]
     exception: BaseException | None = None
-    error_code: str | None = None  # NEW — mirrors RealObservabilityProvider's error.code tagging
+    error_code: str | None = None  # mirrors RealObservabilityProvider's error.code tagging
 
 
 class FakeObservabilityProvider(IObservabilityProvider):
