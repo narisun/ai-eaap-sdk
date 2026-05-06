@@ -8,9 +8,11 @@ first N calls and verifying the client retries until success.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 from unittest.mock import AsyncMock
 
 import pytest
@@ -119,7 +121,9 @@ class RecordingObservability(NoOpObservabilityProvider):
         self.events.append((name, attributes))
 
 
-def _fake_response(content: str = "hello", *, prompt: int = 12, completion: int = 7) -> dict[str, Any]:
+def _fake_response(
+    content: str = "hello", *, prompt: int = 12, completion: int = 7
+) -> dict[str, Any]:
     return {
         "model": "fake/model",
         "choices": [{"message": {"role": "assistant", "content": content, "tool_calls": []}}],
@@ -150,7 +154,11 @@ def _build_client(
         },
     )
     fake_budget = budget if isinstance(budget, FakeBudget) else FakeBudget()
-    obs = observability if isinstance(observability, RecordingObservability) else RecordingObservability()
+    obs = (
+        observability
+        if isinstance(observability, RecordingObservability)
+        else RecordingObservability()
+    )
     client = LiteLLMClient(settings, fake_budget, obs)
     return client, fake_budget, obs
 

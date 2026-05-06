@@ -11,7 +11,6 @@ from ai_core.config.settings import (
     get_settings,
 )
 
-
 pytestmark = pytest.mark.unit
 
 

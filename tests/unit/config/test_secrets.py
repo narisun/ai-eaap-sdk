@@ -7,7 +7,6 @@ import pytest
 from ai_core.config.secrets import EnvSecretManager, SecretRef
 from ai_core.exceptions import SecretResolutionError
 
-
 pytestmark = pytest.mark.unit
 
 
