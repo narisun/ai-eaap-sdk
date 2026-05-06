@@ -87,6 +87,7 @@ dev = [
     "types-PyYAML",
     "respx>=0.21.0",
     "aiosqlite>=0.20.0",
+    "testcontainers[postgres]>=4.0,<5.0",
 ]
 
 [project.scripts]
@@ -125,6 +126,7 @@ asyncio_mode = "auto"
 markers = [
     "unit: fast, isolated unit tests",
     "component: in-process tests across multiple SDK modules",
+    "contract: contract / surface tests",
     "integration: tests that hit real external systems (DB, OPA, OTel, LLM)",
 ]
 filterwarnings = [
@@ -185,5 +187,5 @@ disallow_any_generics = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["fastmcp.*", "langfuse.*", "litellm.*", "injector.*"]
+module = ["fastmcp.*", "langfuse.*", "litellm.*", "injector.*", "testcontainers.*"]
 ignore_missing_imports = true
