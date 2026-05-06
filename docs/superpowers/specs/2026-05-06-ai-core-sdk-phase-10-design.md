@@ -70,7 +70,7 @@ Six tasks, one component each. Each task produces self-contained changes that sh
 
 - **Files.** `server.py` (FastMCP server with two tools: `echo`, `current_time`), `run_client.py` (a script that uses the SDK's connection factory to connect, list tools, and invoke one), `README.md`.
 - **`server.py`.** Minimal FastMCP setup with `@mcp.tool()` decorators for the two tools. Stdio transport (simplest for users to reason about; no port allocation).
-- **`run_client.py`.** Uses `MCPServerSpec` + `PoolingMCPConnectionFactory` (the SDK's actual public surface today) to open a connection, list available tools, and invoke `echo`. **Not an agent.** The README explicitly notes that agent-as-tool-source integration is on the roadmap and points users to the connection-factory abstraction available now.
+- **`run_client.py`.** Uses `MCPServerSpec` + `FastMCPConnectionFactory` (an alias for `PoolingMCPConnectionFactory`; the public name in `ai_core.mcp.__all__`) to open a connection, list available tools, and invoke `echo`. **Not an agent.** The README explicitly notes that agent-as-tool-source integration is on the roadmap and points users to the connection-factory abstraction available now.
 - **README.** Two-process model (server in one terminal, client in another). What the SDK ships today (transports + connection factory) vs. what's coming (agent-side tool-source registration). How to add your own tool.
 - **Data flow.** Terminal A: `python server.py` (FastMCP listens on stdio). Terminal B: `python run_client.py` (factory opens connection, lists tools, invokes `echo`, prints result).
 
