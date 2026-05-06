@@ -28,6 +28,7 @@ The base class wires:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
@@ -47,9 +48,13 @@ from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
 from ai_core.exceptions import (
     AgentRecursionLimitError,
     PolicyDenialError,
+    RegistryError,
     ToolExecutionError,
     ToolValidationError,
 )
+from ai_core.mcp.resolver import resolve_mcp_tools
+from ai_core.mcp.tools import MCPToolSpec  # noqa: TC001
+from ai_core.mcp.transports import IMCPConnectionFactory, MCPServerSpec  # noqa: TC001
 from ai_core.observability.logging import bind_context, get_logger, unbind_context
 from ai_core.tools.invoker import ToolInvoker
 from ai_core.tools.spec import Tool, ToolSpec
@@ -104,13 +109,17 @@ class BaseAgent(ABC):
         memory: IMemoryManager,
         observability: IObservabilityProvider,
         tool_invoker: ToolInvoker,
+        mcp_factory: IMCPConnectionFactory,
     ) -> None:
         self._settings = settings
         self._llm = llm
         self._memory = memory
         self._observability = observability
         self._tool_invoker = tool_invoker
+        self._mcp_factory = mcp_factory
         self._graph: Any | None = None
+        self._mcp_resolved: list[MCPToolSpec] | None = None
+        self._mcp_resolution_lock: asyncio.Lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Subclass API
@@ -121,6 +130,15 @@ class BaseAgent(ABC):
 
     def tools(self) -> Sequence[Tool | Mapping[str, Any]]:
         """Return tool definitions or ``Tool``-protocol objects (default: empty)."""
+        return ()
+
+    def mcp_servers(self) -> Sequence[MCPServerSpec]:
+        """Return MCPServerSpecs whose tools the agent should use (default: empty).
+
+        Resolved on the first agent turn via `_all_tools()`. Tools surfaced by
+        these servers are merged with `tools()` for both LLM advertising and
+        dispatch.
+        """
         return ()
 
     def extend_graph(self, graph: StateGraph) -> None:
@@ -257,7 +275,7 @@ class BaseAgent(ABC):
         essentials = state.get("essential_entities") or {}
 
         tool_payload: list[Mapping[str, Any]] = []
-        for t in self.tools():
+        for t in await self._all_tools():
             if isinstance(t, ToolSpec):
                 tool_payload.append(t.openai_schema())
             elif isinstance(t, Mapping):
@@ -296,7 +314,7 @@ class BaseAgent(ABC):
         last = history[-1] if history else None
         tool_calls = getattr(last, "tool_calls", None) or []
         sdk_tools_by_name: dict[str, ToolSpec] = {
-            t.name: t for t in self.tools() if isinstance(t, ToolSpec)
+            t.name: t for t in await self._all_tools() if isinstance(t, ToolSpec)
         }
         essentials = state.get("essential_entities") or {}
         tenant_id = str(essentials.get("tenant_id") or "") or None
@@ -376,6 +394,39 @@ class BaseAgent(ABC):
             tenant_id=str(essentials.get("tenant_id") or "") or None,
             agent_id=self.agent_id,
         )
+
+    async def _all_tools(self) -> list[Tool | Mapping[str, Any]]:
+        """Return the merged list of local + resolved MCP tools.
+
+        Lazily resolves MCP servers on the first call; caches per-instance.
+        Concurrent first-turn callers serialize on `_mcp_resolution_lock`.
+
+        Raises:
+            MCPTransportError: When a declared MCP server is unreachable.
+            RegistryError: When MCP tool names conflict with each other or
+                with local @tool names.
+        """
+        if self._mcp_resolved is None:
+            async with self._mcp_resolution_lock:
+                if self._mcp_resolved is None:
+                    servers = list(self.mcp_servers())
+                    resolved = (
+                        await resolve_mcp_tools(servers, self._mcp_factory)
+                        if servers
+                        else []
+                    )
+                    local_names = {
+                        t.name for t in self.tools() if isinstance(t, ToolSpec)
+                    }
+                    for mcp_spec in resolved:
+                        if mcp_spec.name in local_names:
+                            raise RegistryError(
+                                f"MCP tool name {mcp_spec.name!r} conflicts with a local tool",
+                                details={"tool": mcp_spec.name},
+                            )
+                        self._tool_invoker.register(mcp_spec)
+                    self._mcp_resolved = resolved
+        return list(self.tools()) + list(self._mcp_resolved)
 
     # ------------------------------------------------------------------
     # Routing
