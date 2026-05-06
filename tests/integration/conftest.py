@@ -55,15 +55,18 @@ def opa_container(
     if not docker_available:
         pytest.skip("Docker not available — integration tests skipped")
     from testcontainers.core.container import DockerContainer  # noqa: PLC0415
-    from testcontainers.core.waiting_utils import wait_for_logs  # noqa: PLC0415
+    from testcontainers.core.wait_strategies import LogMessageWaitStrategy  # noqa: PLC0415
     container = (
         DockerContainer(OPA_IMAGE)
         .with_command("run --server --addr 0.0.0.0:8181 /policies")
         .with_volume_mapping(str(POLICIES_DIR), "/policies", "ro")
         .with_exposed_ports(8181)
+        # OPA 0.59+ emits "Initializing server." then binds the listener.
+        # Older releases emitted "Server started" — neither phrase is a
+        # documented contract, so we match the modern one.
+        .waiting_for(LogMessageWaitStrategy("Initializing server"))
     )
     with container as opa:
-        wait_for_logs(opa, "Server started", timeout=30)
         yield opa
 
 

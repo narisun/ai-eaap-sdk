@@ -2,6 +2,10 @@
 # Default decision path: data.eaap.agent.tool_call.allow
 package eaap.agent.tool_call
 
+# Required for the keyword-based `... if { ... }` rule syntax used below
+# (OPA 0.59+ — this import opts the file into the modern Rego v1 grammar).
+import rego.v1
+
 # Default-deny: every tool call must be explicitly allowed.
 default allow := false
 
