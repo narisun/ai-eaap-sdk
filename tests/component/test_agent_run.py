@@ -28,7 +28,8 @@ from ai_core.agents import BaseAgent, TokenCounter
 from ai_core.agents.memory import to_openai_message
 from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
-from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
+from ai_core.di.interfaces import ILLMClient  # noqa: TC001
+from ai_core.testing import ScriptedLLM, make_llm_response
 
 
 pytestmark = pytest.mark.component
@@ -44,47 +45,6 @@ class MathTutorAgent(BaseAgent):
 
     def system_prompt(self) -> str:
         return "You are a friendly math tutor. Answer in one sentence."
-
-
-class ScriptedLLM(ILLMClient):
-    """Returns canned responses in order; records every call for inspection."""
-
-    def __init__(self, responses: Sequence[str]) -> None:
-        self._responses = list(responses)
-        self._idx = 0
-        self.calls: list[dict[str, Any]] = []
-
-    async def complete(
-        self,
-        *,
-        model: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        tools: Sequence[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tenant_id: str | None = None,
-        agent_id: str | None = None,
-        extra: Mapping[str, Any] | None = None,
-    ) -> LLMResponse:
-        self.calls.append(
-            {
-                "model": model,
-                "messages": [_msg_to_dict(m) for m in messages],
-                "tools": list(tools) if tools else None,
-                "temperature": temperature,
-                "tenant_id": tenant_id,
-                "agent_id": agent_id,
-            }
-        )
-        content = self._responses[min(self._idx, len(self._responses) - 1)]
-        self._idx += 1
-        return LLMResponse(
-            model="scripted/test",
-            content=content,
-            tool_calls=[],
-            usage=LLMUsage(prompt_tokens=42, completion_tokens=12, total_tokens=54),
-            raw={},
-        )
 
 
 class _ForceCompactCounter:
@@ -136,7 +96,9 @@ def _build_container(
 # Scenario 1: Single-turn happy path
 # ---------------------------------------------------------------------------
 async def test_single_turn_run_produces_expected_state() -> None:
-    llm = ScriptedLLM(["Two plus two equals four."])
+    llm = ScriptedLLM([
+        make_llm_response("Two plus two equals four.", prompt_tokens=42, completion_tokens=12),
+    ])
     container = _build_container(llm=llm)
 
     async with container as c:
@@ -181,12 +143,10 @@ async def test_single_turn_run_produces_expected_state() -> None:
 # ---------------------------------------------------------------------------
 async def test_compaction_runs_before_agent_when_threshold_exceeded() -> None:
     # Two LLM calls expected: (1) summarisation, (2) post-compaction agent turn.
-    llm = ScriptedLLM(
-        [
-            "User asked about TASK-42 earlier; deadline question pending.",
-            "The deadline is Friday at 5pm.",
-        ]
-    )
+    llm = ScriptedLLM([
+        make_llm_response("User asked about TASK-42 earlier; deadline question pending."),
+        make_llm_response("The deadline is Friday at 5pm."),
+    ])
     counter = _ForceCompactCounter()
     container = _build_container(llm=llm, counter=counter)
 
@@ -252,7 +212,7 @@ async def test_compaction_runs_before_agent_when_threshold_exceeded() -> None:
 async def test_recursion_limit_propagated_into_compiled_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    llm = ScriptedLLM(["ok"])
+    llm = ScriptedLLM([make_llm_response("ok")])
     settings = AppSettings(
         service_name="math-tutor-test",
         agent={"max_recursion_depth": 11},  # type: ignore[arg-type]

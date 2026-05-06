@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 from injector import Module, multiprovider, provider, singleton
@@ -11,20 +11,19 @@ from pydantic import BaseModel
 
 from ai_core.app import AICoreApp, HealthSnapshot
 from ai_core.config.settings import AgentSettings, AppSettings, LLMSettings
-from ai_core.di.interfaces import (
+from ai_core.di.interfaces import (  # noqa: TC001
     ILLMClient,
     IObservabilityProvider,
     IPolicyEvaluator,
-    LLMResponse,
-    LLMUsage,
 )
 from ai_core.exceptions import ConfigurationError
 from ai_core.health import IHealthProbe, ProbeResult
+from ai_core.testing import ScriptedLLM, make_llm_response
 from ai_core.tools import tool
 from ai_core.tools.invoker import ToolInvoker
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
 
     from tests.conftest import FakeObservabilityProvider, FakePolicyEvaluator
 
@@ -41,28 +40,6 @@ def _bad_settings() -> AppSettings:
     )
 
 
-class _StubLLM(ILLMClient):
-    async def complete(
-        self,
-        *,
-        model: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        tools: Sequence[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tenant_id: str | None = None,
-        agent_id: str | None = None,
-        extra: Mapping[str, Any] | None = None,
-    ) -> LLMResponse:
-        return LLMResponse(
-            model="stub",
-            content="ok",
-            tool_calls=[],
-            usage=LLMUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0, cost_usd=0.0),
-            raw={},
-        )
-
-
 def _override_module(
     fake_observability: FakeObservabilityProvider,
     fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
@@ -71,7 +48,7 @@ def _override_module(
         @singleton
         @provider
         def llm(self) -> ILLMClient:
-            return _StubLLM()
+            return ScriptedLLM([make_llm_response("ok")], repeat_last=True)
 
         @singleton
         @provider

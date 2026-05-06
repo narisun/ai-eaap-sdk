@@ -18,6 +18,7 @@ from ai_core.di.interfaces import (
 )
 from ai_core.exceptions import SchemaValidationError
 from ai_core.schema.registry import SchemaRegistry
+from ai_core.testing import ScriptedLLM
 from ai_core.tools import Tool, tool
 
 if TYPE_CHECKING:
@@ -38,29 +39,6 @@ class _Out(BaseModel):
 async def count_tool(payload: _In) -> _Out:
     """Return the length of the query string."""
     return _Out(n=len(payload.q))
-
-
-class _ScriptedLLM(ILLMClient):
-    """Returns a queue of pre-baked completions."""
-
-    def __init__(self, scripts: Sequence[LLMResponse]) -> None:
-        self._scripts = list(scripts)
-        self.calls: list[Sequence[Mapping[str, Any]]] = []
-
-    async def complete(
-        self,
-        *,
-        model: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        tools: Sequence[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tenant_id: str | None = None,
-        agent_id: str | None = None,
-        extra: Mapping[str, Any] | None = None,
-    ) -> LLMResponse:
-        self.calls.append(list(messages))
-        return self._scripts.pop(0)
 
 
 def _llm_msg(content: str = "", tool_calls: Sequence[Mapping[str, Any]] = ()) -> LLMResponse:
@@ -109,7 +87,7 @@ async def test_agent_with_tool_runs_loop_and_returns_final_answer(
     fake_observability, fake_policy_evaluator_factory
 ):
     # First LLM turn requests a tool call; second returns the final answer.
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[{
             "id": "call-1",
             "type": "function",
@@ -129,7 +107,7 @@ async def test_agent_with_tool_runs_loop_and_returns_final_answer(
 async def test_agent_without_tool_calls_terminates(
     fake_observability, fake_policy_evaluator_factory
 ):
-    llm = _ScriptedLLM([_llm_msg(content="Hi.")])
+    llm = ScriptedLLM([_llm_msg(content="Hi.")])
     container = _build(llm, fake_observability, fake_policy_evaluator_factory)
     agent = container.get(_DemoAgent)
     state = await agent.ainvoke(messages=[{"role": "user", "content": "hello"}])
@@ -143,7 +121,7 @@ async def test_tool_validation_error_surfaces_as_toolmessage(
     fake_observability, fake_policy_evaluator_factory
 ):
     # LLM passes invalid args (q is missing); LLM then explains.
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[{
             "id": "call-1",
             "type": "function",
@@ -156,8 +134,8 @@ async def test_tool_validation_error_surfaces_as_toolmessage(
     await agent.ainvoke(messages=[{"role": "user", "content": "count"}])
     # The second LLM call must have seen a tool message describing the error.
     tool_msg_seen = False
-    for messages in llm.calls:
-        for m in messages:
+    for call in llm.calls:
+        for m in call["messages"]:
             if (m.get("role") == "tool") and "validation" in (m.get("content") or "").lower():
                 tool_msg_seen = True
     assert tool_msg_seen, "Expected a ToolMessage describing the validation failure."
@@ -167,7 +145,7 @@ async def test_tool_validation_error_surfaces_as_toolmessage(
 async def test_policy_denial_surfaces_as_toolmessage(
     fake_observability, fake_policy_evaluator_factory
 ):
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[{
             "id": "call-1",
             "type": "function",
@@ -207,7 +185,7 @@ async def test_auto_tool_loop_can_be_disabled(
     class _NoLoopAgent(_DemoAgent):
         auto_tool_loop = False
 
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[{
             "id": "call-1",
             "type": "function",
@@ -232,7 +210,7 @@ async def test_malformed_tool_args_surface_as_toolmessage(
     fake_observability, fake_policy_evaluator_factory
 ):
     """LLM emitting malformed JSON in tool_calls.arguments must not crash the graph."""
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[{
             "id": "call-1",
             "type": "function",
@@ -253,7 +231,7 @@ async def test_multiple_tool_calls_in_one_turn(
     fake_observability, fake_policy_evaluator_factory
 ):
     """An AIMessage with multiple tool_calls dispatches each."""
-    llm = _ScriptedLLM([
+    llm = ScriptedLLM([
         _llm_msg(tool_calls=[
             {"id": "call-1", "type": "function",
              "function": {"name": "count", "arguments": '{"q":"abc"}'}},
@@ -275,7 +253,7 @@ async def test_compile_auto_registers_tools_with_schema_registry(
     fake_observability, fake_policy_evaluator_factory
 ) -> None:
     """compile() must populate SchemaRegistry with every ToolSpec returned by tools()."""
-    llm = _ScriptedLLM([_llm_msg(content="ok")])
+    llm = ScriptedLLM([_llm_msg(content="ok")])
     container = _build(llm, fake_observability, fake_policy_evaluator_factory)
     agent = container.get(_DemoAgent)
 
