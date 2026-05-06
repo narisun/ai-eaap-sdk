@@ -1,15 +1,19 @@
 """Unit tests for MCPToolSpec and its permissive I/O models."""
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from ai_core.mcp import MCPServerSpec
 from ai_core.mcp.tools import (
+    MCPResourceSpec,
     MCPToolSpec,
     _MCPPassthroughInput,
     _MCPPassthroughOutput,
     unwrap_mcp_tool_message,
 )
+from ai_core.tools.spec import ToolSpec
 
 pytestmark = pytest.mark.unit
 
@@ -44,8 +48,6 @@ def _spec_factory(**overrides) -> MCPToolSpec:
 
 def test_mcp_tool_spec_is_a_tool_spec() -> None:
     """MCPToolSpec subclasses ToolSpec so existing isinstance checks find it."""
-    from ai_core.tools.spec import ToolSpec  # noqa: PLC0415
-
     spec = _spec_factory()
     assert isinstance(spec, ToolSpec)
 
@@ -117,6 +119,81 @@ def test_openai_schema_returned_dict_is_independent_of_source() -> None:
     assert "new_key" not in raw
     assert "INJECTED" not in spec.mcp_input_schema["properties"]["text"]
     assert "new_key" not in spec.mcp_input_schema
+
+
+# ---------------------------------------------------------------------------
+# MCPResourceSpec tests (Phase 12)
+# ---------------------------------------------------------------------------
+
+
+def _resource_spec_factory(**overrides) -> MCPResourceSpec:
+    """Build an MCPResourceSpec with sensible defaults for testing."""
+    server = MCPServerSpec(
+        component_id="test-server",
+        transport="stdio",
+        target="/bin/true",
+        opa_decision_path=overrides.pop("opa_decision_path", None),
+    )
+
+    async def _noop_handler(payload: _MCPPassthroughInput) -> _MCPPassthroughOutput:
+        return _MCPPassthroughOutput(value="ok")
+
+    return MCPResourceSpec(
+        name=overrides.pop("name", "documentation"),
+        version=1,
+        description=overrides.pop("description", "Project docs"),
+        input_model=_MCPPassthroughInput,
+        output_model=_MCPPassthroughOutput,
+        handler=_noop_handler,
+        opa_path=overrides.pop("opa_path", None),
+        mcp_server_spec=server,
+        mcp_input_schema={"type": "object", "properties": {}},
+        mcp_resource_uri=overrides.pop("mcp_resource_uri", "mcp-demo://docs"),
+    )
+
+
+def test_mcp_resource_spec_is_a_mcp_tool_spec() -> None:
+    """MCPResourceSpec subclasses MCPToolSpec → existing isinstance checks find it."""
+    spec = _resource_spec_factory()
+    assert isinstance(spec, MCPResourceSpec)
+    assert isinstance(spec, MCPToolSpec)  # parent
+    assert isinstance(spec, ToolSpec)  # grandparent
+
+
+def test_resource_openai_schema_has_no_parameters() -> None:
+    """Resources take no args; openai_schema returns a parameter-less shape."""
+    spec = _resource_spec_factory(name="docs", description="Project docs")
+
+    schema = spec.openai_schema()
+
+    assert schema == {
+        "type": "function",
+        "function": {
+            "name": "docs",
+            "description": "Project docs",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
+
+
+def test_resource_uri_is_stored_as_string() -> None:
+    """mcp_resource_uri is plain str, not pydantic AnyUrl (matches MCPToolSpec field-type style)."""
+    spec = _resource_spec_factory(mcp_resource_uri="mcp-demo://docs")
+    assert isinstance(spec.mcp_resource_uri, str)
+    assert spec.mcp_resource_uri == "mcp-demo://docs"
+
+
+def test_resource_opa_path_propagates() -> None:
+    """When the resolver passes server.opa_decision_path → spec.opa_path, it round-trips."""
+    spec = _resource_spec_factory(opa_path="mcp.test-server.allow")
+    assert spec.opa_path == "mcp.test-server.allow"
+
+
+def test_resource_spec_is_frozen() -> None:
+    """MCPResourceSpec inherits frozen=True from ToolSpec."""
+    spec = _resource_spec_factory()
+    with pytest.raises(FrozenInstanceError):
+        spec.mcp_resource_uri = "different://uri"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------

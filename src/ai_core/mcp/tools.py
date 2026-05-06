@@ -71,6 +71,34 @@ class MCPToolSpec(ToolSpec):
         }
 
 
+@dataclass(frozen=True, slots=True)
+class MCPResourceSpec(MCPToolSpec):
+    """An MCP resource exposed as a parameter-less read-only tool.
+
+    Phase 12 maps each resource the server advertises via `list_resources()`
+    to one `MCPResourceSpec`. The handler closure (built by the resolver)
+    hardcodes `mcp_resource_uri` and dispatches via `client.read_resource(uri)`.
+
+    Attributes:
+        mcp_resource_uri: The resource's URI (stored as plain str; FastMCP
+            returns `pydantic.AnyUrl` which the resolver casts via `str()`
+            on the way in).
+    """
+
+    mcp_resource_uri: str
+
+    def openai_schema(self) -> dict[str, Any]:
+        """Return the OpenAI function-calling schema with no parameters."""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+
+
 def unwrap_mcp_tool_message(content: str) -> Any:  # noqa: ANN401
     """Unwrap MCPToolSpec's {"value": ...} envelope from a ToolMessage.content string.
 
@@ -103,4 +131,4 @@ def unwrap_mcp_tool_message(content: str) -> Any:  # noqa: ANN401
     return parsed
 
 
-__all__ = ["MCPToolSpec", "unwrap_mcp_tool_message"]
+__all__ = ["MCPResourceSpec", "MCPToolSpec", "unwrap_mcp_tool_message"]
