@@ -19,7 +19,11 @@ run_demo() {
         echo "  ✓ ${name}"
         ran=$((ran + 1))
     else
-        local rc=$?
+        # Separate `local` and assignment so the exit code captured is
+        # the previous command's, not `local`'s — important on bash 3.2
+        # (macOS) where `local rc=$?` returns local's own exit code.
+        local rc
+        rc=$?
         echo "  ✗ ${name} (exit ${rc})"
         failures=$((failures + 1))
     fi
