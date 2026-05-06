@@ -125,6 +125,7 @@ asyncio_mode = "auto"
 markers = [
     "unit: fast, isolated unit tests",
     "component: in-process tests across multiple SDK modules",
+    "contract: contract / surface tests",
     "integration: tests that hit real external systems (DB, OPA, OTel, LLM)",
 ]
 filterwarnings = [
