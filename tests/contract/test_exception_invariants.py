@@ -7,6 +7,8 @@ import pytest
 
 from ai_core.exceptions import EAAPBaseException
 
+pytestmark = pytest.mark.contract
+
 
 def _all_concrete_exceptions() -> list[type[EAAPBaseException]]:
     """Return all concrete subclasses of EAAPBaseException, recursively."""

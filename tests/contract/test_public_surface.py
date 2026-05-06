@@ -6,7 +6,11 @@ contributors to acknowledge that the public surface has changed.
 """
 from __future__ import annotations
 
+import pytest
+
 import ai_core
+
+pytestmark = pytest.mark.contract
 
 EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "AICoreApp",

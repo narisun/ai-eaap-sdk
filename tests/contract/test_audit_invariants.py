@@ -26,6 +26,8 @@ for _modname in ("ai_core.audit.sentry", "ai_core.audit.datadog"):
     with contextlib.suppress(ImportError):
         importlib.import_module(_modname)
 
+pytestmark = pytest.mark.contract
+
 
 def _all_concrete_sinks() -> list[type[Any]]:
     seen: set[type[Any]] = set()

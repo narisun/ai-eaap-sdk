@@ -20,6 +20,8 @@ from ai_core.di.interfaces import (
 )
 from ai_core.mcp.transports import IMCPConnectionFactory
 
+pytestmark = pytest.mark.contract
+
 
 class _SpyModule(Module):
     """Override every Container teardown target with a spy that records call order."""

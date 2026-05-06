@@ -15,6 +15,8 @@ import ai_core.health.probes  # noqa: F401
 from ai_core.config.settings import AppSettings, SecuritySettings
 from ai_core.health import IHealthProbe, ProbeResult
 
+pytestmark = pytest.mark.contract
+
 
 def _all_concrete_probes() -> list[type[Any]]:
     seen: set[type[Any]] = set()
