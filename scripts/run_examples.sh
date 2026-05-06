@@ -51,8 +51,10 @@ run_demo testing_demo uv run pytest examples/testing_demo/ -q
 # --- mcp_server_demo: needs fastmcp installed.
 if uv run python -c "import fastmcp" 2>/dev/null; then
     run_demo mcp_server_demo uv run python examples/mcp_server_demo/run_client.py
+    run_demo mcp_agent_demo uv run python examples/mcp_server_demo/agent_demo.py
 else
     skip_demo mcp_server_demo "fastmcp not installed (run \`uv sync\`)"
+    skip_demo mcp_agent_demo "fastmcp not installed (run \`uv sync\`)"
 fi
 
 # --- fastapi_integration: full demo needs OPA running, but the smoke

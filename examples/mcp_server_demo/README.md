@@ -10,14 +10,14 @@ tools, and invoke one.
 - Using `MCPServerSpec` + `FastMCPConnectionFactory` from
   `ai_core.mcp` to open a connection.
 - Listing and invoking tools through the FastMCP client.
+- Agent-side resolution: `BaseAgent.mcp_servers()` makes MCP tools
+  available to `ToolInvoker` without any hand-written bridge.
 
-## What's not (yet) shown
+## What's also shown (Phase 11)
 
-The SDK does **not** yet ship an agent-side adapter that registers a
-remote MCP server as a `ToolInvoker` tool source. That integration is
-on the roadmap. For now the connection factory is the public surface
-you can use to bridge agents and MCP servers (you'd write the bridge
-yourself).
+- Agent-side adapter: `agent_demo.py` runs an agent that declares this
+  server via `mcp_servers()` and uses its tools through the standard
+  `ToolInvoker` pipeline (validation, OPA, audit, observability).
 
 ## Prerequisites
 
@@ -54,6 +54,16 @@ uv run python examples/mcp_server_demo/server.py
 
 This is purely for experimentation — `run_client.py` always spawns its
 own server process and ignores any other instance.
+
+### Run as an agent
+
+```bash
+uv run python examples/mcp_server_demo/agent_demo.py
+```
+
+The agent declares this server via `mcp_servers()`, the SDK resolves
+its tools on the first turn, and `ToolInvoker` dispatches the call
+through the same pipeline as local `@tool`s.
 
 ## Add your own tool
 
