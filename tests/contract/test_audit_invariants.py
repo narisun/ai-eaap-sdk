@@ -10,12 +10,13 @@ import importlib
 import inspect
 import os
 import sys
-import tempfile
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Force-import every audit sink module so __subclasses__() picks them up,
 # including those behind optional-dep extras.
@@ -29,16 +30,23 @@ for _modname in ("ai_core.audit.sentry", "ai_core.audit.datadog"):
 pytestmark = pytest.mark.contract
 
 
-def _all_concrete_sinks() -> list[type[Any]]:
-    seen: set[type[Any]] = set()
-    stack: list[type[Any]] = list(IAuditSink.__subclasses__())
+def _all_concrete_sinks() -> list[type[IAuditSink]]:
+    seen: set[type[IAuditSink]] = set()
+    stack: list[type[IAuditSink]] = list(IAuditSink.__subclasses__())
     while stack:
         cls = stack.pop()
         if cls not in seen:
             seen.add(cls)
             stack.extend(cls.__subclasses__())
+    # Filter out test-fixture sinks (those defined in tests/* modules).
+    # FakeAuditSink in tests/conftest.py is a test helper, not a production sink.
     return sorted(
-        (c for c in seen if not inspect.isabstract(c)),
+        (
+            c for c in seen
+            if not inspect.isabstract(c)
+            and not c.__module__.startswith("tests.")
+            and c.__module__ != "conftest"  # pytest-loaded conftest.py shows up as 'conftest'
+        ),
         key=lambda c: c.__qualname__,
     )
 
@@ -53,7 +61,10 @@ def _make_test_record() -> AuditRecord:
 
 
 def _construct_sink_with_failing_backend(
-    sink_cls: type[Any], monkeypatch: pytest.MonkeyPatch
+    sink_cls: type[IAuditSink],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
 ) -> IAuditSink:
     """Return a constructed instance whose underlying transport raises on use.
 
@@ -64,17 +75,19 @@ def _construct_sink_with_failing_backend(
     name = sink_cls.__qualname__
     if name == "NullAuditSink":
         # NullAuditSink is a no-op; nothing to fault-inject. Return as-is.
-        return sink_cls()  # type: ignore[no-any-return]
+        return sink_cls()
     if name == "JsonlFileAuditSink":
-        # Use a read-only temp directory so the parent mkdir() succeeds
-        # but the actual file write is refused by the OS.
-        tmp_dir = tempfile.mkdtemp()
-        os.chmod(tmp_dir, 0o555)  # read + execute only; writes denied
-        bad_path = Path(tmp_dir) / "audit.jsonl"
-        sink = sink_cls(bad_path)
-        # Restore permissions so the directory can be cleaned up later.
-        os.chmod(tmp_dir, 0o755)
-        return sink  # type: ignore[no-any-return]
+        # Create the file in a normal-permissions dir so __init__'s mkdir succeeds,
+        # then lock the dir so subsequent write/append fails.
+        # Use buffer_size=1 so the very first record() call triggers an immediate
+        # disk write (rather than buffering), ensuring the fault is actually exercised.
+        bad_path = tmp_path / "audit.jsonl"
+        sink = sink_cls(bad_path, buffer_size=1)  # type: ignore[call-arg]
+        os.chmod(tmp_path, 0o555)
+        # Restore write permission BEFORE pytest tears down tmp_path
+        # (pytest can't traverse a 0o555 dir to delete it).
+        request.addfinalizer(lambda: os.chmod(tmp_path, 0o755))
+        return sink
     if name == "OTelEventAuditSink":
         # Pass a fake observability provider whose record_event raises.
         fake_obs = MagicMock()
@@ -83,7 +96,7 @@ def _construct_sink_with_failing_backend(
             raise RuntimeError("backend-down")
 
         fake_obs.record_event = _raise
-        return sink_cls(fake_obs)  # type: ignore[no-any-return]
+        return sink_cls(fake_obs)  # type: ignore[call-arg]
     if name == "SentryAuditSink":
         fake = MagicMock()
         fake.capture_event.side_effect = RuntimeError("backend-down")
@@ -107,9 +120,12 @@ def _construct_sink_with_failing_backend(
     "sink_cls", _all_concrete_sinks(), ids=lambda c: c.__qualname__
 )
 def test_audit_sink_record_never_raises(
-    sink_cls: type[Any], monkeypatch: pytest.MonkeyPatch
+    sink_cls: type[IAuditSink],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
 ) -> None:
-    sink = _construct_sink_with_failing_backend(sink_cls, monkeypatch)
+    sink = _construct_sink_with_failing_backend(sink_cls, monkeypatch, tmp_path, request)
     record = _make_test_record()
     # Must NOT raise — Phase 1 contract.
     asyncio.run(sink.record(record))
@@ -119,9 +135,12 @@ def test_audit_sink_record_never_raises(
     "sink_cls", _all_concrete_sinks(), ids=lambda c: c.__qualname__
 )
 def test_audit_sink_flush_never_raises(
-    sink_cls: type[Any], monkeypatch: pytest.MonkeyPatch
+    sink_cls: type[IAuditSink],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
 ) -> None:
-    sink = _construct_sink_with_failing_backend(sink_cls, monkeypatch)
+    sink = _construct_sink_with_failing_backend(sink_cls, monkeypatch, tmp_path, request)
     # Must NOT raise — Phase 1 contract.
     asyncio.run(sink.flush())
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -18,9 +17,9 @@ from ai_core.health import IHealthProbe, ProbeResult
 pytestmark = pytest.mark.contract
 
 
-def _all_concrete_probes() -> list[type[Any]]:
-    seen: set[type[Any]] = set()
-    stack: list[type[Any]] = list(IHealthProbe.__subclasses__())
+def _all_concrete_probes() -> list[type[IHealthProbe]]:
+    seen: set[type[IHealthProbe]] = set()
+    stack: list[type[IHealthProbe]] = list(IHealthProbe.__subclasses__())
     while stack:
         cls = stack.pop()
         if cls not in seen:
@@ -33,31 +32,31 @@ def _all_concrete_probes() -> list[type[Any]]:
 
 
 def _construct_probe_with_failing_dependency(
-    probe_cls: type[Any],
+    probe_cls: type[IHealthProbe],
 ) -> IHealthProbe:
     name = probe_cls.__qualname__
     if name == "OPAReachabilityProbe":
         # Point at a host:port nothing's listening on.
         settings = AppSettings()
         settings.security = SecuritySettings(opa_url="http://127.0.0.1:1")
-        return probe_cls(settings)  # type: ignore[no-any-return]
+        return probe_cls(settings)  # type: ignore[call-arg]
     if name == "DatabaseProbe":
         # Engine that fails on connect.
         engine = create_async_engine(
             "postgresql+asyncpg://x:y@127.0.0.1:1/x", connect_args={"timeout": 1}
         )
-        return probe_cls(engine)  # type: ignore[no-any-return]
+        return probe_cls(engine)  # type: ignore[call-arg]
     if name == "ModelLookupProbe":
         # Settings with a model that won't resolve.
         settings = AppSettings()
-        return probe_cls(settings)  # type: ignore[no-any-return]
+        return probe_cls(settings)  # type: ignore[call-arg]
     pytest.skip(f"No fault-injection harness defined for {name}")
 
 
 @pytest.mark.parametrize(
     "probe_cls", _all_concrete_probes(), ids=lambda c: c.__qualname__
 )
-def test_health_probe_never_raises(probe_cls: type[Any]) -> None:
+def test_health_probe_never_raises(probe_cls: type[IHealthProbe]) -> None:
     probe = _construct_probe_with_failing_dependency(probe_cls)
     # Must NOT raise — must return a ProbeResult (even with status="down"/"error").
     result = asyncio.run(probe.probe())
