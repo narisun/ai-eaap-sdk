@@ -14,7 +14,10 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from ai_core.mcp import MCPServerSpec, PoolingMCPConnectionFactory
+# FastMCPConnectionFactory is an alias for PoolingMCPConnectionFactory.
+# The Pooling-prefixed name isn't in ai_core.mcp.__all__ today; the alias
+# is the canonical import path until that's reconciled (Phase 11+).
+from ai_core.mcp import FastMCPConnectionFactory, MCPServerSpec
 
 console = Console()
 
@@ -31,7 +34,7 @@ def _server_spec() -> MCPServerSpec:
 
 
 async def main() -> None:
-    factory = PoolingMCPConnectionFactory(pool_enabled=False)
+    factory = FastMCPConnectionFactory(pool_enabled=False)
     spec = _server_spec()
 
     last_exc: Exception | None = None
