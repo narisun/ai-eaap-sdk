@@ -495,6 +495,12 @@ class BaseAgent(ABC):
                 When omitted, the agent searches across declared servers (one
                 list_prompts call each until found).
 
+        Round trips: when `server` is provided, exactly two RPCs (one
+        list_prompts to verify, one get_prompt to fetch). When omitted with
+        N declared servers, up to 2N round trips in the worst case (prompt
+        on the last server checked). Use `server=...` for prompt fetches in
+        hot paths.
+
         Returns:
             List of MCPPromptMessage instances, ready to splice into
             ainvoke(messages=...).
@@ -579,13 +585,22 @@ def _to_mcp_prompt_message(fastmcp_msg: Any) -> MCPPromptMessage:  # noqa: ANN40
     """Map a FastMCP `PromptMessage` to our typed MCPPromptMessage.
 
     PromptMessage.content is a union of TextContent | ImageContent | … .
-    v1 only handles TextContent; other types yield empty content.
+    v1 only handles TextContent; other types yield empty content with a
+    debug-level log (parallel to resource binary content suppression in
+    resolver.py).
     """
     content_obj = getattr(fastmcp_msg, "content", None)
     text = ""
+    role = str(fastmcp_msg.role)
     if content_obj is not None and getattr(content_obj, "type", None) == "text":
         text = getattr(content_obj, "text", "") or ""
-    return MCPPromptMessage(role=str(fastmcp_msg.role), content=text)
+    elif content_obj is not None:
+        _logger.debug(
+            "mcp.prompt.non_text_content_dropped",
+            role=role,
+            content_type=getattr(content_obj, "type", "unknown"),
+        )
+    return MCPPromptMessage(role=role, content=text)
 
 
 __all__ = ["BaseAgent"]

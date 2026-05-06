@@ -62,7 +62,9 @@ class MCPPromptMessage:
     """One message from a fetched prompt template (after argument substitution).
 
     Attributes:
-        role: Either "user" or "assistant" (matches MCP protocol values).
+        role: Typically "user" or "assistant" — passed through as `str` from
+            the MCP protocol without client-side validation, so future protocol
+            extensions are forward-compatible.
         content: Text content. Binary content blocks (images, etc.) from the
             FastMCP message are dropped in v1; only TextContent.text is preserved.
     """
