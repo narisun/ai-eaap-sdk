@@ -6,11 +6,18 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
 
 from ai_core.exceptions import RegistryError, ToolExecutionError
 from ai_core.mcp import MCPServerSpec
-from ai_core.mcp.resolver import resolve_mcp_tools
-from ai_core.mcp.tools import MCPToolSpec, _MCPPassthroughInput, _MCPPassthroughOutput
+from ai_core.mcp.resolver import _is_method_not_found, resolve_mcp_resources, resolve_mcp_tools
+from ai_core.mcp.tools import (
+    MCPResourceSpec,
+    MCPToolSpec,
+    _MCPPassthroughInput,
+    _MCPPassthroughOutput,
+)
 from ai_core.mcp.transports import IMCPConnectionFactory
 
 pytestmark = pytest.mark.unit
@@ -274,3 +281,202 @@ async def test_handler_substitutes_default_when_input_schema_is_none() -> None:
     specs = await resolve_mcp_tools([server], factory)
 
     assert specs[0].mcp_input_schema == {"type": "object", "properties": {}}
+
+
+# ---------------------------------------------------------------------------
+# resolve_mcp_resources tests (Phase 12)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _FakeFastMCPResource:
+    name: str
+    description: str | None
+    uri: str
+
+
+@dataclass(frozen=True)
+class _FakeReadContents:
+    """Stand-in for TextResourceContents."""
+    text: str | None = None
+    blob: bytes | None = None
+
+
+class _FakeMCPResourceClient:
+    """Fake client supporting list_resources + read_resource."""
+
+    def __init__(
+        self,
+        resources: list[_FakeFastMCPResource],
+        read_results: dict[str, list[_FakeReadContents]] | None = None,
+        list_resources_raises: BaseException | None = None,
+    ) -> None:
+        self._resources = resources
+        self._read_results = read_results or {}
+        self._list_raises = list_resources_raises
+        self.read_resource_invocations: list[str] = []
+
+    async def list_resources(self) -> list[_FakeFastMCPResource]:
+        if self._list_raises is not None:
+            raise self._list_raises
+        return list(self._resources)
+
+    async def read_resource(self, uri: str) -> list[_FakeReadContents]:
+        self.read_resource_invocations.append(uri)
+        return self._read_results.get(uri, [_FakeReadContents(text=f"contents of {uri}")])
+
+
+def _make_method_not_found_error() -> Exception:
+    """Build a real McpError with code -32601."""
+    return McpError(ErrorData(code=-32601, message="Method not found"))
+
+
+# ---- _is_method_not_found ------------------------------------------------------
+
+def test_is_method_not_found_true_on_minus_32601() -> None:
+    """The predicate accepts a real McpError with code -32601."""
+    exc = _make_method_not_found_error()
+    assert _is_method_not_found(exc) is True
+
+
+def test_is_method_not_found_false_on_other_codes() -> None:
+    """The predicate rejects McpErrors with different codes."""
+    exc = McpError(ErrorData(code=-32602, message="Invalid params"))
+    assert _is_method_not_found(exc) is False
+
+
+def test_is_method_not_found_false_on_unrelated_exception() -> None:
+    """Non-McpError exceptions are not method-not-found."""
+    assert _is_method_not_found(ValueError("nope")) is False
+    assert _is_method_not_found(RuntimeError("transport gone")) is False
+
+
+# ---- resolve_mcp_resources -----------------------------------------------------
+
+async def test_resolves_one_server_one_resource() -> None:
+    server = MCPServerSpec(
+        component_id="docs-svc", transport="stdio", target="/bin/true",
+    )
+    fake_resource = _FakeFastMCPResource(
+        name="documentation", description="Project docs",
+        uri="mcp-demo://docs",
+    )
+    client = _FakeMCPResourceClient(resources=[fake_resource])
+    factory = _FakeFactory({"docs-svc": client})
+
+    specs = await resolve_mcp_resources([server], factory)
+
+    assert len(specs) == 1
+    assert isinstance(specs[0], MCPResourceSpec)
+    assert specs[0].name == "documentation"
+    assert specs[0].description == "Project docs"
+    assert specs[0].mcp_resource_uri == "mcp-demo://docs"
+    assert specs[0].mcp_input_schema == {"type": "object", "properties": {}}
+
+
+async def test_resolve_resources_silently_skips_method_not_found() -> None:
+    """Servers that don't expose resources raise McpError(-32601); we skip them."""
+    server = MCPServerSpec(
+        component_id="tool-only", transport="stdio", target="/bin/true",
+    )
+    client = _FakeMCPResourceClient(
+        resources=[],
+        list_resources_raises=_make_method_not_found_error(),
+    )
+    factory = _FakeFactory({"tool-only": client})
+
+    specs = await resolve_mcp_resources([server], factory)
+
+    assert specs == []
+
+
+async def test_resolve_resources_propagates_other_mcp_errors() -> None:
+    """Non-method-not-found McpErrors propagate (e.g., -32602 invalid params)."""
+    server = MCPServerSpec(
+        component_id="broken", transport="stdio", target="/bin/true",
+    )
+    client = _FakeMCPResourceClient(
+        resources=[],
+        list_resources_raises=McpError(ErrorData(code=-32602, message="invalid params")),
+    )
+    factory = _FakeFactory({"broken": client})
+
+    with pytest.raises(McpError):
+        await resolve_mcp_resources([server], factory)
+
+
+async def test_resolve_resources_opa_path_propagates() -> None:
+    """server.opa_decision_path → spec.opa_path."""
+    server = MCPServerSpec(
+        component_id="docs", transport="stdio", target="/bin/true",
+        opa_decision_path="mcp.docs.allow",
+    )
+    fake_resource = _FakeFastMCPResource(name="readme", description=None, uri="mcp://readme")
+    factory = _FakeFactory({"docs": _FakeMCPResourceClient(resources=[fake_resource])})
+
+    specs = await resolve_mcp_resources([server], factory)
+
+    assert specs[0].opa_path == "mcp.docs.allow"
+
+
+async def test_resolve_resources_conflict_across_servers_raises() -> None:
+    """Two servers exposing the same resource name → RegistryError."""
+    server_a = MCPServerSpec(component_id="a", transport="stdio", target="/bin/true")
+    server_b = MCPServerSpec(component_id="b", transport="stdio", target="/bin/true")
+    factory = _FakeFactory({
+        "a": _FakeMCPResourceClient(resources=[
+            _FakeFastMCPResource(name="docs", description=None, uri="mcp://a/docs"),
+        ]),
+        "b": _FakeMCPResourceClient(resources=[
+            _FakeFastMCPResource(name="docs", description=None, uri="mcp://b/docs"),
+        ]),
+    })
+
+    with pytest.raises(RegistryError) as excinfo:
+        await resolve_mcp_resources([server_a, server_b], factory)
+
+    assert "docs" in str(excinfo.value)
+
+
+async def test_resource_handler_returns_text_content() -> None:
+    """The handler concatenates TextResourceContents and wraps in _MCPPassthroughOutput."""
+    server = MCPServerSpec(component_id="svc", transport="stdio", target="/bin/true")
+    client = _FakeMCPResourceClient(
+        resources=[_FakeFastMCPResource(name="readme", description=None, uri="mcp://readme")],
+        read_results={"mcp://readme": [
+            _FakeReadContents(text="line one"),
+            _FakeReadContents(text="line two"),
+        ]},
+    )
+    factory = _FakeFactory({"svc": client})
+
+    specs = await resolve_mcp_resources([server], factory)
+    payload = _MCPPassthroughInput.model_validate({})
+    result = await specs[0].handler(payload)
+
+    assert isinstance(result, _MCPPassthroughOutput)
+    assert result.value == "line one\nline two"
+    assert client.read_resource_invocations == ["mcp://readme"]
+
+
+async def test_resource_handler_substitutes_binary_with_placeholder() -> None:
+    """BlobResourceContents become a placeholder with a logged warning."""
+    server = MCPServerSpec(component_id="svc", transport="stdio", target="/bin/true")
+    client = _FakeMCPResourceClient(
+        resources=[_FakeFastMCPResource(name="image", description=None, uri="mcp://image")],
+        read_results={"mcp://image": [
+            _FakeReadContents(text=None, blob=b"\x89PNG..."),
+            _FakeReadContents(text="caption"),
+            _FakeReadContents(text=None, blob=b"more bytes"),
+        ]},
+    )
+    factory = _FakeFactory({"svc": client})
+
+    specs = await resolve_mcp_resources([server], factory)
+    payload = _MCPPassthroughInput.model_validate({})
+    result = await specs[0].handler(payload)
+
+    # Two binary blocks → one placeholder; one text → "caption".
+    # Order: text content emitted as encountered; placeholder appended after the loop.
+    assert "caption" in result.value
+    assert "<binary content suppressed: 2 block(s)>" in result.value
