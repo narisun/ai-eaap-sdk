@@ -8,13 +8,15 @@ from ai_core.mcp.transports import (
     IMCPConnectionFactory,
     MCPServerSpec,
     MCPTransport,
+    PoolingMCPConnectionFactory,
 )
 
 __all__ = [
     "ComponentRegistry",
-    "RegisteredComponent",
+    "FastMCPConnectionFactory",
+    "IMCPConnectionFactory",
     "MCPServerSpec",
     "MCPTransport",
-    "IMCPConnectionFactory",
-    "FastMCPConnectionFactory",
+    "PoolingMCPConnectionFactory",
+    "RegisteredComponent",
 ]
