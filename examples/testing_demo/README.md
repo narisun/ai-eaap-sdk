@@ -21,8 +21,12 @@ is wired to the SDK's `ai_core.testing` fakes.
 examples/testing_demo/
 ├── conftest.py            # pytest_plugins = ["ai_core.testing.pytest_plugin"]
 ├── pyproject.toml         # testpaths, pythonpath
-├── src/my_agent.py        # toy agent under test
-└── tests/test_my_agent.py # three tests showing the surface
+├── src/
+│   ├── __init__.py        # empty — marks src as a package
+│   └── my_agent.py        # toy agent under test
+└── tests/
+    ├── __init__.py        # empty — marks tests as a package
+    └── test_my_agent.py   # three tests showing the surface
 ```
 
 > **Note on import path:** tests import the agent as `from src.my_agent import

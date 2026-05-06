@@ -8,25 +8,33 @@ This file showcases the three big use-cases:
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from src.my_agent import answer_question
 
 from ai_core.exceptions import PolicyDenialError
-from ai_core.testing import (
-    FakeAuditSink,
-    FakePolicyEvaluator,
-    make_llm_response,
-)
+from ai_core.testing import make_llm_response
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-@pytest.mark.asyncio
-async def test_happy_path(scripted_llm_factory: object) -> None:
-    """ScriptedLLM returns the canned response; agent records audit; returns content."""
-    llm = scripted_llm_factory(  # type: ignore[operator]
-        [make_llm_response("The answer is 42.")]
+    from ai_core.testing import (
+        FakeAuditSink,
+        FakePolicyEvaluator,
+        ScriptedLLM,
     )
-    audit = FakeAuditSink()
-    policy = FakePolicyEvaluator(default_allow=True)
+
+
+async def test_happy_path(
+    scripted_llm_factory: Callable[..., ScriptedLLM],
+    fake_audit_sink: FakeAuditSink,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
+    """ScriptedLLM returns the canned response; agent records audit; returns content."""
+    llm = scripted_llm_factory([make_llm_response("The answer is 42.")])
+    audit = fake_audit_sink
+    policy = fake_policy_evaluator_factory(default_allow=True)
 
     result = await answer_question(
         "What's the meaning of life?",
@@ -40,12 +48,15 @@ async def test_happy_path(scripted_llm_factory: object) -> None:
     assert llm.calls[0]["agent_id"] == "demo-agent"
 
 
-@pytest.mark.asyncio
-async def test_audit_records_one_event(scripted_llm_factory: object) -> None:
+async def test_audit_records_one_event(
+    scripted_llm_factory: Callable[..., ScriptedLLM],
+    fake_audit_sink: FakeAuditSink,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
     """FakeAuditSink captures one TOOL_INVOCATION_COMPLETED record."""
-    llm = scripted_llm_factory([make_llm_response("ok")])  # type: ignore[operator]
-    audit = FakeAuditSink()
-    policy = FakePolicyEvaluator(default_allow=True)
+    llm = scripted_llm_factory([make_llm_response("ok")])
+    audit = fake_audit_sink
+    policy = fake_policy_evaluator_factory(default_allow=True)
 
     await answer_question("ping", llm=llm, audit=audit, policy=policy)
 
@@ -55,12 +66,15 @@ async def test_audit_records_one_event(scripted_llm_factory: object) -> None:
     assert record.payload["input"]["question"] == "ping"
 
 
-@pytest.mark.asyncio
-async def test_deny_path_raises(scripted_llm_factory: object) -> None:
+async def test_deny_path_raises(
+    scripted_llm_factory: Callable[..., ScriptedLLM],
+    fake_audit_sink: FakeAuditSink,
+    fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
+) -> None:
     """FakePolicyEvaluator with default_allow=False causes a PolicyDenialError."""
-    llm = scripted_llm_factory([make_llm_response("never reached")])  # type: ignore[operator]
-    audit = FakeAuditSink()
-    policy = FakePolicyEvaluator(default_allow=False, reason="demo denial")
+    llm = scripted_llm_factory([make_llm_response("never reached")])
+    audit = fake_audit_sink
+    policy = fake_policy_evaluator_factory(default_allow=False, reason="demo denial")
 
     with pytest.raises(PolicyDenialError):
         await answer_question("forbidden", llm=llm, audit=audit, policy=policy)
