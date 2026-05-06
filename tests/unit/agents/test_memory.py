@@ -14,6 +14,7 @@ from ai_core.agents.state import new_agent_state
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
 from ai_core.exceptions import LLMTimeoutError
+from ai_core.testing import ScriptedLLM, make_llm_response
 
 
 def _content_messages(state_messages: list[Any]) -> list[Any]:
@@ -40,43 +41,6 @@ class FakeTokenCounter(TokenCounter):
         return self._counts[idx]
 
 
-class FakeLLM(ILLMClient):
-    """Captures the prompt sent for compaction and returns a canned summary."""
-
-    def __init__(self, summary: str = "summary text") -> None:
-        self._summary = summary
-        self.calls: list[dict[str, Any]] = []
-
-    async def complete(
-        self,
-        *,
-        model: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        tools: Sequence[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tenant_id: str | None = None,
-        agent_id: str | None = None,
-        extra: Mapping[str, Any] | None = None,
-    ) -> LLMResponse:
-        self.calls.append(
-            {
-                "model": model,
-                "messages": [dict(m) for m in messages],
-                "tenant_id": tenant_id,
-                "agent_id": agent_id,
-                "temperature": temperature,
-            }
-        )
-        return LLMResponse(
-            model=model or "fake",
-            content=self._summary,
-            tool_calls=[],
-            usage=LLMUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30, cost_usd=0.0),
-            raw={},
-        )
-
-
 _THRESHOLD = 1_000
 _TARGET = 200
 
@@ -95,31 +59,35 @@ def _make_settings(threshold: int = _THRESHOLD, target: int = _TARGET) -> AppSet
 # Tests
 # ---------------------------------------------------------------------------
 def test_should_compact_below_threshold() -> None:
-    mgr = MemoryManager(_make_settings(), FakeLLM(), FakeTokenCounter([_THRESHOLD - 1]))
+    llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
+    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD - 1]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is False
 
 
 def test_should_compact_at_threshold_is_false() -> None:
-    mgr = MemoryManager(_make_settings(), FakeLLM(), FakeTokenCounter([_THRESHOLD]))
+    llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
+    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is False
 
 
 def test_should_compact_above_threshold() -> None:
-    mgr = MemoryManager(_make_settings(), FakeLLM(), FakeTokenCounter([_THRESHOLD + 1]))
+    llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
+    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD + 1]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is True
 
 
 def test_should_compact_empty_messages_is_false() -> None:
-    mgr = MemoryManager(_make_settings(), FakeLLM(), FakeTokenCounter([1_000_000]))
+    llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
+    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([1_000_000]))
     state = new_agent_state()
     assert mgr.should_compact(state) is False
 
 
 async def test_compact_returns_state_with_summary_and_essentials_preserved() -> None:
-    fake_llm = FakeLLM(summary="condensed conversation")
+    fake_llm = ScriptedLLM([make_llm_response("condensed conversation")], repeat_last=True)
     mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
 
     state = new_agent_state(
@@ -169,7 +137,7 @@ async def test_compact_returns_state_with_summary_and_essentials_preserved() -> 
 
 
 async def test_compact_passes_essentials_to_summarisation_prompt() -> None:
-    fake_llm = FakeLLM()
+    fake_llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
     mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
     state = new_agent_state(
         initial_messages=[{"role": "user", "content": "hello"}],
@@ -188,7 +156,8 @@ async def test_compact_passes_essentials_to_summarisation_prompt() -> None:
 
 
 async def test_compact_no_messages_returns_state_unchanged() -> None:
-    mgr = MemoryManager(_make_settings(), FakeLLM(), FakeTokenCounter([0]))
+    llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
+    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([0]))
     state = new_agent_state(essential={"user_id": "u-1"})
     out = await mgr.compact(state)
     assert out is state  # no-op
@@ -201,7 +170,7 @@ async def test_compact_replaces_history_via_add_messages_reducer() -> None:
     immediate context for the next turn; it evicts everything before that and
     inserts a summary in its place.
     """
-    fake_llm = FakeLLM(summary="compressed")
+    fake_llm = ScriptedLLM([make_llm_response("compressed")], repeat_last=True)
     mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
     existing = [
         {"role": "user", "content": "old-1", "id": "m1"},
@@ -233,7 +202,7 @@ async def test_compact_replaces_history_via_add_messages_reducer() -> None:
 async def test_compact_increments_count_across_invocations() -> None:
     mgr = MemoryManager(
         _make_settings(),
-        FakeLLM(),
+        ScriptedLLM([make_llm_response("summary text")], repeat_last=True),
         FakeTokenCounter([2 * _THRESHOLD, _TARGET, 2 * _THRESHOLD, _TARGET]),
     )
     state = new_agent_state(
@@ -310,7 +279,7 @@ async def test_compact_succeeds_within_timeout() -> None:
     """Compaction completes normally when LLM responds within the budget."""
     settings = AppSettings()
     settings.agent.compaction_timeout_seconds = 1.0
-    fast_llm = FakeLLM(summary="hello world")
+    fast_llm = ScriptedLLM([make_llm_response("hello world")], repeat_last=True)
     counter = FakeTokenCounter([10_000, 0, 0])
     mgr = MemoryManager(settings=settings, llm=fast_llm, token_counter=counter)
 
