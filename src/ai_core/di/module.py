@@ -301,6 +301,24 @@ class AgentModule(Module):
                 release=settings.audit.sentry_release,
                 sample_rate=settings.audit.sentry_sample_rate,
             )
+        if sink_type == "datadog":
+            from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+            if settings.audit.datadog_api_key is None:
+                raise ConfigurationError(
+                    "audit.sink_type='datadog' requires audit.datadog_api_key to be set",
+                    error_code="config.invalid",
+                )
+            return DatadogAuditSink(
+                api_key=settings.audit.datadog_api_key.get_secret_value(),
+                app_key=(
+                    settings.audit.datadog_app_key.get_secret_value()
+                    if settings.audit.datadog_app_key
+                    else None
+                ),
+                site=settings.audit.datadog_site,
+                source=settings.audit.datadog_source,
+                environment=settings.audit.datadog_environment,
+            )
         raise ConfigurationError(
             f"Unknown audit.sink_type: {sink_type!r}",
             error_code="config.invalid",
