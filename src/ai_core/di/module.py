@@ -29,7 +29,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
-from ai_core.audit import IAuditSink  # noqa: TC001
+from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -241,6 +241,29 @@ class AgentModule(Module):
         """Return the in-process versioned-schema registry singleton."""
         return SchemaRegistry()
 
+    # ----- Payload redactor (Phase 6) ---------------------------------------
+    @singleton
+    @provider
+    def provide_payload_redactor(self, settings: AppSettings) -> PayloadRedactor:
+        """Return the configured PayloadRedactor; identity for profile='off'."""
+        profile = settings.audit.redaction_profile
+        if profile == "off":
+            from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
+            return _identity_redactor
+        from ai_core.audit.redaction import (  # noqa: PLC0415
+            ChainRedactor,
+            KeyNameRedactor,
+            PatternKind,
+            RegexRedactor,
+        )
+        base_patterns: set[PatternKind] = {"email", "phone", "ssn", "credit_card", "ipv4"}
+        if profile == "strict":
+            base_patterns.add("long_number")
+        return ChainRedactor(
+            RegexRedactor(enabled_patterns=base_patterns),
+            KeyNameRedactor(),
+        )
+
     # ----- Audit sink -------------------------------------------------------
     @singleton
     @provider
@@ -299,6 +322,7 @@ class AgentModule(Module):
         policy: IPolicyEvaluator,
         registry: SchemaRegistry,
         audit: IAuditSink,
+        redactor: PayloadRedactor,
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
         return ToolInvoker(
@@ -306,6 +330,7 @@ class AgentModule(Module):
             policy=policy,
             registry=registry,
             audit=audit,
+            redactor=redactor,
         )
 
 

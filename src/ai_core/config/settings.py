@@ -276,6 +276,18 @@ class AuditSettings(BaseSettings):
     sink_type: Literal["null", "otel_event", "jsonl"] = "null"
     jsonl_path: Path | None = None  # required when sink_type == "jsonl"
 
+    # Phase 6: PayloadRedactor configuration
+    redaction_profile: Literal["off", "standard", "strict"] = Field(
+        default="off",
+        description=(
+            "Profile name for the DI-bound PayloadRedactor. "
+            "'off' is identity (no redaction); 'standard' chains a RegexRedactor "
+            "(email, phone, ssn, credit_card, ipv4) with a KeyNameRedactor "
+            "(default secret/token key set); 'strict' adds a 6+digit number "
+            "pattern that catches IDs/account numbers (higher false-positive rate)."
+        ),
+    )
+
 
 class HealthSettings(BaseSettings):
     """Health-probe configuration."""

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
-from ai_core.audit import AuditEvent, AuditRecord
+from ai_core.audit import AuditEvent, AuditRecord, IAuditSink, PayloadRedactor
 from ai_core.exceptions import (
     PolicyDenialError,
     SchemaValidationError,
@@ -30,7 +30,6 @@ from ai_core.observability.logging import get_logger
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from ai_core.audit import IAuditSink
     from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
     from ai_core.schema.registry import SchemaRegistry
     from ai_core.tools.spec import ToolSpec
@@ -63,7 +62,9 @@ class ToolInvoker:
         policy: IPolicyEvaluator | None = None,
         registry: SchemaRegistry | None = None,
         audit: IAuditSink | None = None,
+        redactor: PayloadRedactor | None = None,
     ) -> None:
+        from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
         from ai_core.audit.null import NullAuditSink as _NullAuditSink  # noqa: PLC0415
         self._observability = observability
         self._policy = policy
@@ -71,6 +72,8 @@ class ToolInvoker:
         self._audit: IAuditSink = audit or _NullAuditSink()
         # Phase 4: skip AuditRecord.now() allocation entirely when the sink is no-op.
         self._records_audit: bool = not isinstance(self._audit, _NullAuditSink)
+        # Phase 6: optional payload redactor; default identity preserves Phase 1-5 behaviour.
+        self._redactor: PayloadRedactor = redactor or _identity_redactor
 
     def register(self, spec: ToolSpec) -> None:
         """Register a spec with the underlying :class:`SchemaRegistry`. Idempotent.
@@ -156,6 +159,7 @@ class ToolInvoker:
                                 "input": payload.model_dump(),
                                 "user": dict(principal or {}),
                             },
+                            redactor=self._redactor,
                         ))
                     if not decision.allowed:
                         raise PolicyDenialError(
@@ -226,6 +230,7 @@ class ToolInvoker:
                     agent_id=agent_id,
                     tenant_id=tenant_id,
                     latency_ms=latency_ms,
+                    redactor=self._redactor,
                 ))
             return validated.model_dump(mode="json")
 
@@ -240,6 +245,7 @@ class ToolInvoker:
                     tenant_id=tenant_id,
                     error_code=exc.error_code,
                     latency_ms=latency_ms,
+                    redactor=self._redactor,
                 ))
             raise
 

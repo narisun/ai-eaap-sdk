@@ -4,7 +4,7 @@ from __future__ import annotations
 import json as _json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 import pytest
@@ -23,7 +23,7 @@ from ai_core.tools import tool
 from ai_core.tools.invoker import ToolInvoker
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from tests.conftest import FakeAuditSink, FakeObservabilityProvider, FakePolicyEvaluator
 
@@ -445,3 +445,44 @@ async def test_invoker_records_failure_on_handler_raise(
     assert len(failed) == 1
     assert failed[0].error_code == "tool.execution_failed"
     assert failed[0].agent_id == "a"
+
+
+@pytest.mark.asyncio
+async def test_invoker_threads_redactor_into_audit_record(
+    fake_observability, fake_policy_evaluator_factory, fake_audit_sink
+) -> None:
+    """ToolInvoker(redactor=spy) → spy is called with the policy-decision payload
+    BEFORE the audit sink sees the record."""
+    spy_calls: list[Mapping[str, Any]] = []
+
+    def _spy_redactor(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        spy_calls.append(dict(payload))
+        return {"redacted": True}
+
+    inv = ToolInvoker(
+        observability=fake_observability,
+        policy=fake_policy_evaluator_factory(default_allow=True),
+        registry=SchemaRegistry(),
+        audit=fake_audit_sink,
+        redactor=_spy_redactor,
+    )
+    await inv.invoke(
+        _search,
+        {"q": "x", "limit": 1},
+        principal={"sub": "user-42"},
+        agent_id="a",
+        tenant_id="t",
+    )
+
+    # Spy was called for at least the POLICY_DECISION payload (input + user).
+    assert len(spy_calls) >= 1
+    first = spy_calls[0]
+    assert "input" in first
+    assert "user" in first
+
+    # The audit sink received the redacted payload.
+    policy_records = [
+        r for r in fake_audit_sink.records if r.event == AuditEvent.POLICY_DECISION
+    ]
+    assert len(policy_records) == 1
+    assert policy_records[0].payload == {"redacted": True}
