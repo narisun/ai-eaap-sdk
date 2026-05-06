@@ -1,6 +1,6 @@
 """Connect to the demo MCP server via the SDK's connection factory.
 
-The SDK ships `PoolingMCPConnectionFactory` (transport layer), but does NOT
+The SDK ships `FastMCPConnectionFactory` (transport layer), but does NOT
 yet ship an agent-side adapter that registers a remote MCP server as a tool
 source. This script demonstrates the surface that's available today:
 open a connection, list tools, invoke one.
@@ -14,9 +14,10 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-# FastMCPConnectionFactory is an alias for PoolingMCPConnectionFactory.
-# The Pooling-prefixed name isn't in ai_core.mcp.__all__ today; the alias
-# is the canonical import path until that's reconciled (Phase 11+).
+from ai_core.exceptions import MCPTransportError
+
+# FastMCPConnectionFactory is the public alias for PoolingMCPConnectionFactory
+# (see src/ai_core/mcp/transports.py).
 from ai_core.mcp import FastMCPConnectionFactory, MCPServerSpec
 
 console = Console()
@@ -51,14 +52,16 @@ async def main() -> None:
                 console.print(table)
 
                 result = await client.call_tool("echo", {"text": "hello from the SDK"})
-                console.print(f"[bold green]echo result:[/bold green] {result}")
+                console.print(f"[bold green]echo result:[/bold green] {result.data}")
                 return
-        except Exception as exc:  # retry on any transport failure
+        except MCPTransportError as exc:
             last_exc = exc
             await asyncio.sleep(0.2)
     raise SystemExit(
         f"Failed to connect to MCP server after 3 attempts: {last_exc!r}\n"
-        f"Is `python examples/mcp_server_demo/server.py` running in another terminal?"
+        f"The client spawns server.py as a subprocess — check that "
+        f"'{sys.executable}' can execute "
+        f"'{Path(__file__).parent / 'server.py'}'."
     )
 
 

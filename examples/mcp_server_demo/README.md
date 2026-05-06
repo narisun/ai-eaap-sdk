@@ -29,20 +29,31 @@ uv sync
 
 ## Run
 
-In one terminal:
+```bash
+uv run python examples/mcp_server_demo/run_client.py
+```
+
+The client auto-spawns `server.py` as a stdio subprocess and tears it down
+when the connection closes. Output:
+
+```
+Connected. Server exposes 2 tool(s):
+  echo         — Return the input string verbatim.
+  current_time — Return the current UTC time as an ISO-8601 string.
+echo result: hello from the SDK
+```
+
+### Inspecting the server manually
+
+To poke at the server independently (e.g. with the FastMCP CLI), run it
+in a separate terminal:
 
 ```bash
 uv run python examples/mcp_server_demo/server.py
 ```
 
-In a second terminal:
-
-```bash
-uv run python examples/mcp_server_demo/run_client.py
-```
-
-The client prints the list of tools the server advertises and the
-result of calling `echo`.
+This is purely for experimentation — `run_client.py` always spawns its
+own server process and ignores any other instance.
 
 ## Add your own tool
 
