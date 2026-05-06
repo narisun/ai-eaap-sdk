@@ -109,7 +109,7 @@ These are bundled because all three are "DX hardening" with no runtime impact.
 
 - **No new code paths.** Verifies all five preceding tasks land working.
 - **`make examples` target** (or `scripts/run_examples.sh`) exercises each demo with a 10-second timeout and asserts exit code 0.
-- **Skip-not-fail** for Docker-dependent demos (FastAPI, MCP) when Docker is absent — matches the existing integration-test pattern.
+- **Skip-not-fail** when a demo's prerequisites are missing: `mcp_server_demo` skips when FastMCP isn't installed. `fastapi_integration` runs an import-and-construct smoke check (no Docker needed); the full request flow is exercised manually per the README.
 - **Drift test passes; full `uv run pytest` passes** including the migrated Phase 9 imports.
 
 ---
@@ -139,4 +139,4 @@ These are bundled because all three are "DX hardening" with no runtime impact.
 - **No new runtime dependencies.** Examples must run on the existing `pyproject.toml` extras. `scripts/generate_settings_doc.py` uses only stdlib + Pydantic v2 (already a dep).
 - **Examples pinned to the modern public API.** No `Container()` direct instantiation, no private imports, no `tests.conftest` references — every example uses what `__all__` exports.
 - **`docs/settings.md` is committed.** Generator output is a regular file in the repo; CI verifies it's not stale.
-- **Smoke gate budget: 60s total wall-time.** Each example gets 10s; Docker-dependent demos are skipped (not failed) when Docker is absent.
+- **Smoke gate budget: 60s total wall-time.** Each example gets 10s; demos with missing prerequisites (e.g. FastMCP not installed) skip rather than fail.
