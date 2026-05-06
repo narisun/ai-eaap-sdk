@@ -46,7 +46,7 @@ class KeyNameRedactor:
     def __call__(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         return {k: self._redact_value(k, v) for k, v in payload.items()}
 
-    def _redact_value(self, key: str, value: Any) -> Any:
+    def _redact_value(self, key: str, value: object) -> object:
         if key.lower() in self._redact_keys:
             if isinstance(value, list):
                 return [self._redact_value(key, v) for v in value]

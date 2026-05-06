@@ -25,18 +25,23 @@ _PATTERNS: dict[PatternKind, re.Pattern[str]] = {
 }
 
 
+# Luhn / credit-card constants — bounds match the ISO/IEC 7812 spec for PANs.
+_LUHN_MIN_DIGITS = 13
+_LUHN_MAX_DIGITS = 19
+_LUHN_DOUBLE_OVERFLOW = 9
+
+
 def _luhn_check(s: str) -> bool:
     """Standard mod-10 Luhn verification for credit-card validation."""
     digits = [int(c) for c in s if c.isdigit()]
-    if not 13 <= len(digits) <= 19:
+    if not _LUHN_MIN_DIGITS <= len(digits) <= _LUHN_MAX_DIGITS:
         return False
     total = 0
-    for i, d in enumerate(reversed(digits)):
-        if i % 2 == 1:
-            d *= 2
-            if d > 9:
-                d -= 9
-        total += d
+    for i, digit in enumerate(reversed(digits)):
+        doubled = digit * 2 if i % 2 == 1 else digit
+        if doubled > _LUHN_DOUBLE_OVERFLOW:
+            doubled -= _LUHN_DOUBLE_OVERFLOW
+        total += doubled
     return total % 10 == 0
 
 
@@ -61,7 +66,7 @@ class RegexRedactor:
     def __call__(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         return {k: self._redact_value(v) for k, v in payload.items()}
 
-    def _redact_value(self, value: Any) -> Any:
+    def _redact_value(self, value: object) -> object:
         if isinstance(value, str):
             return self._redact_string(value)
         if isinstance(value, Mapping):

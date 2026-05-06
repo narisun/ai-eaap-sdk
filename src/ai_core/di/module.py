@@ -29,7 +29,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
-from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
+from ai_core.audit import IAuditSink  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -241,29 +241,6 @@ class AgentModule(Module):
         """Return the in-process versioned-schema registry singleton."""
         return SchemaRegistry()
 
-    # ----- Payload redactor (Phase 6) ---------------------------------------
-    @singleton
-    @provider
-    def provide_payload_redactor(self, settings: AppSettings) -> PayloadRedactor:
-        """Return the configured PayloadRedactor; identity for profile='off'."""
-        profile = settings.audit.redaction_profile
-        if profile == "off":
-            from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
-            return _identity_redactor
-        from ai_core.audit.redaction import (  # noqa: PLC0415
-            ChainRedactor,
-            KeyNameRedactor,
-            PatternKind,
-            RegexRedactor,
-        )
-        base_patterns: set[PatternKind] = {"email", "phone", "ssn", "credit_card", "ipv4"}
-        if profile == "strict":
-            base_patterns.add("long_number")
-        return ChainRedactor(
-            RegexRedactor(enabled_patterns=base_patterns),
-            KeyNameRedactor(),
-        )
-
     # ----- Audit sink -------------------------------------------------------
     @singleton
     @provider
@@ -288,37 +265,6 @@ class AgentModule(Module):
                     error_code="config.invalid",
                 )
             return JsonlFileAuditSink(settings.audit.jsonl_path)
-        if sink_type == "sentry":
-            from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
-            if settings.audit.sentry_dsn is None:
-                raise ConfigurationError(
-                    "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
-                    error_code="config.invalid",
-                )
-            return SentryAuditSink(
-                dsn=settings.audit.sentry_dsn.get_secret_value(),
-                environment=settings.audit.sentry_environment,
-                release=settings.audit.sentry_release,
-                sample_rate=settings.audit.sentry_sample_rate,
-            )
-        if sink_type == "datadog":
-            from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
-            if settings.audit.datadog_api_key is None:
-                raise ConfigurationError(
-                    "audit.sink_type='datadog' requires audit.datadog_api_key to be set",
-                    error_code="config.invalid",
-                )
-            return DatadogAuditSink(
-                api_key=settings.audit.datadog_api_key.get_secret_value(),
-                app_key=(
-                    settings.audit.datadog_app_key.get_secret_value()
-                    if settings.audit.datadog_app_key
-                    else None
-                ),
-                site=settings.audit.datadog_site,
-                source=settings.audit.datadog_source,
-                environment=settings.audit.datadog_environment,
-            )
         raise ConfigurationError(
             f"Unknown audit.sink_type: {sink_type!r}",
             error_code="config.invalid",
@@ -353,7 +299,6 @@ class AgentModule(Module):
         policy: IPolicyEvaluator,
         registry: SchemaRegistry,
         audit: IAuditSink,
-        redactor: PayloadRedactor,
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
         return ToolInvoker(
@@ -361,7 +306,6 @@ class AgentModule(Module):
             policy=policy,
             registry=registry,
             audit=audit,
-            redactor=redactor,
         )
 
 

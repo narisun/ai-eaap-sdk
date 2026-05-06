@@ -273,62 +273,8 @@ class AuditSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    sink_type: Literal["null", "otel_event", "jsonl", "sentry", "datadog"] = "null"
+    sink_type: Literal["null", "otel_event", "jsonl"] = "null"
     jsonl_path: Path | None = None  # required when sink_type == "jsonl"
-
-    # Phase 6: PayloadRedactor configuration
-    redaction_profile: Literal["off", "standard", "strict"] = Field(
-        default="off",
-        description=(
-            "Profile name for the DI-bound PayloadRedactor. "
-            "'off' is identity (no redaction); 'standard' chains a RegexRedactor "
-            "(email, phone, ssn, credit_card, ipv4) with a KeyNameRedactor "
-            "(default secret/token key set); 'strict' adds a 6+digit number "
-            "pattern that catches IDs/account numbers (higher false-positive rate)."
-        ),
-    )
-
-    # Phase 6: Sentry sink config (used when sink_type='sentry')
-    sentry_dsn: SecretStr | None = Field(
-        default=None,
-        description="Required when sink_type='sentry'. Project-level DSN issued by Sentry.",
-    )
-    sentry_environment: str | None = Field(
-        default=None,
-        description="Optional environment tag on Sentry events (e.g. 'prod', 'staging').",
-    )
-    sentry_release: str | None = Field(
-        default=None,
-        description="Optional release identifier on Sentry events.",
-    )
-    sentry_sample_rate: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Fraction of audit events sent to Sentry. 1.0 = all; 0.0 = none.",
-    )
-
-    # Phase 6: Datadog sink config (used when sink_type='datadog')
-    datadog_api_key: SecretStr | None = Field(
-        default=None,
-        description="Required when sink_type='datadog'. Datadog API key.",
-    )
-    datadog_app_key: SecretStr | None = Field(
-        default=None,
-        description="Optional Datadog application key (some endpoints require it).",
-    )
-    datadog_site: str = Field(
-        default="datadoghq.com",
-        description="Datadog site (e.g. 'datadoghq.com', 'datadoghq.eu', 'us3.datadoghq.com').",
-    )
-    datadog_source: str = Field(
-        default="ai-core-sdk",
-        description="Source name attached to Datadog events (free text).",
-    )
-    datadog_environment: str | None = Field(
-        default=None,
-        description="Optional environment tag (added as 'env:<value>' to every event).",
-    )
 
 
 class HealthSettings(BaseSettings):
