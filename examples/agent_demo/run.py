@@ -17,7 +17,7 @@ Run from the repo root::
 The script prints a step-by-step trace of two scenarios:
 
 1. Single-turn happy path.
-2. Long-history conversation that triggers memory compaction.
+2. Token-threshold exceeded (via a stub counter), triggering memory compaction.
 
 Setting ``EAAP_OBSERVABILITY__CONSOLE_EXPORT_IN_DEV=false`` silences
 the OTel ConsoleSpanExporter that is otherwise on by default in
@@ -28,8 +28,10 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Sequence  # noqa: TC003
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from injector import Module, provider, singleton
 from rich.console import Console
@@ -211,7 +213,7 @@ async def demo_compaction() -> None:
     summary = Table.grid(padding=(0, 2))
     summary.add_column(style="bold")
     summary.add_column()
-    summary.add_row("LLM calls made:", f"{len(llm.calls)} (1× summary + 1× agent turn)")  # noqa: RUF001
+    summary.add_row("LLM calls made:", f"{len(llm.calls)} (1x summary + 1x agent turn)")
     summary.add_row("compaction_count:", str(final_state.get("compaction_count", 0)))
     summary.add_row("summary stored:", final_state.get("summary", "(none)"))
     summary.add_row(

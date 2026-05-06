@@ -10,7 +10,7 @@ deterministically with no API keys.
 - `Container.build([AgentModule(settings=...), _Overrides()])` for DI.
 - `BaseAgent` subclassing for a custom agent (`MathTutorAgent`).
 - `ai_core.testing.ScriptedLLM` and `make_llm_response` for offline tests.
-- Memory compaction triggered by a long conversation history.
+- Memory compaction forced by overriding `TokenCounter` via DI, demonstrating how the compaction path works.
 - The full async `Container` lifecycle (`async with`).
 
 ## Prerequisites
@@ -30,8 +30,7 @@ uv run python examples/agent_demo/run.py
 You'll see two panels:
 
 1. **DEMO 1** — single-turn: the agent answers "What is 2+2?".
-2. **DEMO 2** — compaction: a five-message history triggers summarisation
-   (one extra LLM call) before the agent responds.
+2. **DEMO 2** — compaction: a stub `TokenCounter` (always reports above the threshold) forces a summarisation pass (one extra LLM call) before the agent responds, regardless of actual history length.
 
 ## What to read next
 
