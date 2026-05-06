@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ai_core.mcp.registry import ComponentRegistry, RegisteredComponent
+from ai_core.mcp.tools import MCPToolSpec
 from ai_core.mcp.transports import (
     FastMCPConnectionFactory,
     IMCPConnectionFactory,
@@ -12,9 +13,10 @@ from ai_core.mcp.transports import (
 
 __all__ = [
     "ComponentRegistry",
-    "RegisteredComponent",
-    "MCPServerSpec",
-    "MCPTransport",
-    "IMCPConnectionFactory",
     "FastMCPConnectionFactory",
+    "IMCPConnectionFactory",
+    "MCPServerSpec",
+    "MCPToolSpec",
+    "MCPTransport",
+    "RegisteredComponent",
 ]
