@@ -1,13 +1,13 @@
 # mcp_server_demo — FastMCP server + SDK connection factory
 
 Demonstrates the SDK's MCP transport surface today: a FastMCP server
-plus a client that uses `PoolingMCPConnectionFactory` to connect, list
+plus a client that uses `FastMCPConnectionFactory` to connect, list
 tools, and invoke one.
 
 ## What this demonstrates
 
 - Standing up a FastMCP server with `@mcp.tool()` decorators.
-- Using `MCPServerSpec` + `PoolingMCPConnectionFactory` from
+- Using `MCPServerSpec` + `FastMCPConnectionFactory` from
   `ai_core.mcp` to open a connection.
 - Listing and invoking tools through the FastMCP client.
 
@@ -22,8 +22,10 @@ yourself).
 ## Prerequisites
 
 ```bash
-uv sync --extra mcp   # install fastmcp
+uv sync
 ```
+
+`fastmcp` is a core SDK dependency — no extras needed.
 
 ## Run
 
