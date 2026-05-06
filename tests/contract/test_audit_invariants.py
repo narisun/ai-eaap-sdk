@@ -45,7 +45,7 @@ def _all_concrete_sinks() -> list[type[IAuditSink]]:
             c for c in seen
             if not inspect.isabstract(c)
             and not c.__module__.startswith("tests.")
-            and not c.__module__.startswith("ai_core.testing.")
+            and not c.__module__.startswith("ai_core.testing")
             and c.__module__ != "conftest"  # pytest-loaded conftest.py shows up as 'conftest'
         ),
         key=lambda c: c.__qualname__,
