@@ -240,7 +240,7 @@ git commit -m "feat(examples): rename math_tutor → agent_demo and adopt ai_cor
 
 Run: `uv run python -c "import fastmcp; print(fastmcp.__version__)"`
 
-Expected: prints a version. If `ImportError`, install via `uv sync --extra mcp` (or whichever extra `pyproject.toml` declares — the connection factory's docstring says `pip install ai-core-sdk[mcp]`).
+Expected: prints a version. If `ImportError`, run `uv sync` (fastmcp is a core dependency in `pyproject.toml`; there is no `mcp` extra).
 
 - [ ] **Step 2: Write `server.py`**
 
@@ -383,7 +383,7 @@ yourself).
 ## Prerequisites
 
 ```bash
-uv sync --extra mcp   # install fastmcp
+uv sync
 ```
 
 ## Run
@@ -1432,7 +1432,7 @@ run_demo testing_demo uv run pytest examples/testing_demo/ -q
 if uv run python -c "import fastmcp" 2>/dev/null; then
     run_demo mcp_server_demo uv run python examples/mcp_server_demo/run_client.py
 else
-    skip_demo mcp_server_demo "fastmcp not installed (uv sync --extra mcp)"
+    skip_demo mcp_server_demo "fastmcp not installed (run \`uv sync\`)"
 fi
 
 # --- fastapi_integration: full demo needs OPA running, but the smoke
