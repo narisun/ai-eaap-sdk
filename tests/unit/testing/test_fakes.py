@@ -11,7 +11,7 @@ from ai_core.config.secrets import SecretRef
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.conftest import FakeObservabilityProvider, FakePolicyEvaluator, FakeSecretManager
+    from ai_core.testing import FakeObservabilityProvider, FakePolicyEvaluator, FakeSecretManager
 
 pytestmark = pytest.mark.unit
 
