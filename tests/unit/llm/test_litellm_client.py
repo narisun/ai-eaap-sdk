@@ -14,7 +14,8 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from litellm.exceptions import APIConnectionError, RateLimitError, Timeout as LiteLLMTimeout
+from litellm.exceptions import APIConnectionError, RateLimitError
+from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from ai_core.config.settings import AppSettings
 from ai_core.di.interfaces import (
@@ -26,8 +27,7 @@ from ai_core.di.interfaces import (
 from ai_core.exceptions import BudgetExceededError, LLMInvocationError, LLMTimeoutError
 from ai_core.llm.litellm_client import LiteLLMClient, _normalise_response
 from ai_core.observability.noop import NoOpObservabilityProvider
-from tests.conftest import FakeBudgetService
-
+from ai_core.testing import FakeBudgetService
 
 pytestmark = pytest.mark.unit
 
