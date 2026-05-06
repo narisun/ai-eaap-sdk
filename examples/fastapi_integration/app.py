@@ -16,7 +16,6 @@ import os
 import sys
 from typing import Any
 
-import uvicorn
 from fastapi import Depends, FastAPI
 from injector import Module, provider, singleton
 
@@ -39,8 +38,9 @@ def _require_env(name: str) -> str:
 
 def build_app() -> FastAPI:
     jwt_secret = _require_env("DEMO_JWT_SECRET")
-    opa_url = os.environ.get("EAAP_SECURITY__OPA_URL", "http://localhost:8181")
-    os.environ["EAAP_SECURITY__OPA_URL"] = opa_url
+    # Demo defaults — AppSettings reads from os.environ. Callers (e.g. the
+    # smoke gate or tests) can override these before calling build_app().
+    os.environ.setdefault("EAAP_SECURITY__OPA_URL", "http://localhost:8181")
     os.environ.setdefault("EAAP_SECURITY__JWT_AUDIENCE", "ai-core-sdk-demo")
     os.environ.setdefault("EAAP_SECURITY__JWT_ISSUER", "ai-core-sdk-demo")
 
@@ -80,4 +80,6 @@ def build_app() -> FastAPI:
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     uvicorn.run(build_app(), host="127.0.0.1", port=8000)
