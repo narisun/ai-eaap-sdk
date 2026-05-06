@@ -49,6 +49,9 @@ class MCPServerSpec:
             (``stdio`` only).
         headers: HTTP headers to send (``http`` / ``sse`` only).
         timeout_seconds: Per-call timeout enforced by the FastMCP client.
+        opa_decision_path: When set, every MCP tool call from this server
+            checks this OPA path through the standard ToolInvoker pipeline.
+            ``None`` skips OPA enforcement (matches local tools without ``opa_path``).
     """
 
     component_id: str
@@ -58,6 +61,7 @@ class MCPServerSpec:
     env: Mapping[str, str] = field(default_factory=dict)
     headers: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = 30.0
+    opa_decision_path: str | None = None
 
 
 class IMCPConnectionFactory(ABC):
