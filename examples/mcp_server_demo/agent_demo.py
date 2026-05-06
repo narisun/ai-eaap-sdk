@@ -9,6 +9,7 @@ and prints the result.
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,7 +43,7 @@ class MCPAgent(BaseAgent):
     def mcp_servers(self) -> Sequence[MCPServerSpec]:
         return [
             MCPServerSpec(
-                component_id="time-service",
+                component_id="mcp-demo",
                 transport="stdio",
                 target=sys.executable,
                 args=(str(SERVER_PATH),),
@@ -60,6 +61,23 @@ def build_container(llm: ILLMClient) -> Container:
             return llm
 
     return Container.build([AgentModule(settings=settings), _Overrides()])
+
+
+def _render_tool_message(msg: object) -> str:
+    """Unwrap MCPToolSpec's `{"value": ...}` envelope when rendering for the demo.
+
+    The SDK's `_MCPPassthroughOutput` wraps tool results so they fit the
+    `output_model.model_validate(...)` contract. Unwrap here so the user-facing
+    output shows the actual tool result, not the wrapper.
+    """
+    raw = str(getattr(msg, "content", ""))
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if isinstance(parsed, dict) and "value" in parsed and len(parsed) == 1:
+        return str(parsed["value"])
+    return raw
 
 
 async def main() -> None:
@@ -88,8 +106,9 @@ async def main() -> None:
         )
 
     tool_msgs = [m for m in final["messages"] if getattr(m, "type", None) == "tool"]
+    rendered = "\n".join(_render_tool_message(m) for m in tool_msgs) or "(no tool messages)"
     console.print(Panel.fit(
-        "\n".join(str(m.content) for m in tool_msgs) or "(no tool messages)",
+        rendered,
         title="MCP tool output",
         border_style="green",
     ))

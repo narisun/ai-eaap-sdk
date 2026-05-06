@@ -1,9 +1,14 @@
 """Connect to the demo MCP server via the SDK's connection factory.
 
-The SDK ships `FastMCPConnectionFactory` (transport layer), but does NOT
-yet ship an agent-side adapter that registers a remote MCP server as a tool
-source. This script demonstrates the surface that's available today:
-open a connection, list tools, invoke one.
+The SDK ships two ways to use a remote MCP server:
+
+* `BaseAgent.mcp_servers()` — agent-side integration (Phase 11). See
+  `agent_demo.py` for a runnable example. The agent's `ToolInvoker`
+  pipeline dispatches MCP tool calls uniformly with local `@tool`s.
+* `FastMCPConnectionFactory` — direct transport access. This script
+  demonstrates that surface: open a connection, list tools, invoke one.
+  Useful when you want to use MCP servers without the agent loop
+  (e.g., from a non-LLM control plane).
 """
 from __future__ import annotations
 
