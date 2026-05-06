@@ -8,19 +8,8 @@ Environment variable names use the prefix `EAAP_` and `__` as the nested-group d
 
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
-| `environment` | `Environment` | `<Environment.LOCAL: 'local'>` | `EAAP_ENVIRONMENT` |  |
+| `environment` | `Environment` | `'local'` | `EAAP_ENVIRONMENT` |  |
 | `service_name` | `str` | `'ai-core-sdk'` | `EAAP_SERVICE_NAME` |  |
-| `database` | `DatabaseSettings` | *(factory)* | `EAAP_DATABASE` |  |
-| `vector_db` | `VectorDBSettings` | *(factory)* | `EAAP_VECTOR_DB` |  |
-| `storage` | `StorageSettings` | *(factory)* | `EAAP_STORAGE` |  |
-| `llm` | `LLMSettings` | *(factory)* | `EAAP_LLM` |  |
-| `budget` | `BudgetSettings` | *(factory)* | `EAAP_BUDGET` |  |
-| `observability` | `ObservabilitySettings` | *(factory)* | `EAAP_OBSERVABILITY` |  |
-| `security` | `SecuritySettings` | *(factory)* | `EAAP_SECURITY` |  |
-| `agent` | `AgentSettings` | *(factory)* | `EAAP_AGENT` |  |
-| `audit` | `AuditSettings` | *(factory)* | `EAAP_AUDIT` |  |
-| `health` | `HealthSettings` | *(factory)* | `EAAP_HEALTH` |  |
-| `mcp` | `MCPSettings` | *(factory)* | `EAAP_MCP` |  |
 
 ## DatabaseSettings (`AppSettings.database`)
 
@@ -40,7 +29,7 @@ Vector database configuration (pgvector / external).
 
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
-| `backend` | `Literal[pgvector, pinecone, weaviate, noop]` | `'pgvector'` | `EAAP_VECTOR_DB__BACKEND` |  |
+| `backend` | `Literal['pgvector', 'pinecone', 'weaviate', 'noop']` | `'pgvector'` | `EAAP_VECTOR_DB__BACKEND` |  |
 | `collection` | `str` | `'eaap_default'` | `EAAP_VECTOR_DB__COLLECTION` |  |
 | `embedding_dimensions` | `int` | `1536` | `EAAP_VECTOR_DB__EMBEDDING_DIMENSIONS` |  |
 | `endpoint` | `UnionType[AnyHttpUrl, None]` | `None` | `EAAP_VECTOR_DB__ENDPOINT` |  |
@@ -52,7 +41,7 @@ Blob / object storage configuration (S3 by default).
 
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
-| `backend` | `Literal[s3, gcs, azure_blob, local]` | `'s3'` | `EAAP_STORAGE__BACKEND` |  |
+| `backend` | `Literal['s3', 'gcs', 'azure_blob', 'local']` | `'s3'` | `EAAP_STORAGE__BACKEND` |  |
 | `bucket` | `str` | `'eaap-artifacts'` | `EAAP_STORAGE__BUCKET` |  |
 | `region` | `str` | `'us-east-1'` | `EAAP_STORAGE__REGION` |  |
 | `endpoint_url` | `UnionType[AnyHttpUrl, None]` | `None` | `EAAP_STORAGE__ENDPOINT_URL` | Optional override for S3-compatible endpoints (MinIO, LocalStack). |
@@ -100,8 +89,8 @@ OpenTelemetry + LangFuse observability configuration.
 | `langfuse_host` | `UnionType[AnyHttpUrl, None]` | `None` | `EAAP_OBSERVABILITY__LANGFUSE_HOST` |  |
 | `langfuse_public_key` | `UnionType[SecretStr, None]` | `None` | `EAAP_OBSERVABILITY__LANGFUSE_PUBLIC_KEY` |  |
 | `langfuse_secret_key` | `UnionType[SecretStr, None]` | `None` | `EAAP_OBSERVABILITY__LANGFUSE_SECRET_KEY` |  |
-| `log_level` | `LogLevel` | `<LogLevel.INFO: 'INFO'>` | `EAAP_OBSERVABILITY__LOG_LEVEL` |  |
-| `log_format` | `Literal[text, structured]` | `'text'` | `EAAP_OBSERVABILITY__LOG_FORMAT` | When 'text' (default), logs render as colorized key=value for local dev. When 'structured', logs render as JSON for production ingestion. |
+| `log_level` | `LogLevel` | `'INFO'` | `EAAP_OBSERVABILITY__LOG_LEVEL` |  |
+| `log_format` | `Literal['text', 'structured']` | `'text'` | `EAAP_OBSERVABILITY__LOG_FORMAT` | When 'text' (default), logs render as colorized key=value for local dev. When 'structured', logs render as JSON for production ingestion. |
 | `fail_open` | `bool` | `True` | `EAAP_OBSERVABILITY__FAIL_OPEN` | When True (default, recommended for production), backend errors (OTel exporter, LangFuse client) are caught and logged. When False (recommended for local/dev), they re-raise so misconfigured exporters surface immediately. |
 
 ## SecuritySettings (`AppSettings.security`)
@@ -136,9 +125,9 @@ Audit-sink configuration.
 
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
-| `sink_type` | `Literal[null, otel_event, jsonl, sentry, datadog]` | `'null'` | `EAAP_AUDIT__SINK_TYPE` |  |
+| `sink_type` | `Literal['null', 'otel_event', 'jsonl', 'sentry', 'datadog']` | `'null'` | `EAAP_AUDIT__SINK_TYPE` |  |
 | `jsonl_path` | `UnionType[Path, None]` | `None` | `EAAP_AUDIT__JSONL_PATH` |  |
-| `redaction_profile` | `Literal[off, standard, strict]` | `'off'` | `EAAP_AUDIT__REDACTION_PROFILE` | Profile name for the DI-bound PayloadRedactor. 'off' is identity (no redaction); 'standard' chains a RegexRedactor (email, phone, ssn, credit_card, ipv4) with a KeyNameRedactor (default secret/token key set); 'strict' adds a 6+digit number pattern that catches IDs/account numbers (higher false-positive rate). |
+| `redaction_profile` | `Literal['off', 'standard', 'strict']` | `'off'` | `EAAP_AUDIT__REDACTION_PROFILE` | Profile name for the DI-bound PayloadRedactor. 'off' is identity (no redaction); 'standard' chains a RegexRedactor (email, phone, ssn, credit_card, ipv4) with a KeyNameRedactor (default secret/token key set); 'strict' adds a 6+digit number pattern that catches IDs/account numbers (higher false-positive rate). |
 | `sentry_dsn` | `UnionType[SecretStr, None]` | `None` | `EAAP_AUDIT__SENTRY_DSN` | Required when sink_type='sentry'. Project-level DSN issued by Sentry. |
 | `sentry_environment` | `UnionType[str, None]` | `None` | `EAAP_AUDIT__SENTRY_ENVIRONMENT` | Optional environment tag on Sentry events (e.g. 'prod', 'staging'). |
 | `sentry_release` | `UnionType[str, None]` | `None` | `EAAP_AUDIT__SENTRY_RELEASE` | Optional release identifier on Sentry events. |

@@ -4,15 +4,19 @@ Walks AppSettings.model_fields, recursing into nested BaseSettings
 groups (database, llm, audit, ...). Each group gets its own section
 with a markdown table: field | type | default | env var | description.
 
-Run:
+Run modes:
 
-    uv run python scripts/generate_settings_doc.py
+* `python scripts/generate_settings_doc.py` — regenerate `docs/settings.md`.
+* `python scripts/generate_settings_doc.py --check` — exit 1 if the
+  committed file differs from what would be generated; useful as a
+  CI gate alongside the pytest drift test.
 
 The output is committed at docs/settings.md and gated by
 tests/unit/config/test_settings_doc_drift.py.
 """
 from __future__ import annotations
 
+import enum
 import io
 import sys
 from pathlib import Path
@@ -38,7 +42,10 @@ def _format_type(annotation: object) -> str:
     origin = get_origin(annotation)
     if origin is None:
         return getattr(annotation, "__name__", str(annotation))
-    args = ", ".join(_format_type(a) for a in get_args(annotation))
+    args = ", ".join(
+        _format_type(a) if isinstance(a, type) else repr(a)
+        for a in get_args(annotation)
+    )
     return f"{getattr(origin, '__name__', str(origin))}[{args}]"
 
 
@@ -50,6 +57,8 @@ def _format_default(field: FieldInfo) -> str:
         return "`None`"
     if isinstance(default, str) and not default:
         return "`\"\"`"
+    if isinstance(default, enum.Enum):
+        return f"`{default.value!r}`"
     return f"`{default!r}`"
 
 
@@ -62,8 +71,11 @@ def _env_name(group_path: tuple[str, ...], field_name: str) -> str:
 def _render_table(model_cls: type[BaseSettings], group_path: tuple[str, ...]) -> str:
     rows: list[str] = []
     for name, field in model_cls.model_fields.items():
-        if isinstance(field.default, type) and issubclass(field.default, BaseSettings):
-            continue  # skip — rendered in its own section
+        try:
+            if isinstance(field.annotation, type) and issubclass(field.annotation, BaseSettings):
+                continue  # skip — rendered in its own section
+        except TypeError:
+            pass
         annotation = _format_type(field.annotation)
         default = _format_default(field)
         env = _env_name(group_path, name)
@@ -123,9 +135,20 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
     content = render()
     if "--check" in argv:
-        # Print to stdout for CI diff use-cases.
-        sys.stdout.write(content)
-        return 0
+        if not OUTPUT.exists():
+            sys.stderr.write(
+                f"{OUTPUT.relative_to(REPO_ROOT)} does not exist; "
+                "run `python scripts/generate_settings_doc.py` first\n"
+            )
+            return 1
+        committed = OUTPUT.read_text(encoding="utf-8")
+        if committed == content:
+            return 0
+        sys.stderr.write(
+            f"{OUTPUT.relative_to(REPO_ROOT)} is stale; "
+            "run `python scripts/generate_settings_doc.py` and commit.\n"
+        )
+        return 1
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(content, encoding="utf-8")
     sys.stdout.write(f"wrote {OUTPUT.relative_to(REPO_ROOT)}\n")
