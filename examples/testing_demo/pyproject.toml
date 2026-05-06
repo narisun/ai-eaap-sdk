@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `auto` makes @pytest.mark.asyncio implicit on every async test function.
+asyncio_mode = "auto"
+pythonpath = [".", "src"]

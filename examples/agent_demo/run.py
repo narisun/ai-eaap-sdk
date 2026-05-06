@@ -12,12 +12,12 @@ any real LLM provider:
 
 Run from the repo root::
 
-    PYTHONPATH=src python examples/math_tutor/run.py
+    uv run python examples/agent_demo/run.py
 
 The script prints a step-by-step trace of two scenarios:
 
 1. Single-turn happy path.
-2. Long-history conversation that triggers memory compaction.
+2. Token-threshold exceeded (via a stub counter), triggering memory compaction.
 
 Setting ``EAAP_OBSERVABILITY__CONSOLE_EXPORT_IN_DEV=false`` silences
 the OTel ConsoleSpanExporter that is otherwise on by default in
@@ -28,8 +28,10 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from injector import Module, provider, singleton
 from rich.console import Console
@@ -47,11 +49,12 @@ os.environ.setdefault(
 # spamming the output — the panels below already convey what we need.
 os.environ.setdefault("EAAP_OBSERVABILITY__CONSOLE_EXPORT_IN_DEV", "false")
 
-from ai_core.agents import BaseAgent, TokenCounter  # noqa: E402
-from ai_core.agents.memory import to_openai_message  # noqa: E402
-from ai_core.config.settings import AppSettings  # noqa: E402
-from ai_core.di import AgentModule, Container  # noqa: E402
-from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage  # noqa: E402
+from ai_core.agents import BaseAgent, TokenCounter
+from ai_core.agents.memory import to_openai_message
+from ai_core.config.settings import AppSettings
+from ai_core.di import AgentModule, Container
+from ai_core.di.interfaces import ILLMClient  # noqa: TC001
+from ai_core.testing import ScriptedLLM, make_llm_response
 
 console = Console()
 
@@ -68,45 +71,6 @@ class MathTutorAgent(BaseAgent):
         return (
             "You are a friendly math tutor. Answer questions about basic "
             "arithmetic in one short sentence."
-        )
-
-
-class ScriptedLLM(ILLMClient):
-    """Returns canned responses in registration order; records every call."""
-
-    def __init__(self, responses: Sequence[str]) -> None:
-        self._responses = list(responses)
-        self._idx = 0
-        self.calls: list[dict[str, Any]] = []
-
-    async def complete(
-        self,
-        *,
-        model: str | None,
-        messages: Sequence[Mapping[str, Any]],
-        tools: Sequence[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tenant_id: str | None = None,
-        agent_id: str | None = None,
-        extra: Mapping[str, Any] | None = None,
-    ) -> LLMResponse:
-        self.calls.append(
-            {
-                "messages": [to_openai_message(m) for m in messages],
-                "tenant_id": tenant_id,
-                "agent_id": agent_id,
-                "temperature": temperature,
-            }
-        )
-        content = self._responses[min(self._idx, len(self._responses) - 1)]
-        self._idx += 1
-        return LLMResponse(
-            model="scripted/test",
-            content=content,
-            tool_calls=[],
-            usage=LLMUsage(prompt_tokens=42, completion_tokens=12, total_tokens=54),
-            raw={},
         )
 
 
@@ -145,11 +109,11 @@ def build_container(
 # ---------------------------------------------------------------------------
 # Pretty printers
 # ---------------------------------------------------------------------------
-def _msg_role(m: Any) -> str:
+def _msg_role(m: Any) -> str:  # noqa: ANN401
     return to_openai_message(m).get("role", "?")
 
 
-def _msg_content(m: Any) -> str:
+def _msg_content(m: Any) -> str:  # noqa: ANN401
     return to_openai_message(m).get("content", "")
 
 
@@ -180,7 +144,7 @@ def _print_calls(label: str, llm: ScriptedLLM) -> None:
 async def demo_single_turn() -> None:
     console.print(Rule("[bold green]DEMO 1 — Single-turn agent invocation[/bold green]"))
 
-    llm = ScriptedLLM(["Two plus two equals four."])
+    llm = ScriptedLLM([make_llm_response("Two plus two equals four.")])
     container = build_container(llm=llm)
 
     async with container as c:
@@ -221,8 +185,8 @@ async def demo_compaction() -> None:
     # then the agent node fires the second LLM call (post-compaction reply).
     llm = ScriptedLLM(
         [
-            "User asked about TASK-42 earlier; deadline question is pending.",
-            "The deadline is Friday at 5pm.",
+            make_llm_response("User asked about TASK-42 earlier; deadline question is pending."),
+            make_llm_response("The deadline is Friday at 5pm."),
         ]
     )
     container = build_container(llm=llm, counter=_ForceCompactCounter())
@@ -249,7 +213,7 @@ async def demo_compaction() -> None:
     summary = Table.grid(padding=(0, 2))
     summary.add_column(style="bold")
     summary.add_column()
-    summary.add_row("LLM calls made:", f"{len(llm.calls)} (1× summary + 1× agent turn)")
+    summary.add_row("LLM calls made:", f"{len(llm.calls)} (1x summary + 1x agent turn)")
     summary.add_row("compaction_count:", str(final_state.get("compaction_count", 0)))
     summary.add_row("summary stored:", final_state.get("summary", "(none)"))
     summary.add_row(
