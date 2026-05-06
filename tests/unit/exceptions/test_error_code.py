@@ -41,3 +41,15 @@ def test_every_concrete_exception_default_code_is_an_errorcode_member(
         f"{exc_cls.__qualname__}.DEFAULT_CODE = {exc_cls.DEFAULT_CODE!r} "
         f"is not in ErrorCode. Add the new code to ErrorCode."
     )
+
+
+def test_error_code_format_string_emits_dotted_value() -> None:
+    """f"{ErrorCode.X}" must emit the dotted-lowercase value, not 'ErrorCode.X'.
+
+    This guards against accidental regression to (str, enum.Enum) which has
+    different __str__/__format__ behavior than enum.StrEnum. Datadog tag
+    emission and OTel span attributes both rely on the str() representation.
+    """
+    assert f"{ErrorCode.CONFIG_INVALID}" == "config.invalid"
+    assert str(ErrorCode.CONFIG_INVALID) == "config.invalid"
+    assert format(ErrorCode.CONFIG_INVALID) == "config.invalid"

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
-class ErrorCode(str, enum.Enum):  # noqa: UP042
+class ErrorCode(enum.StrEnum):
     """Canonical error codes for typed SDK exceptions.
 
     Members exhaustively cover every ``error_code`` string referenced by
