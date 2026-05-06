@@ -38,13 +38,14 @@ def _all_concrete_sinks() -> list[type[IAuditSink]]:
         if cls not in seen:
             seen.add(cls)
             stack.extend(cls.__subclasses__())
-    # Filter out test-fixture sinks (those defined in tests/* modules).
-    # FakeAuditSink in tests/conftest.py is a test helper, not a production sink.
+    # Filter out test-fixture sinks. Phase 9 moved the public fakes to
+    # ai_core.testing, so we exclude that module path too.
     return sorted(
         (
             c for c in seen
             if not inspect.isabstract(c)
             and not c.__module__.startswith("tests.")
+            and not c.__module__.startswith("ai_core.testing.")
             and c.__module__ != "conftest"  # pytest-loaded conftest.py shows up as 'conftest'
         ),
         key=lambda c: c.__qualname__,
