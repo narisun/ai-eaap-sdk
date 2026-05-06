@@ -15,7 +15,7 @@ Then write tests that consume the fixtures::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -31,7 +31,7 @@ from ai_core.testing.llm import ScriptedLLM
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-    from ai_core.di.interfaces import LLMResponse
+    from ai_core.di.interfaces import LLMResponse, PolicyDecision
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def fake_policy_evaluator_factory() -> Callable[..., FakePolicyEvaluator]:
         *,
         default_allow: bool = True,
         reason: str | None = None,
-        overrides: Mapping[str, Any] | None = None,
+        overrides: Mapping[str, PolicyDecision] | None = None,
     ) -> FakePolicyEvaluator:
         return FakePolicyEvaluator(
             default_allow=default_allow, reason=reason, overrides=overrides
