@@ -199,6 +199,56 @@ async def test_concurrent_first_turn_resolves_once() -> None:
     assert factory.open_count == 1
 
 
+class _AgentMCPOnly(BaseAgent):
+    """Agent with NO local @tool — only MCP servers."""
+
+    agent_id = "mcp-only"
+
+    _mcp_servers: tuple[MCPServerSpec, ...] = ()
+
+    def system_prompt(self) -> str:
+        return "test"
+
+    def mcp_servers(self):
+        return self._mcp_servers
+
+
+async def test_compile_installs_tool_loop_for_mcp_only_agent() -> None:
+    """An agent with no tools() but a non-empty mcp_servers() must still get the tool loop."""
+    factory = _FakeFactory({
+        "svc": _FakeMCPClient(tools=[_FakeFastMCPTool("remote", None, {})]),
+    })
+    agent = _build_agent(_AgentMCPOnly, factory)
+    agent._mcp_servers = (
+        MCPServerSpec(component_id="svc", transport="stdio", target="/bin/true"),
+    )
+
+    compiled = agent.compile()
+
+    # The compiled graph must include the 'tool' node for the loop to function.
+    # LangGraph's compiled graph exposes nodes via .get_graph().nodes (a Mapping).
+    nodes = set(compiled.get_graph().nodes.keys())
+    assert "tool" in nodes, (
+        f"Expected 'tool' node in compiled graph but got {nodes}. "
+        f"This means compile()'s install_loop decision missed the MCP-only path."
+    )
+
+
+async def test_compile_skips_tool_loop_for_agent_with_no_tools_at_all() -> None:
+    """Sanity check: when both tools() and mcp_servers() are empty, no tool loop installed."""
+    factory = _FakeFactory({})
+    agent = _build_agent(_AgentMCPOnly, factory)
+    # _mcp_servers stays default ()
+
+    compiled = agent.compile()
+
+    nodes = set(compiled.get_graph().nodes.keys())
+    assert "tool" not in nodes, (
+        f"Expected NO 'tool' node when tools() and mcp_servers() are both empty, "
+        f"but got {nodes}."
+    )
+
+
 async def test_resolved_mcp_specs_are_registered_with_invoker() -> None:
     """Each MCPToolSpec is registered with ToolInvoker so dispatch works."""
     factory = _FakeFactory({

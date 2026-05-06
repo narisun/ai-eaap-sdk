@@ -169,7 +169,7 @@ class BaseAgent(ABC):
         for spec in sdk_tools:
             self._tool_invoker.register(spec)
 
-        install_loop = self.auto_tool_loop and bool(sdk_tools)
+        install_loop = self.auto_tool_loop and (bool(sdk_tools) or bool(list(self.mcp_servers())))
 
         # START routing is invariant across branches.
         graph.add_conditional_edges(
