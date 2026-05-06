@@ -273,7 +273,7 @@ class AuditSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    sink_type: Literal["null", "otel_event", "jsonl"] = "null"
+    sink_type: Literal["null", "otel_event", "jsonl", "sentry"] = "null"
     jsonl_path: Path | None = None  # required when sink_type == "jsonl"
 
     # Phase 6: PayloadRedactor configuration
@@ -286,6 +286,26 @@ class AuditSettings(BaseSettings):
             "(default secret/token key set); 'strict' adds a 6+digit number "
             "pattern that catches IDs/account numbers (higher false-positive rate)."
         ),
+    )
+
+    # Phase 6: Sentry sink config (used when sink_type='sentry')
+    sentry_dsn: SecretStr | None = Field(
+        default=None,
+        description="Required when sink_type='sentry'. Project-level DSN issued by Sentry.",
+    )
+    sentry_environment: str | None = Field(
+        default=None,
+        description="Optional environment tag on Sentry events (e.g. 'prod', 'staging').",
+    )
+    sentry_release: str | None = Field(
+        default=None,
+        description="Optional release identifier on Sentry events.",
+    )
+    sentry_sample_rate: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of audit events sent to Sentry. 1.0 = all; 0.0 = none.",
     )
 
 

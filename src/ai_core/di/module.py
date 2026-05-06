@@ -288,6 +288,19 @@ class AgentModule(Module):
                     error_code="config.invalid",
                 )
             return JsonlFileAuditSink(settings.audit.jsonl_path)
+        if sink_type == "sentry":
+            from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+            if settings.audit.sentry_dsn is None:
+                raise ConfigurationError(
+                    "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
+                    error_code="config.invalid",
+                )
+            return SentryAuditSink(
+                dsn=settings.audit.sentry_dsn.get_secret_value(),
+                environment=settings.audit.sentry_environment,
+                release=settings.audit.sentry_release,
+                sample_rate=settings.audit.sentry_sample_rate,
+            )
         raise ConfigurationError(
             f"Unknown audit.sink_type: {sink_type!r}",
             error_code="config.invalid",
