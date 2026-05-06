@@ -11,9 +11,10 @@ is wired to the SDK's `ai_core.testing` fakes.
   ```
 - Using `scripted_llm_factory` (a fixture from the plugin) to build a
   deterministic LLM.
-- Asserting on `FakeAuditSink.records` to verify audit emission.
-- Using `FakePolicyEvaluator(default_allow=False)` to drive deny-path
-  tests.
+- Asserting on the `fake_audit_sink` fixture's `.records` attribute to
+  verify audit emission.
+- Using `fake_policy_evaluator_factory(default_allow=False)` to drive
+  deny-path tests.
 
 ## Layout
 

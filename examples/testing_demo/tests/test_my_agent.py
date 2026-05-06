@@ -4,7 +4,7 @@ This file showcases the three big use-cases:
 
 1. ScriptedLLM + make_llm_response — drive a deterministic LLM exchange.
 2. FakeAuditSink — assert audit events were emitted.
-3. FakePolicyEvaluator(default_allow=False) — assert deny path raises.
+3. fake_policy_evaluator_factory(default_allow=False) — assert deny path raises.
 """
 from __future__ import annotations
 
