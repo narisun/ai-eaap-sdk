@@ -97,3 +97,22 @@ def test_opa_path_propagates_from_server_spec() -> None:
     """When the resolver passes server.opa_decision_path → spec.opa_path, it round-trips."""
     spec = _spec_factory(opa_path="mcp.test-server.allow")
     assert spec.opa_path == "mcp.test-server.allow"
+
+
+def test_openai_schema_returned_dict_is_independent_of_source() -> None:
+    """Mutating the returned parameters dict (or its nested values) doesn't affect the spec."""
+    raw = {
+        "type": "object",
+        "properties": {"text": {"type": "string"}},
+    }
+    spec = _spec_factory(mcp_input_schema=raw)
+
+    schema = spec.openai_schema()
+    schema["function"]["parameters"]["properties"]["text"]["INJECTED"] = "MUTATED"
+    schema["function"]["parameters"]["new_key"] = "MUTATED"
+
+    # The original raw dict and the spec's stored schema must NOT see the mutation.
+    assert "INJECTED" not in raw["properties"]["text"]
+    assert "new_key" not in raw
+    assert "INJECTED" not in spec.mcp_input_schema["properties"]["text"]
+    assert "new_key" not in spec.mcp_input_schema

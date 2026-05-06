@@ -15,17 +15,19 @@ The handler that actually invokes the remote tool is built in
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ai_core.mcp.transports import (
+    MCPServerSpec,  # noqa: TC001  # runtime import — guards get_type_hints()
+)
 from ai_core.tools.spec import ToolSpec
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-
-    from ai_core.mcp.transports import MCPServerSpec
 
 
 class _MCPPassthroughInput(BaseModel):
@@ -63,7 +65,7 @@ class MCPToolSpec(ToolSpec):
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": dict(self.mcp_input_schema),
+                "parameters": copy.deepcopy(self.mcp_input_schema),
             },
         }
 
