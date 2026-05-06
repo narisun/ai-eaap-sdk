@@ -11,7 +11,7 @@ from mcp.types import ErrorData
 
 from ai_core.exceptions import RegistryError, ToolExecutionError
 from ai_core.mcp import MCPServerSpec
-from ai_core.mcp.resolver import _is_method_not_found, resolve_mcp_resources, resolve_mcp_tools
+from ai_core.mcp.resolver import is_method_not_found, resolve_mcp_resources, resolve_mcp_tools
 from ai_core.mcp.tools import (
     MCPResourceSpec,
     MCPToolSpec,
@@ -336,19 +336,19 @@ def _make_method_not_found_error() -> Exception:
 def test_is_method_not_found_true_on_minus_32601() -> None:
     """The predicate accepts a real McpError with code -32601."""
     exc = _make_method_not_found_error()
-    assert _is_method_not_found(exc) is True
+    assert is_method_not_found(exc) is True
 
 
 def test_is_method_not_found_false_on_other_codes() -> None:
     """The predicate rejects McpErrors with different codes."""
     exc = McpError(ErrorData(code=-32602, message="Invalid params"))
-    assert _is_method_not_found(exc) is False
+    assert is_method_not_found(exc) is False
 
 
 def test_is_method_not_found_false_on_unrelated_exception() -> None:
     """Non-McpError exceptions are not method-not-found."""
-    assert _is_method_not_found(ValueError("nope")) is False
-    assert _is_method_not_found(RuntimeError("transport gone")) is False
+    assert is_method_not_found(ValueError("nope")) is False
+    assert is_method_not_found(RuntimeError("transport gone")) is False
 
 
 # ---- resolve_mcp_resources -----------------------------------------------------

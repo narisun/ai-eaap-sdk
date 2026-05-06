@@ -29,9 +29,16 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
+# JSON-RPC 2.0 error code for "method not found" — used by is_method_not_found
+# to silently skip MCP servers that don't advertise resources or prompts.
+_JSONRPC_METHOD_NOT_FOUND = -32601
 
-def _is_method_not_found(exc: BaseException) -> bool:
+
+def is_method_not_found(exc: BaseException) -> bool:
     """Return True if `exc` is an McpError signaling JSON-RPC method-not-found.
+
+    This is a public predicate (semi-private — leading underscore was dropped because
+    BaseAgent imports it cross-module in Phase 12 Task 5).
 
     Used by Phase 12's resolve_mcp_resources and by BaseAgent's prompt API to
     silently skip servers that don't advertise the resources/prompts methods.
@@ -39,7 +46,7 @@ def _is_method_not_found(exc: BaseException) -> bool:
     Centralized here so a single line changes if FastMCP's exception shape evolves.
     """
     from mcp.shared.exceptions import McpError  # noqa: PLC0415 — defer FastMCP import
-    return isinstance(exc, McpError) and exc.error.code == -32601  # noqa: PLR2004
+    return isinstance(exc, McpError) and exc.error.code == _JSONRPC_METHOD_NOT_FOUND
 
 
 async def resolve_mcp_tools(
@@ -188,8 +195,8 @@ async def resolve_mcp_resources(
         async with factory.open(spec) as client:
             try:
                 resources = await client.list_resources()
-            except Exception as exc:  # we re-raise unless it's method-not-found
-                if _is_method_not_found(exc):
+            except Exception as exc:  # noqa: BLE001, RUF100 — we re-raise unless it's method-not-found
+                if is_method_not_found(exc):
                     continue
                 raise
         for fastmcp_resource in resources:
@@ -265,4 +272,4 @@ def _build_mcp_resource_spec(
     )
 
 
-__all__ = ["resolve_mcp_resources", "resolve_mcp_tools"]
+__all__ = ["is_method_not_found", "resolve_mcp_resources", "resolve_mcp_tools"]
