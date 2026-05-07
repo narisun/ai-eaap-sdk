@@ -721,5 +721,9 @@ async def test_slo_exact_threshold_no_event(monkeypatch: pytest.MonkeyPatch) -> 
 
     await client.complete(model=None, messages=[{"role": "user", "content": "hi"}])
 
+    # Brittleness check: confirm the stub actually produced 100.0ms latency.
+    # If tenacity changes its internal time.monotonic call count, this assertion
+    # fails immediately rather than letting the test silently pass for the wrong reason.
+    assert obs.usage_calls[0]["latency_ms"] == pytest.approx(100.0)
     slo_events = [e for e in obs.events if e[0] == "llm.slo_violated"]
     assert slo_events == []  # 100.0 > 100 is False → no event
