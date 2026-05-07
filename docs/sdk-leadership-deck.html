@@ -1,0 +1,1457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ai-core-sdk · Leadership deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..125,300..800&family=Fraunces:opsz,wght,SOFT,WONK@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800,0,1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --paper:    #f4ede0;
+    --paper-2:  #ece3cf;
+    --ink:      #16130d;
+    --ink-2:    #2a2519;
+    --ink-3:    #5e5644;
+    --rule:     #c4b89c;
+    --rule-2:   #8a7e62;
+    --signal:   #c95629;     /* primary accent */
+    --signal-2: #e3835a;
+    --steel:    #2c5163;     /* platform team accent */
+    --copper:   #b8732d;     /* business team accent */
+    --sage:     #4f6a44;
+    --brick:    #8d3a26;
+  }
+
+  html, body {
+    background: var(--ink);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-variation-settings: "opsz" 14, "wdth" 100, "wght" 400;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 64px 80px;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    background-image:
+      radial-gradient(circle at 8% 6%, rgba(44,81,99,0.04), transparent 38%),
+      radial-gradient(circle at 94% 96%, rgba(184,115,45,0.04), transparent 36%),
+      repeating-linear-gradient(
+        0deg, transparent 0,
+        transparent 39px,
+        rgba(22,19,13,0.022) 39px,
+        rgba(22,19,13,0.022) 40px);
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  /* corner marks on every slide */
+  .slide::before, .slide::after {
+    content: "";
+    position: absolute; width: 18px; height: 18px;
+    border: 1.5px solid var(--ink);
+  }
+  .slide::before { top: 28px; left: 28px; border-right: none; border-bottom: none; }
+  .slide::after  { bottom: 28px; right: 28px; border-left: none; border-top: none; }
+
+  /* slide chrome */
+  .topbar {
+    position: absolute;
+    top: 28px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .topbar .signal { color: var(--signal); }
+  .botbar {
+    position: absolute;
+    bottom: 28px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .botbar .product { color: var(--ink); font-weight: 500; }
+
+  /* utility */
+  .mono {
+    font-family: "JetBrains Mono", monospace;
+    font-feature-settings: "ss01","ss02";
+  }
+  .serif {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 96, "SOFT" 50;
+  }
+  .italic {
+    font-family: "Fraunces", Georgia, serif;
+    font-style: italic;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+
+  /* ─── TITLE SLIDE ─── */
+  .slide.cover {
+    padding: 110px 100px 80px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(201,86,41,0.10), transparent 50%),
+      radial-gradient(circle at 95% 95%, rgba(44,81,99,0.10), transparent 45%),
+      linear-gradient(180deg, var(--paper), var(--paper-2));
+  }
+  .cover .label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin-bottom: 12px;
+  }
+  .cover h1 {
+    font-variation-settings: "opsz" 96, "wdth" 80, "wght" 720;
+    font-size: 156px;
+    line-height: 0.92;
+    letter-spacing: -0.028em;
+    color: var(--ink);
+    margin-bottom: 28px;
+    max-width: 1080px;
+  }
+  .cover h1 .it {
+    font-style: italic;
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 720;
+    color: var(--signal);
+  }
+  .cover .lede {
+    font-size: 26px;
+    line-height: 1.35;
+    color: var(--ink-2);
+    max-width: 720px;
+    font-variation-settings: "opsz" 28, "wdth" 100, "wght" 380;
+    margin-bottom: 64px;
+  }
+  .cover .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-top: 2px solid var(--ink);
+    padding-top: 18px;
+    width: 100%;
+  }
+  .cover .meta .left .id {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--signal);
+  }
+  .cover .meta .left .audience {
+    font-size: 18px;
+    margin-top: 6px;
+    color: var(--ink);
+    font-variation-settings: "wdth" 96, "wght" 500;
+  }
+  .cover .meta .right {
+    text-align: right;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-3);
+    line-height: 1.7;
+  }
+
+  /* ─── STANDARD CONTENT SLIDE ─── */
+  .slide .section-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: var(--signal);
+    margin-bottom: 12px;
+    margin-top: 32px;
+  }
+  .slide h2 {
+    font-variation-settings: "opsz" 96, "wdth" 86, "wght" 700;
+    font-size: 78px;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 18px;
+    max-width: 18ch;
+  }
+  .slide h2 em {
+    font-style: italic;
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 700;
+    color: var(--signal);
+  }
+  .slide h2.small {
+    font-size: 64px;
+    max-width: 22ch;
+  }
+  .slide .sub {
+    font-size: 22px;
+    color: var(--ink-2);
+    max-width: 64ch;
+    margin-bottom: 36px;
+    font-variation-settings: "wdth" 100, "wght" 380;
+    line-height: 1.4;
+  }
+  .slide .sub strong { color: var(--ink); font-weight: 600; }
+
+  /* ─── SLIDE 02 PREMISE ─── */
+  .premise {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: start;
+    margin-top: 28px;
+  }
+  .premise .col p {
+    font-size: 22px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin-bottom: 16px;
+  }
+  .premise .col p strong { color: var(--ink); }
+  .premise .col p:last-child { margin-bottom: 0; }
+  .premise .col h3 {
+    font-variation-settings: "opsz" 36, "wdth" 92, "wght" 640;
+    font-size: 30px;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.012em;
+  }
+  .premise .col.right h3 { color: var(--signal); }
+
+  /* ─── SLIDE 03 APPROACH ─── */
+  .approach-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 36px;
+    margin-top: 12px;
+  }
+  .approach-grid .pillar {
+    border-top: 3px solid var(--ink);
+    padding-top: 20px;
+  }
+  .approach-grid .pillar:nth-child(1) { border-top-color: var(--signal); }
+  .approach-grid .pillar:nth-child(2) { border-top-color: var(--steel); }
+  .approach-grid .pillar:nth-child(3) { border-top-color: var(--copper); }
+  .approach-grid .pillar .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .approach-grid .pillar h3 {
+    font-variation-settings: "opsz" 48, "wdth" 88, "wght" 720;
+    font-size: 40px;
+    line-height: 1.0;
+    letter-spacing: -0.018em;
+    margin-bottom: 14px;
+    color: var(--ink);
+  }
+  .approach-grid .pillar p {
+    font-size: 19px;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+
+  /* ─── SLIDE 04 TEAMS ─── */
+  .teams {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    margin-top: 12px;
+    height: 460px;
+  }
+  .teams .team {
+    border-top: 4px solid var(--ink);
+    padding: 22px 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .teams .team.tech { border-top-color: var(--steel); }
+  .teams .team.biz  { border-top-color: var(--copper); }
+  .teams .team .label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .teams .team.tech .label { color: var(--steel); }
+  .teams .team.biz  .label { color: var(--copper); }
+  .teams .team h3 {
+    font-variation-settings: "opsz" 64, "wdth" 86, "wght" 720;
+    font-size: 50px;
+    line-height: 0.95;
+    letter-spacing: -0.018em;
+    margin-bottom: 18px;
+    color: var(--ink);
+  }
+  .teams .team .roles {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14.5px;
+    color: var(--ink-2);
+    line-height: 1.7;
+    margin-bottom: 22px;
+  }
+  .teams .team .roles span:not(:last-child)::after {
+    content: " · ";
+    color: var(--rule-2);
+  }
+  .teams .team .what {
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--ink-2);
+  }
+
+  /* ─── SLIDE 05 PLATFORM CONCERNS ─── */
+  .concerns-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 56px;
+    margin-top: 8px;
+    counter-reset: cc;
+  }
+  .concerns-list .item {
+    counter-increment: cc;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .concerns-list .item::before {
+    content: counter(cc, decimal-leading-zero);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--steel);
+    align-self: baseline;
+    padding-top: 4px;
+  }
+  .concerns-list .item .name {
+    font-variation-settings: "opsz" 28, "wdth" 92, "wght" 640;
+    font-size: 22px;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+  }
+  .concerns-list .item .desc {
+    font-size: 14.5px;
+    color: var(--ink-3);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  /* ─── SLIDE 06 BIZ TEAM CONCERNS ─── */
+  .biz-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 56px;
+    margin-top: 8px;
+  }
+  .biz-list .item {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .biz-list .item::before {
+    content: "→";
+    font-family: "JetBrains Mono", monospace;
+    color: var(--copper);
+    font-size: 18px;
+    align-self: baseline;
+    padding-top: 4px;
+  }
+  .biz-list .item .name {
+    font-variation-settings: "opsz" 28, "wdth" 92, "wght" 640;
+    font-size: 22px;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+  }
+  .biz-list .item .desc {
+    font-size: 14.5px;
+    color: var(--ink-3);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  /* ─── SLIDE 07 RISKS ─── */
+  .risks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 22px;
+    margin-top: 12px;
+    height: 480px;
+  }
+  .risks .risk {
+    border: 1.5px solid var(--ink);
+    padding: 22px 26px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.4), transparent);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .risks .risk .clock {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brick);
+    margin-bottom: 8px;
+  }
+  .risks .risk h4 {
+    font-variation-settings: "opsz" 36, "wdth" 92, "wght" 700;
+    font-size: 30px;
+    line-height: 1.05;
+    letter-spacing: -0.012em;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .risks .risk p {
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.45;
+  }
+
+  /* ─── SLIDE 08 ARCHITECTURE ─── */
+  .arch-host {
+    margin-top: 8px;
+    height: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .arch-host svg { max-width: 100%; max-height: 100%; }
+
+  /* ─── SLIDE 09 RESPONSIBILITY MATRIX ─── */
+  .matrix-host {
+    margin-top: 8px;
+  }
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 17px;
+  }
+  table.matrix thead th {
+    text-align: left;
+    padding: 14px 18px;
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  table.matrix thead th.tech::before {
+    content: "▌"; color: var(--steel); margin-right: 8px;
+  }
+  table.matrix thead th.biz::before {
+    content: "▌"; color: var(--copper); margin-right: 8px;
+  }
+  table.matrix tbody td {
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+  table.matrix tbody td.concern {
+    font-variation-settings: "opsz" 24, "wdth" 92, "wght" 600;
+    color: var(--ink);
+    width: 22%;
+  }
+
+  /* ─── SLIDE 10 LOCK-IN ─── */
+  .lockin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 48px;
+    margin-top: 12px;
+  }
+  .lockin-grid .iface {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 18px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .lockin-grid .iface .left {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 16px;
+    color: var(--steel);
+    font-weight: 500;
+  }
+  .lockin-grid .iface .right {
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+  .lockin-grid .iface .right .swap {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: var(--sage);
+    color: var(--paper);
+    padding: 2px 7px;
+    margin-right: 6px;
+    border-radius: 2px;
+  }
+
+  /* ─── SLIDE 11 EVOLUTION ─── */
+  .evolution-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-top: 12px;
+    border-top: 1.5px solid var(--ink);
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .evolution-grid .row {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 32px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: start;
+  }
+  .evolution-grid .row:last-child { border-bottom: none; }
+  .evolution-grid .row .when {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--signal);
+  }
+  .evolution-grid .row .what {
+    font-size: 19px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  .evolution-grid .row .what strong { color: var(--signal); }
+  .evolution-grid .row .what em { color: var(--ink-3); font-style: italic; font-family: "Fraunces", Georgia, serif; }
+  .promise {
+    margin-top: 24px;
+    padding: 18px 24px;
+    border-left: 4px solid var(--signal);
+    background: rgba(201,86,41,0.05);
+    font-size: 22px;
+    line-height: 1.45;
+    font-variation-settings: "opsz" 24, "wdth" 100, "wght" 400;
+    color: var(--ink);
+  }
+  .promise strong { color: var(--signal); }
+
+  /* ─── SLIDE 12 ADOPTION ─── */
+  .adoption {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 22px;
+    margin-top: 12px;
+    height: 460px;
+  }
+  .adoption .phase {
+    border-top: 3px solid var(--signal);
+    padding: 20px 0 0;
+    position: relative;
+  }
+  .adoption .phase .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--signal);
+    margin-bottom: 8px;
+  }
+  .adoption .phase .when {
+    font-variation-settings: "opsz" 24, "wdth" 90, "wght" 700;
+    font-size: 26px;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.012em;
+    line-height: 1.05;
+  }
+  .adoption .phase p {
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.45;
+  }
+
+  /* ─── SLIDE 13 SUCCESS ─── */
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 60px;
+    margin-top: 16px;
+  }
+  .metrics .m {
+    border-top: 1px solid var(--rule);
+    padding: 14px 0;
+  }
+  .metrics .m .what {
+    font-size: 16px;
+    color: var(--ink-2);
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .metrics .m .target {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 96, "SOFT" 100, "WONK" 1;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 30px;
+    color: var(--signal);
+    line-height: 1.0;
+    letter-spacing: -0.005em;
+  }
+  .metrics .m .target .num {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-style: normal;
+    font-variation-settings: "opsz" 64, "wdth" 84, "wght" 720;
+    color: var(--ink);
+  }
+
+  /* ─── SLIDE 14 ASK ─── */
+  .ask-list {
+    margin-top: 12px;
+    counter-reset: ax;
+  }
+  .ask-list .ask {
+    counter-increment: ax;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 22px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .ask-list .ask:first-child { border-top: 1.5px solid var(--ink); }
+  .ask-list .ask::before {
+    content: counter(ax, decimal-leading-zero);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--signal);
+    padding-top: 8px;
+  }
+  .ask-list .ask h4 {
+    font-variation-settings: "opsz" 36, "wdth" 90, "wght" 700;
+    font-size: 30px;
+    color: var(--ink);
+    margin-bottom: 8px;
+    letter-spacing: -0.014em;
+    line-height: 1.05;
+  }
+  .ask-list .ask p {
+    font-size: 17px;
+    color: var(--ink-2);
+    line-height: 1.45;
+    max-width: 80ch;
+  }
+
+  /* ─── SLIDE 15 CLOSING ─── */
+  .slide.closing {
+    background:
+      radial-gradient(circle at 14% 12%, rgba(201,86,41,0.10), transparent 48%),
+      radial-gradient(circle at 88% 92%, rgba(44,81,99,0.10), transparent 45%),
+      linear-gradient(180deg, var(--paper-2), var(--paper));
+  }
+  .closing h1 {
+    font-variation-settings: "opsz" 144, "wdth" 80, "wght" 720;
+    font-size: 152px;
+    line-height: 0.92;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+    margin-top: 90px;
+    margin-bottom: 56px;
+  }
+  .closing h1 em {
+    font-style: italic;
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 720;
+  }
+  .closing h1 .o { color: var(--signal); }
+  .closing h1 .s { color: var(--steel); }
+  .closing h1 .c { color: var(--copper); }
+  .closing .closer {
+    border-top: 2px solid var(--ink);
+    padding-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .closing .closer .left p {
+    font-size: 22px;
+    color: var(--ink-2);
+    line-height: 1.4;
+    max-width: 56ch;
+    font-variation-settings: "opsz" 24, "wght" 380;
+  }
+  .closing .closer .left p strong { color: var(--ink); }
+  .closing .closer .right {
+    text-align: right;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-3);
+    line-height: 1.7;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ═════════════════ SLIDE 01 · TITLE ═════════════════ -->
+<div class="slide cover">
+  <div class="topbar">
+    <span><span class="signal">EAAP</span> · PLATFORM ENGINEERING</span>
+    <span>LEADERSHIP BRIEFING · v0.1</span>
+  </div>
+
+  <div class="label">SDK ADOPTION · TECHNOLOGY BRIEFING</div>
+  <h1>Enterprise<br>Agentic AI:<br><span class="it">one platform,</span><br>two teams.</h1>
+  <p class="lede">How <strong>ai-core-sdk</strong> lets the platform team own production safety — and the business AI team focus on outcomes that matter.</p>
+
+  <div class="meta">
+    <div class="left">
+      <div class="id">DOC-LEAD-001 · MAY 2026</div>
+      <div class="audience">Prepared for technology leadership</div>
+    </div>
+    <div class="right">
+      <div>ai-core-sdk · v0.1</div>
+      <div>15 slides · 18 min read</div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>01 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 02 · PREMISE ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 01 · THE PREMISE</span>
+    <span>02 / 15</span>
+  </div>
+
+  <div class="section-num">§ 01 · THE PREMISE</div>
+  <h2>AI agents are easy to demo.<br>Operating them is the <em>hard</em> part.</h2>
+
+  <div class="premise">
+    <div class="col">
+      <h3>What looks like a prototype problem…</h3>
+      <p>A working demo is one prompt and a few lines of LangGraph. A working <strong>fleet</strong> is the moment every cross-cutting concern shows up at once.</p>
+      <p>Authentication. Authorisation. Audit. Observability. Retries. Timeouts. Schema versioning. Secret resolution. Token budgets. PII redaction. MCP integration. A test seam that doesn't require a live database.</p>
+    </div>
+    <div class="col right">
+      <h3>…is actually a platform problem.</h3>
+      <p>We can solve those concerns <strong>once</strong>, in a shared SDK we audit carefully — or we can solve them <strong>eight times</strong>, in eight teams, with eight different bugs.</p>
+      <p>This deck argues for once. It defines the two teams who'll meet at that boundary, what each one owns, and what we ask of leadership to make the model work.</p>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>02 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 03 · APPROACH ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 02 · OUR APPROACH</span>
+    <span>03 / 15</span>
+  </div>
+
+  <div class="section-num">§ 02 · OUR APPROACH</div>
+  <h2 class="small">One SDK. Two teams.<br><em>Zero drift.</em></h2>
+  <p class="sub">Three principles guide every binding choice, every interface, and every line of agent code we ship.</p>
+
+  <div class="approach-grid">
+    <div class="pillar">
+      <div class="num">PRINCIPLE 01</div>
+      <h3>Solve cross-cutting concerns once.</h3>
+      <p>Auth, audit, observability, budgets, retries, schemas, secrets — all owned in the SDK. Shared, audited, tested centrally.</p>
+    </div>
+    <div class="pillar">
+      <div class="num">PRINCIPLE 02</div>
+      <h3>Depend on interfaces, bind implementations.</h3>
+      <p>Every load-bearing dependency sits behind an <span class="mono">I*</span> interface. Implementations are swappable; the contract is stable.</p>
+    </div>
+    <div class="pillar">
+      <div class="num">PRINCIPLE 03</div>
+      <h3>Absorb library churn at the SDK boundary.</h3>
+      <p>When LangGraph, LiteLLM, or Pydantic move, the SDK migrates internally — once. Agents pin only the SDK.</p>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>03 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 04 · TWO TEAMS ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 03 · TWO TEAMS, ONE PLATFORM</span>
+    <span>04 / 15</span>
+  </div>
+
+  <div class="section-num">§ 03 · THE TWO TEAMS</div>
+  <h2 class="small">Two teams meet at the <em>SDK boundary.</em></h2>
+  <p class="sub">Adopting the SDK requires a clear split of responsibility. Each team does what they do best; neither has to do the other's work.</p>
+
+  <div class="teams">
+    <div class="team tech">
+      <div class="label">GROUP A · MAINTAINS THE SDK</div>
+      <h3>Platform / Tech AI Team</h3>
+      <div class="roles">
+        <span>Architects</span><span>Software Engineers</span><span>DevOps</span><span>Production Support</span>
+      </div>
+      <p class="what">Owns the runtime. Implements cross-cutting concerns once, with strong tests, clear contracts, and structured error semantics. Provides safe defaults so a careless agent can't ship an unsafe configuration.</p>
+    </div>
+    <div class="team biz">
+      <div class="label">GROUP B · BUILDS ON THE SDK</div>
+      <h3>Business AI Team</h3>
+      <div class="roles">
+        <span>Agent Engineers</span><span>MCP Tool Authors</span><span>RAG Engineers</span><span>Domain Experts</span>
+      </div>
+      <p class="what">Owns the agents. Translates business problems into prompts, tools, schemas, and evaluations. Picks models, tunes them, measures them against business outcomes. Treats the SDK as a stable substrate.</p>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>04 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 05 · PLATFORM CONCERNS ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 04 · PLATFORM TEAM CHARTER</span>
+    <span>05 / 15</span>
+  </div>
+
+  <div class="section-num">§ 04 · WHAT THE PLATFORM TEAM OWNS</div>
+  <h2 class="small">Cross-cutting concerns,<br>solved <em>once</em> for everyone.</h2>
+
+  <div class="concerns-list">
+    <div class="item">
+      <div>
+        <div class="name">Authentication &amp; Authorisation</div>
+        <div class="desc">JWT verification + OPA policy at every tool and HTTP boundary; fail-closed by default.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Audit pipeline</div>
+        <div class="desc">Structured AuditRecord events; redactor chain; fan-out to file, Sentry, Datadog.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Observability</div>
+        <div class="desc">OpenTelemetry traces + LangFuse generations + structlog with task-isolated context.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Budget enforcement</div>
+        <div class="desc">Per-tenant and per-(tenant, agent) limits on tokens and USD, with daily reset.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Retry &amp; timeout</div>
+        <div class="desc">Tenacity-backed policies with consistent jitter, status-aware backoff, cancellation.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Schema versioning</div>
+        <div class="desc">Versioned Pydantic schemas at every tool boundary; ingress + egress validation.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Secret management</div>
+        <div class="desc">Opaque references resolved through ISecretManager — env, AWS, Vault, never inline.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">MCP integration</div>
+        <div class="desc">Connection pool with idle TTL and health; late-binding-safe tool resolution.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Memory &amp; compaction</div>
+        <div class="desc">Token-aware summarisation with timeout guard; preserves Essential Entities.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">DI &amp; test seam</div>
+        <div class="desc">A real DI container is the only seam; fakes provided for every interface.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>05 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 06 · BIZ AI CONCERNS ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 05 · BUSINESS AI TEAM CHARTER</span>
+    <span>06 / 15</span>
+  </div>
+
+  <div class="section-num">§ 05 · WHAT THE BUSINESS AI TEAM OWNS</div>
+  <h2 class="small">The work only <em>you</em> can do.</h2>
+  <p class="sub">When the SDK takes the infrastructure off your plate, this is what you spend your time on instead — the parts agentic AI actually exists to deliver.</p>
+
+  <div class="biz-list">
+    <div class="item">
+      <div>
+        <div class="name">Prompt engineering &amp; evaluation</div>
+        <div class="desc">System prompts, few-shot examples, eval harnesses against business outcomes.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Domain modelling</div>
+        <div class="desc">The Pydantic schemas your tools take in and return — the language of the business.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Tool design</div>
+        <div class="desc">What should be a tool, at what granularity, with what policy boundary.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Model selection &amp; tuning</div>
+        <div class="desc">Which LLM for which agent; temperature, max-tokens, fine-tuning where it pays off.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">RAG pipelines</div>
+        <div class="desc">Retrieval quality, chunking, re-ranking — the parts unique to your domain knowledge.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Business-outcome metrics</div>
+        <div class="desc">Resolution rate, escalation rate, cost-per-task — not just latency &amp; tokens.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Agent topology</div>
+        <div class="desc">Single agent vs hand-off vs supervisor; when to add an MCP server vs a tool.</div>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <div class="name">Tests against fakes</div>
+        <div class="desc">Tests that catch business-logic regressions, run in 0.04s, no external services.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>06 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 07 · RISKS ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 06 · WITHOUT THE SDK</span>
+    <span>07 / 15</span>
+  </div>
+
+  <div class="section-num">§ 06 · WHAT WE AVOID</div>
+  <h2 class="small">What happens <em>without</em> a shared SDK.</h2>
+
+  <div class="risks">
+    <div class="risk">
+      <div class="clock">02:14 · TUESDAY</div>
+      <h4>The 2 a.m. incident</h4>
+      <p>Billing-agent latency p99 spikes to 8s. Logs in three formats from three teams. No shared trace_id. Mean time to root-cause: <strong>hours.</strong></p>
+    </div>
+    <div class="risk">
+      <div class="clock">$34,000 · OVERNIGHT</div>
+      <h4>The midnight burn</h4>
+      <p>A tool retries on every 500. By morning the agent has burned tens of thousands in inference credits. Your CFO has questions. <strong>No central budget enforcement.</strong></p>
+    </div>
+    <div class="risk">
+      <div class="clock">Q3 · AUDIT WINDOW</div>
+      <h4>The compliance audit</h4>
+      <p>Regulator asks for a complete trail of AI-driven decisions. Logs are scattered across four sources with four schemas. Some events were <strong>never written.</strong></p>
+    </div>
+    <div class="risk">
+      <div class="clock">MAJOR VERSION BUMP</div>
+      <h4>The library upgrade</h4>
+      <p>LangGraph ships breaking changes. Every team migrates independently, on their own schedule, with their own bugs. The migration drags on for <strong>two quarters.</strong></p>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>07 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 08 · ARCHITECTURE ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 07 · ARCHITECTURE</span>
+    <span>08 / 15</span>
+  </div>
+
+  <div class="section-num">§ 07 · ARCHITECTURE AT A GLANCE</div>
+  <h2 class="small">A layer cake, <em>not</em> a maze.</h2>
+
+  <div class="arch-host">
+    <svg viewBox="0 0 1100 470" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#16130d" stroke-width="0.4" opacity="0.18"/>
+        </pattern>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#16130d"/>
+        </marker>
+      </defs>
+
+      <!-- Top: Business agents -->
+      <rect x="20" y="20" width="1060" height="92" fill="none" stroke="#b8732d" stroke-width="1.5"/>
+      <text x="38" y="46" font-family="JetBrains Mono" font-size="13" letter-spacing="3" fill="#b8732d" font-weight="600">BUSINESS AI TEAM</text>
+      <text x="38" y="78" font-family="Bricolage Grotesque" font-size="26" font-weight="700" fill="#16130d">Business AI Agents</text>
+      <text x="38" y="100" font-family="JetBrains Mono" font-size="13" fill="#5e5644">support · triage · KB-search · approvals · onboarding · domain RAGs</text>
+      <text x="1062" y="46" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#b8732d" text-anchor="end">YOU WRITE THIS</text>
+
+      <line x1="550" y1="116" x2="550" y2="148" stroke="#16130d" stroke-width="1" marker-end="url(#arr)"/>
+
+      <!-- Middle: SDK -->
+      <rect x="20" y="156" width="1060" height="184" fill="url(#hatch)" stroke="#2c5163" stroke-width="1.8"/>
+      <rect x="20" y="156" width="1060" height="184" fill="none" stroke="#2c5163" stroke-width="1.8"/>
+      <text x="38" y="182" font-family="JetBrains Mono" font-size="13" letter-spacing="3" fill="#2c5163" font-weight="600">PLATFORM TEAM</text>
+      <text x="38" y="216" font-family="Bricolage Grotesque" font-size="26" font-weight="700" fill="#16130d">ai-core-sdk</text>
+      <text x="38" y="238" font-family="JetBrains Mono" font-size="13" fill="#5e5644">DI runtime · async · typed · observable · policy-aware</text>
+      <text x="1062" y="216" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#2c5163" text-anchor="end">PLATFORM TEAM OWNS</text>
+
+      <!-- concern tiles -->
+      <g font-family="JetBrains Mono" font-size="13" fill="#16130d">
+        <rect x="38"  y="256" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="46"  y="280">AUTH · OPA</text>
+
+        <rect x="206" y="256" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="214" y="280">AUDIT · REDACT</text>
+
+        <rect x="374" y="256" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="382" y="280">OTel · LangFuse</text>
+
+        <rect x="542" y="256" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="550" y="280">BUDGET</text>
+
+        <rect x="710" y="256" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="718" y="280">SCHEMA · VERSION</text>
+
+        <rect x="878" y="256" width="184" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="886" y="280">SECRETS · ISecretManager</text>
+
+        <rect x="38"  y="300" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="46"  y="324">RETRY · TIMEOUT</text>
+
+        <rect x="206" y="300" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="214" y="324">MCP POOL</text>
+
+        <rect x="374" y="300" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="382" y="324">MEMORY · COMPACT</text>
+
+        <rect x="542" y="300" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="550" y="324">DI · FAKES</text>
+
+        <rect x="710" y="300" width="158" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="718" y="324">HEALTH · CONFIG</text>
+
+        <rect x="878" y="300" width="184" height="38" fill="#f4ede0" stroke="#2c5163"/>
+        <text x="886" y="324">CLI · SCAFFOLDING</text>
+      </g>
+
+      <line x1="550" y1="344" x2="550" y2="376" stroke="#16130d" stroke-width="1" marker-end="url(#arr)"/>
+
+      <!-- Bottom: External -->
+      <rect x="20" y="384" width="1060" height="78" fill="none" stroke="#16130d" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="38" y="408" font-family="JetBrains Mono" font-size="13" letter-spacing="3" fill="#5e5644" font-weight="600">EXTERNAL SYSTEMS</text>
+      <text x="38" y="438" font-family="JetBrains Mono" font-size="13" fill="#16130d">Postgres · OPA · LLM providers · MCP servers · OTel · LangFuse · Sentry/Datadog · Secret stores</text>
+      <text x="1062" y="408" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#5e5644" text-anchor="end">VENDORS &amp; INFRA</text>
+    </svg>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>08 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 09 · RESPONSIBILITY ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 08 · RESPONSIBILITY MATRIX</span>
+    <span>09 / 15</span>
+  </div>
+
+  <div class="section-num">§ 08 · WHO OWNS WHAT</div>
+  <h2 class="small">Most adoption friction is <em>ambiguous</em> ownership.</h2>
+
+  <div class="matrix-host">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Concern</th>
+          <th class="tech">Platform Team</th>
+          <th class="biz">Business AI Team</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="concern">Authorisation</td>
+          <td>JWT verifier, OPA evaluator, fail-closed defaults</td>
+          <td>Choosing <span class="mono">opa_path</span> per tool</td>
+        </tr>
+        <tr>
+          <td class="concern">Tools</td>
+          <td>@tool decorator, schema registry, invoker pipeline</td>
+          <td>Tool inputs/outputs &amp; handler logic</td>
+        </tr>
+        <tr>
+          <td class="concern">Observability</td>
+          <td>OTel + LangFuse wiring, baggage, log shape</td>
+          <td>Calling <span class="mono">bind_context()</span> with the right ids</td>
+        </tr>
+        <tr>
+          <td class="concern">Budget</td>
+          <td>BudgetService, daily reset, alerting</td>
+          <td>Configuring per-(tenant, agent) limits</td>
+        </tr>
+        <tr>
+          <td class="concern">LLM calls</td>
+          <td>LiteLLM client, retry, timeout, token counting</td>
+          <td>Picking the model, writing the prompt</td>
+        </tr>
+        <tr>
+          <td class="concern">Memory</td>
+          <td>MemoryManager, compaction, token-budget guard</td>
+          <td><span class="mono">essential_entity_keys</span> for the use case</td>
+        </tr>
+        <tr>
+          <td class="concern">MCP integration</td>
+          <td>Connection pool, lifecycle, late-binding-safe resolver</td>
+          <td>Declaring an <span class="mono">MCPServerSpec</span></td>
+        </tr>
+        <tr>
+          <td class="concern">Testing</td>
+          <td>DI fakes for every interface, conftest fixtures</td>
+          <td>Writing tests against fakes, not real services</td>
+        </tr>
+        <tr>
+          <td class="concern">Upgrades</td>
+          <td>LangGraph / LiteLLM / OPA migrations absorbed centrally</td>
+          <td>Following the SDK CHANGELOG on minor bumps</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>09 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 10 · LOCK-IN ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 09 · NO LOCK-IN BY DESIGN</span>
+    <span>10 / 15</span>
+  </div>
+
+  <div class="section-num">§ 09 · NO VENDOR LOCK-IN BY DESIGN</div>
+  <h2 class="small">Every load-bearing dependency<br>sits behind an <em>interface.</em></h2>
+  <p class="sub">Replace the implementation, keep the agents. Most swaps are a single DI binding change.</p>
+
+  <div class="lockin-grid">
+    <div class="iface">
+      <div class="left">ILLMClient</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>LiteLLM today; OpenRouter, Portkey, vendor SDK tomorrow.</div>
+    </div>
+    <div class="iface">
+      <div class="left">IPolicyEvaluator</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>OPA today; AWS Cedar or Casbin tomorrow.</div>
+    </div>
+    <div class="iface">
+      <div class="left">IObservabilityProvider</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>OTel + LangFuse today; Datadog APM, Honeycomb, Helicone tomorrow.</div>
+    </div>
+    <div class="iface">
+      <div class="left">JWTVerifier</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>PyJWT today; authlib, jwcrypto, upstream gateway tomorrow.</div>
+    </div>
+    <div class="iface">
+      <div class="left">IStorageProvider</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>SQLAlchemy + asyncpg; alternative drivers via URL.</div>
+    </div>
+    <div class="iface">
+      <div class="left">IMCPConnectionFactory</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>fastmcp today; alternative MCP clients drop in.</div>
+    </div>
+    <div class="iface">
+      <div class="left">ISecretManager</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>Env, AWS, Vault — bind the backend you need.</div>
+    </div>
+    <div class="iface">
+      <div class="left">IAuditSink</div>
+      <div class="right"><span class="swap">SWAP · LOW</span>File, Sentry, Datadog — fan-out to whichever sinks you run.</div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>10 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 11 · EVOLUTION ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 10 · EVOLUTION, NOT LOCK-IN</span>
+    <span>11 / 15</span>
+  </div>
+
+  <div class="section-num">§ 10 · EVOLUTION OVER TIME</div>
+  <h2 class="small">The SDK is the <em>dampening</em> layer.</h2>
+
+  <div class="evolution-grid">
+    <div class="row">
+      <div class="when">LITELLM 1.32 → 1.40</div>
+      <div class="what">Streaming response shape changed. Diff lived in <em>LiteLLMClient._normalize_response.</em> <strong>Agent code: zero changes.</strong></div>
+    </div>
+    <div class="row">
+      <div class="when">LANGGRAPH 0.0.50 → 0.0.55</div>
+      <div class="what">Reducer signature broadened with <em>REMOVE_ALL_MESSAGES.</em> SDK adopted internally; compaction node updated. <strong>Agent code: zero changes.</strong></div>
+    </div>
+    <div class="row">
+      <div class="when">FUTURE · LANGGRAPH 1.0</div>
+      <div class="what">Anticipated graph-API stabilisation. SDK absorbs the migration once. <strong>Agents using BaseAgent + @tool: expected zero changes.</strong></div>
+    </div>
+    <div class="row">
+      <div class="when">FUTURE · PYDANTIC v3</div>
+      <div class="what">SDK pins to v2 until v3 is stable, then migrates schemas centrally with explicit CHANGELOG entries. <strong>Idiomatic agent code: minimal touch-up.</strong></div>
+    </div>
+  </div>
+
+  <div class="promise">
+    <strong>The promise:</strong> The SDK pins major versions; agents pin only the SDK. Breaking changes in dependencies are absorbed inside the SDK. Deprecations get a release-cycle of warning before removal.
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>11 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 12 · ADOPTION ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 11 · ADOPTION PATH</span>
+    <span>12 / 15</span>
+  </div>
+
+  <div class="section-num">§ 11 · ADOPTION PATH</div>
+  <h2 class="small">A short, low-ceremony rollout.</h2>
+  <p class="sub">No stop-the-world rewrite. No big-bang. Existing agents migrate as they're touched; new agents start on the SDK from day one.</p>
+
+  <div class="adoption">
+    <div class="phase">
+      <div class="num">PHASE 01</div>
+      <div class="when">Week 1 · Pilot</div>
+      <p>Pick one in-flight agent. Move it onto BaseAgent + @tool. Capture friction in a shared doc.</p>
+    </div>
+    <div class="phase">
+      <div class="num">PHASE 02</div>
+      <div class="when">Week 2 – 3 · Close gaps</div>
+      <p>Platform team addresses the friction list. Business team writes the second agent — noticeably faster.</p>
+    </div>
+    <div class="phase">
+      <div class="num">PHASE 03</div>
+      <div class="when">Week 4 · Production gates</div>
+      <p>Set the bar: any agent shipping to a regulated environment runs on the SDK. Audit + observability shape becomes the deployment gate.</p>
+    </div>
+    <div class="phase">
+      <div class="num">PHASE 04</div>
+      <div class="when">Quarter 2 · Migrate the rest</div>
+      <p>Existing agents migrate one by one as they touch them. New agents start on the SDK from day one.</p>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>12 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 13 · SUCCESS ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 12 · SUCCESS METRICS</span>
+    <span>13 / 15</span>
+  </div>
+
+  <div class="section-num">§ 12 · SUCCESS LOOKS LIKE</div>
+  <h2 class="small">What we'll <em>measure.</em></h2>
+  <p class="sub">Concrete, agreed targets. If we hit these, the model is working. If we don't, we revisit.</p>
+
+  <div class="metrics">
+    <div class="m">
+      <div class="what">Time to ship a new production agent</div>
+      <div class="target"><span class="num">days,</span> not quarters</div>
+    </div>
+    <div class="m">
+      <div class="what">Mean time to root-cause an incident</div>
+      <div class="target"><span class="num">minutes,</span> not hours</div>
+    </div>
+    <div class="m">
+      <div class="what">Compliance audit prep — query to answer</div>
+      <div class="target"><span class="num">hours,</span> not weeks</div>
+    </div>
+    <div class="m">
+      <div class="what">Coordinated dependency migrations across teams</div>
+      <div class="target"><span class="num">zero —</span> SDK absorbs them</div>
+    </div>
+    <div class="m">
+      <div class="what">Unit-test coverage of agents (no live services)</div>
+      <div class="target"><span class="num">≥ 80%</span> with fakes only</div>
+    </div>
+    <div class="m">
+      <div class="what">Budget-blowout incidents per quarter</div>
+      <div class="target"><span class="num">zero —</span> enforced centrally</div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>13 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 14 · ASK ═════════════════ -->
+<div class="slide">
+  <div class="topbar">
+    <span>§ 13 · THE ASK</span>
+    <span>14 / 15</span>
+  </div>
+
+  <div class="section-num">§ 13 · WHAT WE'RE ASKING FOR</div>
+  <h2 class="small">Three commitments from <em>leadership.</em></h2>
+
+  <div class="ask-list">
+    <div class="ask">
+      <div>
+        <h4>Recognise the SDK as a first-class product.</h4>
+        <p>Not invisible plumbing. Versioning, a CHANGELOG, a clear support model, and time on the platform team's roadmap. Without this, the SDK becomes someone's side project and the model collapses.</p>
+      </div>
+    </div>
+    <div class="ask">
+      <div>
+        <h4>Mandate the SDK for production deployments after pilot validation.</h4>
+        <p>Once the pilot agent ships, the deployment gate is "runs on the SDK". This prevents fragmentation before it happens — much cheaper than fixing it after.</p>
+      </div>
+    </div>
+    <div class="ask">
+      <div>
+        <h4>Trust the platform/business contract.</h4>
+        <p>Don't ask the platform team to ship business outcomes. Don't ask the business AI team to maintain platform infrastructure. Each team is set up for what they do best — let them.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>14 / 15</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 15 · CLOSING ═════════════════ -->
+<div class="slide closing">
+  <div class="topbar">
+    <span>CLOSING</span>
+    <span>15 / 15</span>
+  </div>
+
+  <h1>Build it <span class="o"><em>once.</em></span><br>Build it <span class="s"><em>well.</em></span><br>Build it <span class="c"><em>together.</em></span></h1>
+
+  <div class="closer">
+    <div class="left">
+      <p><strong>The SDK is the contract</strong> between two teams who otherwise wouldn't agree. With it, both teams ship faster, safer, and with less drift than either could alone.</p>
+    </div>
+    <div class="right">
+      <div>ai-core-sdk · v0.1</div>
+      <div>EAAP / Platform Engineering</div>
+      <div>DOC-LEAD-001</div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>15 / 15</span>
+  </div>
+</div>
+
+</body>
+</html>

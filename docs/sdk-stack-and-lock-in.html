@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ai-core-sdk · Technology stack &amp; lock-in audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..125,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:    #e7e9e2;
+    --paper-2:  #dde0d7;
+    --ink:      #0e1218;
+    --ink-2:    #2a3038;
+    --ink-3:    #565e6a;
+    --rule:     #b6bab0;
+    --rule-2:   #8e9388;
+    --petrol:   #1f4858;     /* primary accent */
+    --petrol-2: #3e6e80;
+    --copper:   #b8732d;     /* highlight */
+    --copper-2: #d49350;
+    --sage:     #4f6a44;     /* "abstracted / safe" */
+    --brick:    #8d3a26;     /* "coupled / lock-in risk" */
+    --ochre:    #a8821b;     /* "partial" */
+    --shadow:   0 1px 0 var(--rule);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-variation-settings: "opsz" 14, "wdth" 100, "wght" 400;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(circle at 8% 6%, rgba(31,72,88,0.05), transparent 38%),
+      radial-gradient(circle at 94% 96%, rgba(184,115,45,0.05), transparent 36%),
+      repeating-linear-gradient(
+        0deg, transparent 0,
+        transparent 39px,
+        rgba(14,18,24,0.025) 39px,
+        rgba(14,18,24,0.025) 40px);
+  }
+
+  ::selection { background: var(--ink); color: var(--paper); }
+
+  .mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-feature-settings: "ss01","ss02";
+  }
+
+  /* ---- LAYOUT ---- */
+  .frame {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 56px 96px;
+    position: relative;
+    z-index: 1;
+  }
+  @media (max-width: 760px) { .frame { padding: 32px 22px 64px; } }
+
+  /* ---- HEADER ---- */
+  header.head {
+    border-top: 3px solid var(--ink);
+    padding: 22px 0 44px;
+    margin-bottom: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 56px;
+    row-gap: 28px;
+    position: relative;
+  }
+  header.head::before, header.head::after {
+    content: ""; position: absolute; top: -3px; height: 3px; width: 24%;
+  }
+  header.head::before { left: 0; background: var(--petrol); }
+  header.head::after  { right: 0; background: var(--copper); }
+  @media (max-width: 760px) { header.head { grid-template-columns: 1fr; } }
+
+  .meta-strip {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .meta-strip .id  { color: var(--petrol); }
+  .meta-strip .v   { color: var(--copper); }
+  .meta-strip .crumbs span:not(:last-child)::after { content: " / "; color: var(--rule-2); margin: 0 6px; }
+
+  h1.title {
+    grid-column: 1 / -1;
+    font-variation-settings: "opsz" 96, "wdth" 80, "wght" 720;
+    font-size: clamp(44px, 6.6vw, 96px);
+    line-height: 0.95;
+    letter-spacing: -0.025em;
+    margin: 0;
+    color: var(--ink);
+  }
+  h1.title .pet { color: var(--petrol); font-variation-settings: "opsz" 96, "wdth" 80, "wght" 800; }
+  h1.title .cop { color: var(--copper); font-variation-settings: "opsz" 96, "wdth" 80, "wght" 800; }
+
+  p.lede {
+    font-size: 19px;
+    line-height: 1.45;
+    margin: 0;
+    max-width: 56ch;
+    color: var(--ink);
+    font-variation-settings: "opsz" 24, "wdth" 100, "wght" 380;
+  }
+  p.lede em { font-style: italic; color: var(--ink-2); }
+
+  .standfirst {
+    border-left: 1px solid var(--rule-2);
+    padding-left: 28px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .standfirst p { margin: 0 0 12px; }
+  .standfirst p:last-child { margin: 0; }
+  .standfirst strong { color: var(--ink); }
+  @media (max-width: 760px) {
+    .standfirst { border-left: none; border-top: 1px solid var(--rule-2); padding: 22px 0 0; }
+  }
+
+  /* ---- SPEC TABLE BAR ---- */
+  .spec-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 56px;
+  }
+  @media (max-width: 760px) { .spec-bar { grid-template-columns: repeat(2, 1fr); } }
+  .spec-bar .cell {
+    padding: 14px 18px 14px 0;
+    border-right: 1px solid var(--rule);
+  }
+  .spec-bar .cell:last-child { border-right: none; }
+  .spec-bar .cell:nth-child(n+2) { padding-left: 18px; }
+  .spec-bar .k {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+  }
+  .spec-bar .v {
+    font-variation-settings: "opsz" 18, "wdth" 96, "wght" 500;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  /* ---- SECTION ---- */
+  section.chapter {
+    margin-bottom: 80px;
+    scroll-margin-top: 24px;
+  }
+  .ch-head {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: baseline;
+    gap: 22px;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 12px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 760px) {
+    .ch-head { grid-template-columns: 1fr; gap: 4px; }
+  }
+  .ch-head .ch-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--copper);
+  }
+  .ch-head h2 {
+    font-variation-settings: "opsz" 64, "wdth" 84, "wght" 660;
+    font-size: clamp(28px, 3.6vw, 48px);
+    margin: 0;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .ch-head h2 em {
+    font-style: italic;
+    font-variation-settings: "opsz" 64, "wdth" 100, "wght" 660;
+    color: var(--petrol);
+  }
+  .ch-blurb {
+    color: var(--ink-2);
+    max-width: 70ch;
+    margin: 0 0 24px;
+  }
+  .ch-blurb strong { color: var(--ink); }
+
+  /* ---- THESIS PRINCIPLES ---- */
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+    margin-top: 12px;
+  }
+  @media (max-width: 760px) { .principles { grid-template-columns: 1fr; } }
+  .principle {
+    border-top: 2px solid var(--petrol);
+    padding-top: 14px;
+  }
+  .principle:nth-child(2) { border-top-color: var(--copper); }
+  .principle:nth-child(3) { border-top-color: var(--sage); }
+  .principle .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+  }
+  .principle h3 {
+    font-variation-settings: "opsz" 36, "wdth" 86, "wght" 640;
+    font-size: 22px;
+    margin: 0 0 10px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .principle p {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--ink-2);
+  }
+
+  /* ---- DIAGRAM ---- */
+  figure.diagram {
+    margin: 24px 0 0;
+    border: 1px solid var(--ink);
+    background: var(--paper-2);
+    background-image:
+      linear-gradient(to right, rgba(14,18,24,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(14,18,24,0.04) 1px, transparent 1px);
+    background-size: 16px 16px;
+    padding: 28px 28px 18px;
+  }
+  figure.diagram svg { display: block; width: 100%; height: auto; }
+  figure.diagram figcaption {
+    margin-top: 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    padding-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  figure.diagram figcaption .id { color: var(--copper); }
+
+  /* ---- DEPENDENCY CARD ---- */
+  .dep {
+    border: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,0.4), transparent 80%);
+    padding: 22px 26px 24px;
+    margin-bottom: 22px;
+    transition: border-color 200ms ease;
+  }
+  .dep:hover { border-color: var(--ink-2); }
+
+  .dep .header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 760px) {
+    .dep .header { grid-template-columns: 1fr; }
+  }
+  .dep h3 {
+    font-variation-settings: "opsz" 36, "wdth" 88, "wght" 700;
+    font-size: 26px;
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.012em;
+  }
+  .dep h3 .role {
+    font-variation-settings: "opsz" 18, "wdth" 96, "wght" 400;
+    font-size: 14.5px;
+    color: var(--ink-3);
+    margin-left: 8px;
+    font-style: italic;
+  }
+  .dep .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  @media (max-width: 760px) {
+    .dep .badges { justify-content: flex-start; }
+  }
+
+  .badge {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    color: var(--ink);
+    background: var(--paper);
+  }
+  .badge.tier1 { border-color: var(--sage);   color: var(--sage); }
+  .badge.tier2 { border-color: var(--ochre);  color: var(--ochre); }
+  .badge.tier3 { border-color: var(--brick);  color: var(--brick); }
+  .badge.opt   { border-color: var(--ink-3);  color: var(--ink-3); }
+  .badge.swap-low    { background: var(--sage);  color: var(--paper); border-color: var(--sage); }
+  .badge.swap-medium { background: var(--ochre); color: var(--paper); border-color: var(--ochre); }
+  .badge.swap-high   { background: var(--brick); color: var(--paper); border-color: var(--brick); }
+  .badge.opt-conf    { background: var(--ink-3); color: var(--paper); border-color: var(--ink-3); }
+
+  .dep .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 760px) { .dep .grid { grid-template-columns: 1fr; gap: 16px; } }
+  .dep .grid .col h4 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 6px;
+  }
+  .dep .grid .col h4.what    { color: var(--petrol); }
+  .dep .grid .col h4.why     { color: var(--copper); }
+  .dep .grid .col h4.abstract{ color: var(--sage); }
+  .dep .grid .col h4.swap    { color: var(--ochre); }
+  .dep .grid .col h4.evolve  { color: var(--petrol); }
+  .dep .grid .col p {
+    margin: 0 0 6px;
+    font-size: 14.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .dep .grid .col p strong { color: var(--ink); }
+  .dep .grid .col p code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--petrol);
+    background: rgba(31,72,88,0.06);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .dep .swap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .dep .swap-list li {
+    padding: 6px 0 6px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    border-bottom: 1px dotted var(--rule);
+  }
+  .dep .swap-list li:last-child { border-bottom: none; }
+  .dep .swap-list li .alt {
+    font-variation-settings: "opsz" 18, "wdth" 96, "wght" 600;
+    color: var(--ink);
+    margin-right: 8px;
+  }
+  .dep .swap-list li .cost {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    margin-right: 6px;
+    border-radius: 2px;
+  }
+  .dep .swap-list li .cost.low    { background: var(--sage);  color: var(--paper); }
+  .dep .swap-list li .cost.medium { background: var(--ochre); color: var(--paper); }
+  .dep .swap-list li .cost.high   { background: var(--brick); color: var(--paper); }
+
+  /* ---- AUDIT TABLE ---- */
+  table.audit {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.audit thead th {
+    text-align: left;
+    padding: 12px 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper-2);
+  }
+  table.audit tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  table.audit tbody tr:hover td { background: rgba(31,72,88,0.04); }
+  table.audit td.dep-name {
+    font-variation-settings: "opsz" 20, "wdth" 92, "wght" 600;
+    color: var(--ink);
+    width: 18%;
+  }
+  table.audit td.role {
+    color: var(--ink-2);
+    width: 22%;
+  }
+  table.audit td.iface {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: var(--petrol);
+    width: 22%;
+  }
+  table.audit td.swap-cost {
+    width: 14%;
+  }
+  table.audit td.notes {
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+  table.audit td.notes code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: var(--copper);
+  }
+
+  /* ---- TIMELINE ---- */
+  .timeline {
+    margin-top: 24px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .timeline-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 28px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .timeline-row:last-child { border-bottom: none; }
+  @media (max-width: 760px) {
+    .timeline-row { grid-template-columns: 1fr; gap: 6px; }
+  }
+  .timeline-row .when {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--copper);
+    text-transform: uppercase;
+  }
+  .timeline-row h4 {
+    font-variation-settings: "opsz" 24, "wdth" 92, "wght" 640;
+    font-size: 18px;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+  .timeline-row p {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .timeline-row p code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    color: var(--petrol);
+  }
+
+  /* ---- WORKED EXAMPLE ---- */
+  .worked {
+    border: 1px solid var(--ink);
+    background: var(--paper-2);
+    padding: 26px 28px;
+  }
+  .worked h3 {
+    font-variation-settings: "opsz" 36, "wdth" 88, "wght" 700;
+    font-size: 26px;
+    margin: 0 0 6px;
+  }
+  .worked .sub {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--copper);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .worked ol.steps {
+    counter-reset: ws;
+    margin: 18px 0 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  .worked ol.steps li {
+    counter-increment: ws;
+    padding: 10px 0 10px 38px;
+    position: relative;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 14.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .worked ol.steps li:last-child { border-bottom: none; }
+  .worked ol.steps li::before {
+    content: counter(ws, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--petrol);
+  }
+  .worked ol.steps li code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--petrol);
+    background: rgba(31,72,88,0.06);
+    padding: 1px 5px;
+  }
+  .worked ol.steps li strong { color: var(--ink); }
+
+  /* ---- HONEST CALLOUT ---- */
+  .honest {
+    border-left: 3px solid var(--brick);
+    padding: 18px 22px;
+    background: rgba(141,58,38,0.05);
+    margin: 24px 0 0;
+  }
+  .honest .stamp {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brick);
+    margin-bottom: 6px;
+  }
+  .honest p { margin: 0 0 10px; font-size: 15px; color: var(--ink-2); }
+  .honest p:last-child { margin: 0; }
+  .honest strong { color: var(--ink); }
+
+  /* ---- CLOSING ---- */
+  .closing {
+    border-top: 3px solid var(--ink);
+    padding-top: 24px;
+    margin-top: 80px;
+  }
+  .closing .sig {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 24px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .closing .sig .id { color: var(--copper); }
+
+  /* ---- ENTRY MOTION ---- */
+  @keyframes settle {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  header.head, section.chapter, .closing {
+    animation: settle 600ms ease-out both;
+  }
+  section.chapter:nth-of-type(1) { animation-delay: 60ms; }
+  section.chapter:nth-of-type(2) { animation-delay: 120ms; }
+  section.chapter:nth-of-type(3) { animation-delay: 180ms; }
+  section.chapter:nth-of-type(4) { animation-delay: 240ms; }
+  section.chapter:nth-of-type(5) { animation-delay: 300ms; }
+  @media (prefers-reduced-motion: reduce) {
+    header.head, section.chapter, .closing { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ============== HEADER ============== -->
+  <header class="head">
+    <div class="meta-strip">
+      <span class="id">EAAP / DOC-003</span>
+      <span class="crumbs"><span>ai-core-sdk</span><span>docs</span><span>stack &amp; lock-in</span></span>
+      <span class="v">v0.1 · technical brief</span>
+    </div>
+
+    <h1 class="title">
+      The <span class="pet">stack,</span><br>
+      and what it <span class="cop">won't</span><br>
+      lock you into.
+    </h1>
+
+    <p class="lede">
+      Every dependency is a future migration. This brief lists the libraries we picked, <em>why,</em> what the SDK abstracts behind an interface, and the realistic cost of swapping each one when the world changes.
+    </p>
+
+    <div class="standfirst">
+      <p>The premise: <strong>the SDK is the dampening layer</strong> between your agents and the rest of the Python ecosystem. When LangGraph 0.0.x → 0.1, when LiteLLM ships a new provider, when Pydantic moves to v3, when OPA gets replaced by Cedar — the SDK absorbs the diff so your agents don't have to.</p>
+      <p>This document exists so that the answer to "what about lock-in?" is structured, honest, and verifiable against the source. <strong>We don't claim zero lock-in.</strong> We claim that lock-in is concentrated in places where it's worth paying for, and absent everywhere else.</p>
+    </div>
+  </header>
+
+  <!-- ============== SPEC BAR ============== -->
+  <div class="spec-bar">
+    <div class="cell">
+      <div class="k">Audience</div>
+      <div class="v">Architects · CTO · Procurement</div>
+    </div>
+    <div class="cell">
+      <div class="k">Reading time</div>
+      <div class="v">~15 min</div>
+    </div>
+    <div class="cell">
+      <div class="k">Source of truth</div>
+      <div class="v"><span class="mono">pyproject.toml</span> · <span class="mono">di/interfaces.py</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">Companion docs</div>
+      <div class="v">Adoption pitch · Engineer's handbook</div>
+    </div>
+  </div>
+
+  <!-- ============== 01 THESIS ============== -->
+  <section class="chapter" id="ch-thesis">
+    <div class="ch-head">
+      <span class="ch-num">§ 01</span>
+      <h2>Three principles, applied <em>everywhere.</em></h2>
+    </div>
+    <p class="ch-blurb">
+      The SDK's stance on dependencies follows three principles. They explain every binding choice, every interface, and every absence of an interface, in this document.
+    </p>
+
+    <div class="principles">
+      <div class="principle">
+        <div class="num">PRINCIPLE 01</div>
+        <h3>Depend on interfaces, bind implementations</h3>
+        <p>Every load-bearing dependency sits behind an <span class="mono">I*</span> interface. Agents call the interface; the DI container decides which implementation answers. Replace the implementation, keep the agents.</p>
+      </div>
+      <div class="principle">
+        <div class="num">PRINCIPLE 02</div>
+        <h3>Absorb library churn at the SDK boundary</h3>
+        <p>When a dependency releases a breaking version, the SDK migrates internally — once — and ships a new SDK version. Agent code stays still. Versions are pinned at the SDK; agents pin only the SDK.</p>
+      </div>
+      <div class="principle">
+        <div class="num">PRINCIPLE 03</div>
+        <h3>Be honest about what's coupled</h3>
+        <p>A handful of dependencies are deeply integrated: their replacement is a project, not a config flip. The SDK names them explicitly so you can plan for them rather than discover them mid-migration.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 02 HEX DIAGRAM ============== -->
+  <section class="chapter" id="ch-hex">
+    <div class="ch-head">
+      <span class="ch-num">§ 02</span>
+      <h2>The stack, as <em>ports and adapters.</em></h2>
+    </div>
+    <p class="ch-blurb">
+      The SDK is the inner ring. Around it, an interface layer. Around that, the concrete dependencies that fulfil each interface. Around those, the external systems they talk to. Anything in the inner two rings is the SDK's contract; anything in the outer rings is replaceable.
+    </p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 1100 580" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ports and adapters: SDK core, interface ring, adapters ring, external systems.">
+        <defs>
+          <pattern id="hatchA" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#1f4858" stroke-width="0.4" opacity="0.18"/>
+          </pattern>
+          <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#1f4858"/>
+          </marker>
+        </defs>
+
+        <!-- agent ring (outer) -->
+        <rect x="40" y="36" width="1020" height="62" fill="none" stroke="#b8732d" stroke-width="1.2"/>
+        <text x="56" y="58" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#b8732d">YOUR AGENT CODE — BUSINESS AI TEAM</text>
+        <text x="56" y="84" font-family="JetBrains Mono" font-size="12" fill="#0e1218">@tool · BaseAgent · MCPServerSpec · domain models</text>
+
+        <!-- arrow into interface -->
+        <line x1="550" y1="100" x2="550" y2="120" stroke="#1f4858" stroke-width="1" marker-end="url(#arrA)"/>
+
+        <!-- interfaces ring -->
+        <rect x="40" y="124" width="1020" height="124" fill="url(#hatchA)" stroke="#1f4858" stroke-width="1.6"/>
+        <text x="56" y="146" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#1f4858">INTERFACES — STABLE CONTRACT</text>
+        <g font-family="JetBrains Mono" font-size="11.5" fill="#0e1218">
+          <text x="56"  y="172">ILLMClient</text>
+          <text x="200" y="172">IPolicyEvaluator</text>
+          <text x="370" y="172">IObservabilityProvider</text>
+          <text x="600" y="172">IBudgetService</text>
+          <text x="780" y="172">IStorageProvider</text>
+          <text x="940" y="172">ICheckpointSaver</text>
+
+          <text x="56"  y="194">ISecretManager</text>
+          <text x="200" y="194">IAuditSink</text>
+          <text x="340" y="194">IMCPConnectionFactory</text>
+          <text x="560" y="194">IMemoryManager</text>
+          <text x="730" y="194">IHealthProbe</text>
+          <text x="870" y="194">JWTVerifier</text>
+        </g>
+        <text x="56" y="226" font-family="JetBrains Mono" font-size="10.5" fill="#565e6a">+ TokenCounter Protocol · Container · AppSettings · structured exceptions</text>
+
+        <!-- arrow into adapters -->
+        <line x1="550" y1="250" x2="550" y2="270" stroke="#1f4858" stroke-width="1" marker-end="url(#arrA)"/>
+
+        <!-- adapters ring (concrete impls) -->
+        <rect x="40" y="276" width="1020" height="160" fill="none" stroke="#1f4858" stroke-width="1"/>
+        <text x="56" y="298" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#1f4858">ADAPTERS — CURRENT IMPLEMENTATIONS</text>
+        <g font-family="JetBrains Mono" font-size="11" fill="#0e1218">
+          <rect x="56"  y="312" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="64"  y="332">LiteLLMClient</text>
+          <text x="64"  y="350" fill="#565e6a">→ ILLMClient</text>
+
+          <rect x="226" y="312" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="234" y="332">OPAPolicyEvaluator</text>
+          <text x="234" y="350" fill="#565e6a">→ IPolicyEvaluator</text>
+
+          <rect x="396" y="312" width="170" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="404" y="332">OTel + LangFuse</text>
+          <text x="404" y="350" fill="#565e6a">→ IObservabilityProvider</text>
+
+          <rect x="576" y="312" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="584" y="332">SQL BudgetService</text>
+          <text x="584" y="350" fill="#565e6a">→ IBudgetService</text>
+
+          <rect x="746" y="312" width="170" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="754" y="332">SQLAlchemy + asyncpg</text>
+          <text x="754" y="350" fill="#565e6a">→ IStorageProvider</text>
+
+          <rect x="926" y="312" width="120" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="934" y="332">Postgres ckpt</text>
+          <text x="934" y="350" fill="#565e6a">→ ICheckpointSaver</text>
+
+          <rect x="56"  y="372" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="64"  y="392">EnvSecretManager</text>
+          <text x="64"  y="410" fill="#565e6a">→ ISecretManager</text>
+
+          <rect x="226" y="372" width="170" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="234" y="392">Buffered/Sentry/DD</text>
+          <text x="234" y="410" fill="#565e6a">→ IAuditSink (fan-out)</text>
+
+          <rect x="406" y="372" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="414" y="392">fastmcp factory</text>
+          <text x="414" y="410" fill="#565e6a">→ IMCPConnectionFactory</text>
+
+          <rect x="576" y="372" width="160" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="584" y="392">MemoryManager</text>
+          <text x="584" y="410" fill="#565e6a">→ IMemoryManager</text>
+
+          <rect x="746" y="372" width="170" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="754" y="392">PyJWT verifier</text>
+          <text x="754" y="410" fill="#565e6a">→ JWTVerifier</text>
+
+          <rect x="926" y="372" width="120" height="50" fill="#dde0d7" stroke="#4f6a44"/>
+          <text x="934" y="392">tiktoken / litellm</text>
+          <text x="934" y="410" fill="#565e6a">→ TokenCounter</text>
+        </g>
+
+        <!-- arrow into externals -->
+        <line x1="550" y1="438" x2="550" y2="458" stroke="#1f4858" stroke-width="1" marker-end="url(#arrA)"/>
+
+        <!-- external systems -->
+        <rect x="40" y="464" width="1020" height="92" fill="none" stroke="#0e1218" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="56" y="486" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#565e6a">EXTERNAL SYSTEMS — VENDOR / INFRA</text>
+        <g font-family="JetBrains Mono" font-size="11" fill="#0e1218">
+          <text x="56"  y="510">OpenAI / Anthropic / Vertex</text>
+          <text x="282" y="510">OPA server</text>
+          <text x="392" y="510">OTel collector</text>
+          <text x="528" y="510">LangFuse</text>
+          <text x="630" y="510">Postgres</text>
+          <text x="730" y="510">MCP servers</text>
+          <text x="852" y="510">Sentry / Datadog</text>
+          <text x="56"  y="534">AWS Secrets Manager / Vault / env</text>
+          <text x="370" y="534">Identity Provider (OIDC / Auth0 / Keycloak)</text>
+        </g>
+
+        <!-- side annotations -->
+        <text x="1056" y="58"  font-family="JetBrains Mono" font-size="10" fill="#b8732d" text-anchor="end" letter-spacing="2">YOU OWN THIS</text>
+        <text x="1056" y="146" font-family="JetBrains Mono" font-size="10" fill="#1f4858" text-anchor="end" letter-spacing="2">SDK CONTRACT</text>
+        <text x="1056" y="298" font-family="JetBrains Mono" font-size="10" fill="#4f6a44" text-anchor="end" letter-spacing="2">SWAPPABLE</text>
+        <text x="1056" y="486" font-family="JetBrains Mono" font-size="10" fill="#565e6a" text-anchor="end" letter-spacing="2">EXTERNAL</text>
+      </svg>
+      <figcaption>
+        <span><span class="id">FIG · 01</span> &nbsp; ports and adapters · ai-core-sdk</span>
+        <span>green border ⇒ implementation behind an interface</span>
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============== 03 STACK INSPECTION ============== -->
+  <section class="chapter" id="ch-stack">
+    <div class="ch-head">
+      <span class="ch-num">§ 03</span>
+      <h2>Stack inspection, dependency by <em>dependency.</em></h2>
+    </div>
+    <p class="ch-blurb">
+      Each card has the same five fields: <strong>What it does</strong>, <strong>Why we picked it</strong>, <strong>SDK abstraction</strong>, <strong>Alternatives if we swap</strong>, and <strong>Evolution</strong>. The badge at top-right is the swap-cost rating: <span class="mono">LOW</span> means a DI binding swap, <span class="mono">MEDIUM</span> means contained refactor, <span class="mono">HIGH</span> means a real migration project.
+    </p>
+
+    <!-- 1. LiteLLM -->
+    <div class="dep">
+      <div class="header">
+        <h3>LiteLLM <span class="role">unified LLM provider client</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>One client surface that speaks OpenAI, Anthropic, Vertex, Bedrock, Azure, Cohere, and ~100 other providers. Token counting, cost lookups, streaming normalisation, batch.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Provider-neutral by design. Active maintenance. Cost tables we can use for budget enforcement. We pin <code>litellm&gt;=1.35</code> and let the SDK absorb the weekly model additions.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Behind <code>ILLMClient</code> at <code>di.interfaces:168</code>. Agents and tools never import LiteLLM directly; they receive an injected <code>ILLMClient</code>.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">OpenRouter / Portkey</span>another router; rebind <code class="mono">ILLMClient</code>.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Vendor SDK directly</span>Anthropic SDK or OpenAI SDK; one adapter class.</li>
+            <li><span class="cost low">LOW</span><span class="alt">In-house gateway</span>your team's HTTP wrapper; same interface, different impl.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>LiteLLM ships breaking response-shape changes occasionally. The SDK pins a tested range, normalises responses inside <code>LiteLLMClient</code>, and ships a new SDK version when an upgrade is necessary. Agent code never sees the diff.</p>
+      </div>
+    </div>
+
+    <!-- 2. OPA -->
+    <div class="dep">
+      <div class="header">
+        <h3>Open Policy Agent <span class="role">policy decision service</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>External policy decision point. Tools and APIs send <code>{user, action, resource, claims, request}</code>; OPA returns <code>{allow, obligations, reason}</code>. Rego is the policy language.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>De-facto standard for decoupled authorisation. Policies live outside agent code. Hot-reloadable, auditable, testable independently. Fail-closed semantics by default in our wrapper.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Behind <code>IPolicyEvaluator</code> at <code>di.interfaces:262</code>. <code>OPAPolicyEvaluator</code> is the production binding; <code>NoOpPolicyEvaluator</code> is the dev-only default.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">AWS Cedar</span>swap evaluator class; rewrite policies in Cedar.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Casbin</span>similar shape, in-process; rebind.</li>
+            <li><span class="cost low">LOW</span><span class="alt">In-house RBAC</span>simple cases; rebind to your evaluator.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>OPA REST API is stable; the bigger churn is in your <em>policies.</em> The SDK gives you a typed decision shape so policy migrations don't ripple into agent code.</p>
+      </div>
+    </div>
+
+    <!-- 3. OpenTelemetry + LangFuse -->
+    <div class="dep">
+      <div class="header">
+        <h3>OpenTelemetry &amp; LangFuse <span class="role">tracing + LLM observability</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>OTel spans give you generic tracing across agents, tools, and HTTP. LangFuse layers on LLM-specific generations (prompt, completion, model, tokens, cost) for offline review and evals.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>OTel is the open standard; backends are interchangeable (Jaeger, Tempo, Datadog APM, Honeycomb). LangFuse is currently the best open offering for LLM-specific observability. Both fail open — backend errors don't break the agent.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Behind <code>IObservabilityProvider</code> at <code>di.interfaces:88</code>. <code>RealObservabilityProvider</code> is one binding; agents see only <code>SpanContext</code>.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">OTel + Helicone</span>different LLM-obs backend; same OTel.</li>
+            <li><span class="cost low">LOW</span><span class="alt">OTel only</span>drop LangFuse; spans + logs are enough for many shops.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Datadog APM only</span>one provider for everything; rebind.</li>
+            <li><span class="cost low">LOW</span><span class="alt">In-house tracer</span>print spans to a file; the interface doesn't care.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>LangFuse is the youngest dependency in this list and the most likely to be replaced. The interface boundary is exactly designed for that case — drop in a new provider class without touching agents.</p>
+      </div>
+    </div>
+
+    <!-- 4. PyJWT -->
+    <div class="dep">
+      <div class="header">
+        <h3>PyJWT <span class="role">JWT verification</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Decodes and verifies signed JWTs. With the <code>[crypto]</code> extra it covers RSA/EC/EdDSA in addition to HMAC. Used at the FastAPI dependency layer.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Stable, audited, pure-Python. Boring, in the good way. Wrapped behind our own <code>JWTVerifier</code> abstract base class so swapping it is mechanical.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p><code>JWTVerifier</code> in <code>security.jwt</code> with <code>HS256JWTVerifier</code> and <code>UnverifiedJWTDecoder</code> shipped. Bind your own class for asymmetric keys, JWKS rotation, custom audience checks.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">authlib</span>JWKS rotation built-in; one new verifier class.</li>
+            <li><span class="cost low">LOW</span><span class="alt">jwcrypto</span>strong crypto; swap if needed for FIPS.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Upstream gateway</span>use <code class="mono">UnverifiedJWTDecoder</code>; let your gateway sign-check.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>JWT itself is a frozen RFC. Library churn is minor. Replacement happens for compliance reasons (FIPS, custom HSMs) — the abstract base class makes that one file of code.</p>
+      </div>
+    </div>
+
+    <!-- 5. SQLAlchemy + asyncpg -->
+    <div class="dep">
+      <div class="header">
+        <h3>SQLAlchemy + asyncpg + Alembic <span class="role">persistence stack</span></h3>
+        <div class="badges">
+          <span class="badge tier2">TIER 2</span>
+          <span class="badge swap-medium">SWAP · MEDIUM</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Async ORM (SQLAlchemy 2.x), async Postgres driver (asyncpg), and migration tooling (Alembic). Used for budget state, audit-receipt tables, vector store, LangGraph checkpoints.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Mature, async-native, type-friendly. asyncpg is the fastest Postgres driver. Alembic gives us reproducible schema migrations.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Behind <code>IStorageProvider</code> and <code>ICheckpointSaver</code> at <code>di.interfaces:25</code>, <code>:278</code>. Most agent code never imports SQLAlchemy directly.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost medium">MEDIUM</span><span class="alt">Tortoise / SQLModel / asyncpg-only</span>schemas to port; interface stays.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">DynamoDB / Mongo</span>different model; new <code class="mono">IStorageProvider</code> impl + checkpointer rewrite.</li>
+            <li><span class="cost low">LOW</span><span class="alt">SQLite for dev</span>same SQLAlchemy core; just a URL change.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>SQLAlchemy 2.x is committed long-term. Driver changes (asyncpg → psycopg-async) are URL-level. Pinning is conservative; we don't follow minor releases blindly.</p>
+      </div>
+    </div>
+
+    <!-- 6. fastmcp -->
+    <div class="dep">
+      <div class="header">
+        <h3>fastmcp <span class="role">MCP client/server library</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Python implementation of the Model Context Protocol — a JSON-RPC dialect for tools, resources, and prompts. We use the client side to talk to MCP servers, with a connection pool, idle TTL, and health checks added on top.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Reference implementation. Python-native. Active maintenance. The MCP standard itself is open — we're not betting on a vendor.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Behind <code>IMCPConnectionFactory</code> at <code>mcp.transports:67</code>. The agent declares an <code>MCPServerSpec</code>; the factory returns a session.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">Anthropic mcp-sdk</span>another Python MCP client; one factory.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Custom JSON-RPC client</span>if you only need stdio.</li>
+            <li><span class="cost low">LOW</span><span class="alt">No MCP at all</span>don't declare any servers; the factory is unused.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>MCP is a young protocol. The spec is evolving. The SDK pins a tested version of fastmcp and migrates centrally when the protocol moves; agents pin only the SDK.</p>
+      </div>
+    </div>
+
+    <!-- 7. structlog -->
+    <div class="dep">
+      <div class="header">
+        <h3>structlog <span class="role">structured logging</span></h3>
+        <div class="badges">
+          <span class="badge tier2">TIER 2</span>
+          <span class="badge swap-medium">SWAP · MEDIUM</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Structured logs with task-isolated context (<code>bind_context()</code>), processor pipeline, and a JSON output formatter. Logs join with traces via <code>trace_id</code>.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Best Python option for context-aware structured logging. Plays well with stdlib logging and OTel.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Indirect: <code>get_logger()</code> and <code>bind_context()</code> are the public surface. structlog is an implementation detail of those helpers — most agent code never imports it.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost medium">MEDIUM</span><span class="alt">stdlib logging + ContextVar</span>more code in the helpers; same call sites.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">loguru</span>different processor model; one helper rewrite.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Just JSON to stdout</span>for simple deployments; trivial helper.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>structlog is mature; major rewrites are unlikely. If JSON-log shapes change in your platform (e.g. ECS vs OTel logs), the change lives in one processor configuration, not in agent code.</p>
+      </div>
+    </div>
+
+    <!-- 8. Tenacity -->
+    <div class="dep">
+      <div class="header">
+        <h3>Tenacity <span class="role">retry library (internal)</span></h3>
+        <div class="badges">
+          <span class="badge tier1">TIER 1</span>
+          <span class="badge swap-low">SWAP · LOW</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Configurable retry policies with jitter, backoff, status-aware re-entry, and timeout-aware cancellation. Used inside <code>LiteLLMClient</code> and HTTP wrappers.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>The most flexible retry library in Python. We use it once, internally, behind well-tested defaults. Agent code never imports it.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Internal-only. Retry is a property of <code>ILLMClient</code> and the HTTP layer, not a concern callers configure.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">backoff</span>simpler API; same call sites.</li>
+            <li><span class="cost low">LOW</span><span class="alt">Hand-rolled</span>20 lines for the simple cases.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>Tenacity has been API-stable for years. Replacement is unlikely; if it happens, it's one internal swap.</p>
+      </div>
+    </div>
+
+    <!-- 9. LangGraph -->
+    <div class="dep">
+      <div class="header">
+        <h3>LangGraph <span class="role">agent orchestration framework</span></h3>
+        <div class="badges">
+          <span class="badge tier3">TIER 3</span>
+          <span class="badge swap-high">SWAP · HIGH</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>State-machine graph for agent loops. Provides the <code>StateGraph</code>, the <code>add_messages</code> reducer, checkpointing semantics, and node/edge primitives the SDK builds <code>BaseAgent</code> on top of.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Most production-ready agent framework with explicit state, deterministic graphs, and a real checkpointer story. Pre-1.0 but actively maintained, with a clear path to stability.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p><strong>Partial.</strong> <code>BaseAgent.compile()</code> and <code>extend_graph()</code> hide most of LangGraph from agent authors. But <code>BaseAgent</code> itself is built on <code>StateGraph</code>; replacement means rewriting <code>BaseAgent</code> internals.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost high">HIGH</span><span class="alt">CrewAI / AutoGen</span>different state model; full <code>BaseAgent</code> rewrite.</li>
+            <li><span class="cost high">HIGH</span><span class="alt">Custom orchestration</span>asyncio + state machine; reasonable for small surface, big for ours.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">Different LangGraph version</span>upgrade absorbed inside the SDK.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>This is the dependency we're most exposed to. The SDK's plan: stay on LangGraph through the 0.x → 1.0 transition (likely the largest single migration), watch for traction in alternative frameworks, and re-evaluate at 1.0. <strong>If we ever swap, agent code that uses <code class="mono">BaseAgent</code> + <code class="mono">@tool</code> stays largely unchanged</strong> — only the SDK internals move.</p>
+      </div>
+    </div>
+
+    <!-- 10. Pydantic -->
+    <div class="dep">
+      <div class="header">
+        <h3>Pydantic + pydantic-settings <span class="role">type system &amp; config</span></h3>
+        <div class="badges">
+          <span class="badge tier3">TIER 3</span>
+          <span class="badge swap-high">SWAP · HIGH</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Runtime validation, schema generation, JSON-schema export, and typed settings from environment variables. The SDK uses Pydantic models everywhere — tool I/O, settings groups, audit records.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>De-facto standard for typed Python. Pydantic 2 is fast (Rust core), well-maintained, and integrates with FastAPI, OpenAPI, and JSON schema. Type checkers understand it.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p><strong>None.</strong> Pydantic is part of the SDK's public surface — every tool defines Pydantic input/output, every settings group is a Pydantic model. We do not abstract it because we'd be reinventing it.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost high">HIGH</span><span class="alt">attrs + cattrs</span>different validation model; every tool I/O class touched.</li>
+            <li><span class="cost high">HIGH</span><span class="alt">msgspec</span>faster, narrower; full migration of schemas.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">Pydantic v3 (when it lands)</span>SDK absorbs; agent code adjusted only where v3 itself is breaking.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>The Pydantic 1 → 2 migration was painful for the ecosystem. v3, when it ships, will be smaller. The SDK pins <code>pydantic&gt;=2.6</code> and tracks minor releases. Replacement is not currently on the table.</p>
+      </div>
+    </div>
+
+    <!-- 11. injector -->
+    <div class="dep">
+      <div class="header">
+        <h3>injector <span class="role">dependency injection</span></h3>
+        <div class="badges">
+          <span class="badge tier2">TIER 2</span>
+          <span class="badge swap-medium">SWAP · MEDIUM</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Provides the <code>@inject</code> decorator and the binding mechanism that lets <code>BaseAgent</code> declare its dependencies as constructor arguments. The SDK wraps it in a <code>Container</code> facade.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Small, focused, no surprises. Sufficient for the SDK's needs. We don't expose it directly — agents see <code>Container</code> only.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Wrapped by <code>Container</code> at <code>di.container</code>. Agents call <code>Container.build([modules])</code>, <code>container.get(I)</code>, <code>container.override(I, fake)</code> — never injector directly.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost medium">MEDIUM</span><span class="alt">dependency-injector</span>different DSL; rewrite Container internals.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">punq</span>simpler container; rewrite Container internals.</li>
+            <li><span class="cost medium">MEDIUM</span><span class="alt">Hand-rolled</span>~200 lines; we'd consider this if injector ever stalled.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>injector has had no breaking changes in years. The SDK could replace it with a hand-rolled container in a week if the project ever went unmaintained.</p>
+      </div>
+    </div>
+
+    <!-- 12. FastAPI -->
+    <div class="dep">
+      <div class="header">
+        <h3>FastAPI <span class="role">HTTP layer (optional)</span></h3>
+        <div class="badges">
+          <span class="badge opt">OPTIONAL</span>
+          <span class="badge opt-conf">SWAP · OPTIONAL</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>Async web framework. We provide <code>OPAAuthorization</code> as a FastAPI <code>Depends()</code> dependency for teams who want to expose agents over HTTP with JWT + OPA enforcement.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Most popular async-first Python framework. Plays well with Pydantic. Most teams will already have it. Including it as a default integration saves time.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Not an interface — it's an <em>integration.</em> Agents and tools have no FastAPI dependency. Use it if you want HTTP; ignore it otherwise.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">Litestar / Starlette / aiohttp</span>roll your own dependency; the SDK doesn't care.</li>
+            <li><span class="cost low">LOW</span><span class="alt">No HTTP at all</span>workers, batch jobs, event-driven — agents don't need a web framework.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>FastAPI is on a stable major version. Starlette underneath ships with predictable cadence. If you're worried about coupling, write your own dependency function — it's about 30 lines.</p>
+      </div>
+    </div>
+
+    <!-- 13. CLI / scaffolding -->
+    <div class="dep">
+      <div class="header">
+        <h3>typer + rich + Jinja2 <span class="role">CLI scaffolding (optional)</span></h3>
+        <div class="badges">
+          <span class="badge opt">OPTIONAL</span>
+          <span class="badge opt-conf">SWAP · OPTIONAL</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p>The <code>eaap</code> CLI: project scaffolding, settings inspection, dev probes. Typer for command parsing, Rich for output, Jinja2 for templates.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked it</h4>
+          <p>Standard, boring choices for a Python CLI. None of these touch agent runtime — they exist for ergonomics during development.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Lives entirely in <code>ai_core.cli</code>. Agents and tools don't import it. Drop the CLI extra and the SDK still works at runtime.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">Click instead of Typer</span>same author family; one rewrite.</li>
+            <li><span class="cost low">LOW</span><span class="alt">No CLI at all</span>your team writes its own scaffolds.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>Mature stack. No expected churn. Replacement is convenience, not necessity.</p>
+      </div>
+    </div>
+
+    <!-- 14. Optional extras -->
+    <div class="dep">
+      <div class="header">
+        <h3>Sentry · Datadog · AWS extras <span class="role">opt-in integrations</span></h3>
+        <div class="badges">
+          <span class="badge opt">OPTIONAL EXTRAS</span>
+          <span class="badge opt-conf">SWAP · OPTIONAL</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="what">What it does</h4>
+          <p><code>SentryAuditSink</code> and <code>DatadogAuditSink</code> ship audit events to those platforms. <code>storage-aws</code> and <code>secrets-aws</code> extras add AWS S3 / Secrets Manager backends.</p>
+        </div>
+        <div class="col">
+          <h4 class="why">Why we picked them</h4>
+          <p>Most enterprises run one of these; opt-in extras let teams pull only what they need. Imports are guarded — missing extras raise <code>ConfigurationError</code> at the boundary, not deep in the call.</p>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <h4 class="abstract">SDK abstraction</h4>
+          <p>Audit sinks are bound through <code>IAuditSink</code>; storage providers through <code>IStorageProvider</code>; secrets through <code>ISecretManager</code>. Add or remove extras without touching agent code.</p>
+        </div>
+        <div class="col">
+          <h4 class="swap">Alternatives if we swap</h4>
+          <ul class="swap-list">
+            <li><span class="cost low">LOW</span><span class="alt">GCP / Azure equivalents</span>write a <code class="mono">GCSStorageProvider</code> / <code class="mono">VaultSecretManager</code>; bind it.</li>
+            <li><span class="cost low">LOW</span><span class="alt">In-house equivalents</span>same pattern; trivial.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <h4 class="evolve">Evolution</h4>
+        <p>Vendor SDKs change frequently; the SDK pins each extra independently and isolates the breakage to its sink/provider class.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============== 04 LOCK-IN AUDIT TABLE ============== -->
+  <section class="chapter" id="ch-audit">
+    <div class="ch-head">
+      <span class="ch-num">§ 04</span>
+      <h2>Lock-in audit, in <em>one table.</em></h2>
+    </div>
+    <p class="ch-blurb">
+      Every dependency from <code>pyproject.toml</code>, the SDK abstraction it sits behind, and the realistic cost to replace it. Take this to your architecture review meeting.
+    </p>
+
+    <table class="audit">
+      <thead>
+        <tr><th>Dependency</th><th>Role</th><th>SDK interface</th><th>Swap cost</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="dep-name">litellm</td><td class="role">LLM provider router</td><td class="iface">ILLMClient</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Replace with another router or vendor SDK; same interface.</td></tr>
+        <tr><td class="dep-name">OPA</td><td class="role">Policy decisions</td><td class="iface">IPolicyEvaluator</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Cedar / Casbin / RBAC alternatives drop in cleanly.</td></tr>
+        <tr><td class="dep-name">opentelemetry-*</td><td class="role">Tracing</td><td class="iface">IObservabilityProvider</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Backend-neutral by design.</td></tr>
+        <tr><td class="dep-name">langfuse</td><td class="role">LLM-specific obs</td><td class="iface">IObservabilityProvider</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Drop or replace with Helicone, Phoenix, Datadog APM.</td></tr>
+        <tr><td class="dep-name">PyJWT[crypto]</td><td class="role">JWT verification</td><td class="iface">JWTVerifier</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">authlib / jwcrypto / upstream gateway.</td></tr>
+        <tr><td class="dep-name">SQLAlchemy[asyncio]</td><td class="role">ORM</td><td class="iface">IStorageProvider</td><td class="swap-cost"><span class="badge swap-medium">MEDIUM</span></td><td class="notes">Schemas to port; interface stays.</td></tr>
+        <tr><td class="dep-name">asyncpg</td><td class="role">Postgres driver</td><td class="iface">via SQLAlchemy URL</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">URL-level swap to psycopg-async.</td></tr>
+        <tr><td class="dep-name">alembic</td><td class="role">DB migrations</td><td class="iface">stand-alone</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Migration tooling is independent of agent code.</td></tr>
+        <tr><td class="dep-name">fastmcp</td><td class="role">MCP client</td><td class="iface">IMCPConnectionFactory</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Anthropic SDK or hand-rolled JSON-RPC.</td></tr>
+        <tr><td class="dep-name">structlog</td><td class="role">Structured logs</td><td class="iface">get_logger / bind_context</td><td class="swap-cost"><span class="badge swap-medium">MEDIUM</span></td><td class="notes">Loguru / stdlib + ContextVar.</td></tr>
+        <tr><td class="dep-name">tenacity</td><td class="role">Retry (internal)</td><td class="iface">internal only</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Not in agent code path.</td></tr>
+        <tr><td class="dep-name">langgraph</td><td class="role">Agent orchestration</td><td class="iface">BaseAgent (partial)</td><td class="swap-cost"><span class="badge swap-high">HIGH</span></td><td class="notes">Internal SDK rewrite; agent code mostly unchanged.</td></tr>
+        <tr><td class="dep-name">pydantic</td><td class="role">Type system</td><td class="iface">no abstraction</td><td class="swap-cost"><span class="badge swap-high">HIGH</span></td><td class="notes">Public surface; replacement is a project, not a flip.</td></tr>
+        <tr><td class="dep-name">pydantic-settings</td><td class="role">Typed env config</td><td class="iface">via AppSettings</td><td class="swap-cost"><span class="badge swap-medium">MEDIUM</span></td><td class="notes">Coupled to Pydantic.</td></tr>
+        <tr><td class="dep-name">injector</td><td class="role">DI</td><td class="iface">Container facade</td><td class="swap-cost"><span class="badge swap-medium">MEDIUM</span></td><td class="notes">Wrapped; rewrite Container internals.</td></tr>
+        <tr><td class="dep-name">anyio</td><td class="role">Async backend</td><td class="iface">internal</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">Standard asyncio replacement is straightforward.</td></tr>
+        <tr><td class="dep-name">httpx</td><td class="role">HTTP client</td><td class="iface">internal</td><td class="swap-cost"><span class="badge swap-low">LOW</span></td><td class="notes">aiohttp / urllib3 replacements possible.</td></tr>
+        <tr><td class="dep-name">fastapi</td><td class="role">HTTP framework</td><td class="iface">optional integration</td><td class="swap-cost"><span class="badge opt-conf">OPTIONAL</span></td><td class="notes">Use Litestar / Starlette / nothing.</td></tr>
+        <tr><td class="dep-name">starlette</td><td class="role">FastAPI core</td><td class="iface">via FastAPI</td><td class="swap-cost"><span class="badge opt-conf">OPTIONAL</span></td><td class="notes">Bundled with FastAPI.</td></tr>
+        <tr><td class="dep-name">typer / rich / jinja2</td><td class="role">CLI scaffolding</td><td class="iface">CLI module only</td><td class="swap-cost"><span class="badge opt-conf">OPTIONAL</span></td><td class="notes">Don't install if unused.</td></tr>
+        <tr><td class="dep-name">aioboto3 / boto3</td><td class="role">AWS extras</td><td class="iface">IStorageProvider · ISecretManager</td><td class="swap-cost"><span class="badge opt-conf">OPTIONAL</span></td><td class="notes">GCP / Azure / in-house alternatives.</td></tr>
+        <tr><td class="dep-name">sentry-sdk · datadog</td><td class="role">Audit fan-out</td><td class="iface">IAuditSink</td><td class="swap-cost"><span class="badge opt-conf">OPTIONAL</span></td><td class="notes">Buffered file sink works alone.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="honest">
+      <div class="stamp">honest about lock-in</div>
+      <p>Two dependencies are deeply coupled to the SDK and would be a real migration to replace: <strong>LangGraph</strong> (agent orchestration) and <strong>Pydantic</strong> (the type system). The rest sit behind interfaces and can be swapped with minimal-to-moderate effort.</p>
+      <p>If LangGraph or Pydantic ever needed replacing, the SDK would absorb most of the pain on behalf of agent teams. <strong>The point isn't zero lock-in</strong> — every system has some — <strong>the point is putting the lock-in where it costs the least to maintain.</strong></p>
+    </div>
+  </section>
+
+  <!-- ============== 05 EVOLUTION ============== -->
+  <section class="chapter" id="ch-evolution">
+    <div class="ch-head">
+      <span class="ch-num">§ 05</span>
+      <h2>Evolution, by <em>example.</em></h2>
+    </div>
+    <p class="ch-blurb">
+      The SDK is the dampening layer. When dependencies move, the SDK absorbs the diff so agents don't have to. Here's what that looks like in practice.
+    </p>
+
+    <div class="timeline">
+      <div class="timeline-row">
+        <div class="when">2024 · LiteLLM 1.32 → 1.40</div>
+        <div>
+          <h4>Streaming response shape changed</h4>
+          <p>LiteLLM updated the streaming chunk schema for tool calls. The diff lived in <code>LiteLLMClient._normalize_response</code>. <strong>Agent code: zero changes.</strong> Tools that consumed <code>LLMResponse</code> kept the same shape on both sides of the upgrade.</p>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="when">2024 · LangGraph 0.0.50 → 0.0.55</div>
+        <div>
+          <h4>Reducer signature broadened</h4>
+          <p><code>add_messages</code> gained the <code>REMOVE_ALL_MESSAGES</code> marker for compaction. The SDK adopted it inside <code>MemoryManager._do_compact</code>. <strong>Agent code: zero changes</strong>; the compaction node itself is internal to <code>BaseAgent</code>.</p>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="when">2024 · Pydantic v2 minor releases</div>
+        <div>
+          <h4>Validator decorator semantics tightened</h4>
+          <p>Pydantic 2.6 → 2.8 sharpened error messages on <code>field_validator</code>. The SDK pinned the version, ran the test suite, and shipped. <strong>Agent tools using Pydantic: zero changes</strong>; new error messages improved diagnostics for free.</p>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="when">Future · LangGraph 1.0</div>
+        <div>
+          <h4>Anticipated graph-API stabilisation</h4>
+          <p>The 0.x → 1.0 transition will rename a handful of internal graph constructs. The SDK's plan: stage the migration in a feature branch, run the full test matrix on the new version, ship a single SDK release that absorbs the diff. <strong>Agents using <code>BaseAgent</code> + <code>@tool</code>: expected zero changes.</strong></p>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="when">Future · Pydantic v3</div>
+        <div>
+          <h4>Possible Rust-core re-architecture</h4>
+          <p>v3 is on the roadmap but not imminent. When it arrives, the SDK pins to v2 until v3 is stable, then migrates schemas centrally. Tools that follow the SDK's idiomatic Pydantic usage will need a small re-validate; tools that reach for v2-specific internals will need attention. <strong>The SDK's CHANGELOG will name the affected APIs explicitly.</strong></p>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 36px; font-variation-settings: 'opsz' 36, 'wdth' 88, 'wght' 660; font-size: 22px; letter-spacing: -0.01em;">The evolution promise, in three rules</h3>
+    <ol style="margin: 12px 0 0; padding-left: 24px; color: var(--ink-2);">
+      <li style="padding: 6px 0;">The SDK pins major versions; agents pin only the SDK.</li>
+      <li style="padding: 6px 0;">Breaking changes in dependencies are absorbed inside the SDK, with the affected public APIs (if any) called out in the CHANGELOG.</li>
+      <li style="padding: 6px 0;">Deprecations get a release-cycle of warning before removal; you'll never wake up to a broken build because we silently dropped something.</li>
+    </ol>
+  </section>
+
+  <!-- ============== 06 WORKED EXAMPLE ============== -->
+  <section class="chapter" id="ch-worked">
+    <div class="ch-head">
+      <span class="ch-num">§ 06</span>
+      <h2>Worked example: <em>swapping</em> OPA for Cedar.</h2>
+    </div>
+    <p class="ch-blurb">
+      A concrete walk-through to make "swap is low cost" verifiable rather than rhetorical. The same pattern applies to every Tier-1 dependency.
+    </p>
+
+    <div class="worked">
+      <h3>Replace OPA with AWS Cedar</h3>
+      <div class="sub">SCENARIO · COMPLIANCE TEAM MOVES TO CEDAR · 1–3 DAYS OF WORK</div>
+      <p style="margin: 0 0 12px; color: var(--ink-2);">Cedar is AWS's policy language and evaluator. The wire shape differs from OPA, but the SDK's <code>IPolicyEvaluator</code> doesn't care — it asks for a typed <code>PolicyDecision</code> back; how you get there is up to you.</p>
+
+      <ol class="steps">
+        <li>Add <code>cedarpy</code> (or your Cedar binding of choice) to <code>requirements.txt</code>. <strong>This is the only new dependency.</strong></li>
+        <li>Write <code>CedarPolicyEvaluator(IPolicyEvaluator)</code>: a class with an <code>async evaluate(*, decision_path, input) -&gt; PolicyDecision</code> method that calls Cedar and translates the result.</li>
+        <li>Bind your evaluator in a custom DI module: <code>binder.bind(IPolicyEvaluator, to=CedarPolicyEvaluator, scope=singleton)</code>.</li>
+        <li>Replace <code>ProductionSecurityModule()</code> with <code>CedarSecurityModule()</code> in your app bootstrap. <strong>No agent code changes</strong>; <strong>no tool code changes</strong>; <strong>no FastAPI handler changes</strong>.</li>
+        <li>Port your Rego policies to Cedar (this is the actual work; the SDK doesn't help here, but it doesn't hurt either).</li>
+        <li>Run the full test suite. The SDK's contract tests for <code>IPolicyEvaluator</code> verify your new class behaves correctly. Fakes (<code>FakePolicyEvaluator</code>) are unaffected.</li>
+        <li>Deploy. Audit events automatically include the new <code>decision_path</code> values.</li>
+      </ol>
+
+      <p style="margin: 16px 0 0; color: var(--ink-2);"><strong>What didn't change</strong>: every <code>@tool</code>, every <code>BaseAgent</code> subclass, every FastAPI route, every test that uses <code>FakePolicyEvaluator</code>. The lock-in lived in <em>one binding</em>.</p>
+    </div>
+
+    <p style="margin-top: 24px; color: var(--ink-2);">The same shape applies to swapping LiteLLM for OpenRouter, OTel for Datadog APM, fastmcp for the Anthropic MCP SDK, PyJWT for authlib, EnvSecretManager for VaultSecretManager. <strong>One adapter class per dependency. One DI binding to flip. Agent code stays still.</strong></p>
+  </section>
+
+  <!-- ============== CLOSING ============== -->
+  <div class="closing">
+    <h2 style="font-variation-settings: 'opsz' 96, 'wdth' 80, 'wght' 720; font-size: clamp(34px, 4.6vw, 56px); margin: 0 0 16px; line-height: 1.0; letter-spacing: -0.02em;">
+      Lock-in is a <em style="color: var(--petrol); font-style: italic; font-variation-settings: 'opsz' 96, 'wdth' 100, 'wght' 720;">design choice,</em><br>
+      not a fact of life.
+    </h2>
+    <p style="max-width: 64ch; color: var(--ink-2);">
+      Every dependency in the SDK is there because the alternative is reinventing it. Every load-bearing dependency sits behind an interface because the alternative is being unable to swap it. And every public API the SDK exposes is documented so that when something does change, you know exactly what's changing and why.
+    </p>
+    <p style="max-width: 64ch; color: var(--ink-2);">
+      <strong>Bring lock-in concerns to the platform team.</strong> If a dependency feels too coupled, the right answer is usually a new interface, not a fork.
+    </p>
+    <div class="sig">
+      <span class="id">ai-core-sdk · stack &amp; lock-in audit</span>
+      <span>EAAP / Platform Engineering</span>
+      <span>v0.1 · technical brief</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ai-core-sdk · Platform engineer's survival guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0c1010;
+    --bg-2:      #131a18;
+    --bg-3:      #1a2220;
+    --code:      #06090a;
+    --text:      #d4e0c8;
+    --text-2:    #9ca59a;
+    --text-3:    #6a716a;
+    --rule:      #232b28;
+    --rule-2:    #364039;
+    --green:     #7fdca4;     /* primary signal — phosphor */
+    --green-d:   #5da97e;
+    --cyan:      #5cc7c7;
+    --amber:     #e8b86a;     /* warn */
+    --coral:     #e07c5e;     /* danger */
+    --lav:       #b8a7e5;     /* info */
+    --rose:      #d77eaa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Geist", system-ui, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(circle at 8% 6%, rgba(127,220,164,0.04), transparent 38%),
+      radial-gradient(circle at 92% 96%, rgba(92,199,199,0.03), transparent 36%),
+      repeating-linear-gradient(
+        0deg, transparent 0,
+        transparent 39px,
+        rgba(212,224,200,0.018) 39px,
+        rgba(212,224,200,0.018) 40px);
+  }
+
+  ::selection { background: var(--green); color: var(--bg); }
+
+  .mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-feature-settings: "ss01","ss02";
+  }
+
+  /* ---- LAYOUT ---- */
+  .frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 56px 64px 96px;
+    position: relative;
+    z-index: 1;
+  }
+  @media (max-width: 760px) { .frame { padding: 32px 22px 64px; } }
+
+  /* ---- HEADER ---- */
+  header.head {
+    border-top: 1px solid var(--green);
+    padding: 22px 0 36px;
+    margin-bottom: 56px;
+    position: relative;
+  }
+  header.head::before {
+    content: "";
+    position: absolute; top: -1px; left: 0;
+    width: 12%; height: 3px; background: var(--green);
+  }
+
+  .meta-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 32px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .meta-strip .doc-id { color: var(--green); }
+  .meta-strip .crumbs span:not(:last-child)::after { content: " / "; color: var(--rule-2); margin: 0 6px; }
+
+  h1.title {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: clamp(40px, 5.6vw, 80px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 22px;
+  }
+  h1.title .signal { color: var(--green); }
+  h1.title .accent { color: var(--cyan); }
+
+  p.subtitle {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--text-2);
+    max-width: 64ch;
+    margin: 0 0 28px;
+  }
+  p.subtitle strong { color: var(--text); font-weight: 600; }
+
+  .head-meta-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) { .head-meta-row { grid-template-columns: repeat(2, 1fr); } }
+  .head-meta-row .cell {
+    padding: 14px 18px 14px 0;
+    border-right: 1px solid var(--rule);
+  }
+  .head-meta-row .cell:last-child { border-right: none; }
+  .head-meta-row .cell:nth-child(n+2) { padding-left: 18px; }
+  .head-meta-row .cell .k {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 4px;
+  }
+  .head-meta-row .cell .v {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13.5px;
+    color: var(--text);
+  }
+
+  /* ---- WELCOME / CHARTER PANEL ---- */
+  .charter {
+    border: 1px solid var(--green);
+    background: linear-gradient(180deg, rgba(127,220,164,0.06), transparent);
+    padding: 26px 30px;
+    margin: 36px 0 56px;
+  }
+  .charter .stamp {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 8px;
+  }
+  .charter h2 {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 14px;
+    letter-spacing: -0.012em;
+  }
+  .charter p { color: var(--text-2); margin-bottom: 8px; }
+  .charter p:last-child { margin-bottom: 0; }
+  .charter strong { color: var(--text); font-weight: 600; }
+  .charter code { color: var(--green); font-family: "JetBrains Mono", monospace; font-size: 14px; }
+
+  /* ---- TOC ---- */
+  nav.toc {
+    margin-bottom: 80px;
+  }
+  nav.toc h2 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin: 0 0 16px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  @media (max-width: 900px) { .toc-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .toc-grid { grid-template-columns: 1fr; } }
+  .toc-grid a {
+    background: var(--bg);
+    padding: 14px 16px;
+    text-decoration: none;
+    color: var(--text);
+    display: block;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .toc-grid a:hover { background: var(--bg-2); color: var(--green); }
+  .toc-grid a .n {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    color: var(--green);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .toc-grid a .t {
+    font-family: "Geist", sans-serif;
+    font-size: 15px;
+    line-height: 1.2;
+    font-weight: 500;
+  }
+
+  /* ---- SECTION ---- */
+  section {
+    margin-bottom: 72px;
+    scroll-margin-top: 24px;
+  }
+  .ch-head {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 10px;
+    margin-bottom: 28px;
+  }
+  .ch-head .ch-num {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--green);
+  }
+  .ch-head h2 {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: clamp(26px, 3vw, 40px);
+    margin: 0;
+    line-height: 1.0;
+    letter-spacing: -0.018em;
+    color: var(--text);
+  }
+  .ch-blurb {
+    font-size: 16.5px;
+    color: var(--text-2);
+    max-width: 70ch;
+    margin: 0 0 24px;
+  }
+  .ch-blurb strong { color: var(--text); font-weight: 600; }
+
+  /* ---- TERMINAL BLOCK ---- */
+  pre.term {
+    background: var(--code);
+    border: 1px solid var(--rule);
+    padding: 16px 18px;
+    margin: 14px 0 18px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text);
+    overflow-x: auto;
+    border-left: 3px solid var(--green);
+    position: relative;
+  }
+  pre.term::before {
+    content: "$";
+    position: absolute;
+    left: 8px;
+    color: var(--green);
+    opacity: 0.4;
+    font-weight: 600;
+  }
+  pre.term.code::before { content: "py"; font-size: 10px; opacity: 0.5; }
+
+  pre.term .com  { color: var(--text-3); font-style: italic; }
+  pre.term .kw   { color: var(--lav); }
+  pre.term .str  { color: var(--amber); }
+  pre.term .id   { color: var(--cyan); }
+  pre.term .dec  { color: var(--green); }
+  pre.term .num  { color: var(--rose); }
+  pre.term .typ  { color: var(--amber); }
+  pre.term .out  { color: var(--text-3); }
+
+  /* ---- CARD: GENERIC ---- */
+  .card {
+    border: 1px solid var(--rule);
+    background: var(--bg-2);
+    padding: 22px 26px;
+    margin-bottom: 18px;
+    transition: border-color 200ms ease;
+  }
+  .card:hover { border-color: var(--rule-2); }
+
+  /* ---- CONCERN CARD ---- */
+  .concern {
+    border: 1px solid var(--rule);
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    margin-bottom: 22px;
+    overflow: hidden;
+    border-left: 3px solid var(--green);
+  }
+  .concern.warn { border-left-color: var(--amber); }
+  .concern.danger { border-left-color: var(--coral); }
+  .concern .header {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 22px;
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+  }
+  @media (max-width: 760px) {
+    .concern .header { grid-template-columns: 1fr; gap: 6px; }
+  }
+  .concern .num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .concern h3 {
+    font-family: "Geist", sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--text);
+    margin: 0;
+    letter-spacing: -0.012em;
+    line-height: 1.15;
+  }
+  .concern h3 code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--cyan);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .concern .tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    text-align: right;
+  }
+  @media (max-width: 760px) {
+    .concern .tag { text-align: left; }
+  }
+
+  .concern .body {
+    padding: 18px 22px 22px;
+  }
+  .concern .meta-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 36px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--rule);
+  }
+  @media (max-width: 760px) {
+    .concern .meta-row { grid-template-columns: 1fr; }
+  }
+  .concern .meta-row .k {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-right: 8px;
+  }
+  .concern .meta-row .v {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--cyan);
+  }
+
+  .concern p { margin: 0 0 12px; color: var(--text-2); }
+  .concern p strong { color: var(--text); font-weight: 600; }
+  .concern p code { font-family: "JetBrains Mono", monospace; color: var(--green); font-size: 13.5px; }
+
+  .concern .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 32px;
+    margin-top: 14px;
+  }
+  @media (max-width: 760px) {
+    .concern .grid { grid-template-columns: 1fr; }
+  }
+  .concern .grid h4 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 0 0 6px;
+  }
+  .concern .grid h4.bug { color: var(--coral); }
+  .concern .grid h4.test { color: var(--green); }
+  .concern .grid h4.oncall { color: var(--amber); }
+  .concern .grid h4.design { color: var(--cyan); }
+
+  .concern .grid ul { list-style: none; margin: 0; padding: 0; }
+  .concern .grid ul li {
+    font-size: 13.5px;
+    color: var(--text-2);
+    padding: 4px 0 4px 16px;
+    position: relative;
+    line-height: 1.5;
+  }
+  .concern .grid ul li::before {
+    content: "›";
+    position: absolute;
+    left: 0;
+    color: var(--text-3);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .concern .grid ul li code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--green);
+    font-size: 12.5px;
+  }
+  .concern .grid p {
+    font-size: 13.5px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  /* ---- INTERFACE TABLE ---- */
+  table.iface-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.iface-table thead th {
+    text-align: left;
+    padding: 10px 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    border-top: 2px solid var(--rule);
+    border-bottom: 1px solid var(--rule-2);
+    background: var(--bg-2);
+  }
+  table.iface-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  table.iface-table tbody tr:hover { background: var(--bg-2); }
+  table.iface-table td.iface {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--cyan);
+    font-weight: 500;
+    font-size: 13px;
+    width: 24%;
+  }
+  table.iface-table td.role { color: var(--text-2); width: 22%; }
+  table.iface-table td.binding {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--green);
+    width: 24%;
+  }
+  table.iface-table td.fake {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--amber);
+    width: 22%;
+  }
+  table.iface-table td.where {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--text-3);
+    font-size: 11.5px;
+    width: 22%;
+  }
+
+  /* ---- STEPS ---- */
+  ol.steps {
+    counter-reset: ss;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  ol.steps li {
+    counter-increment: ss;
+    padding: 10px 0 10px 38px;
+    position: relative;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.55;
+  }
+  ol.steps li:last-child { border-bottom: none; }
+  ol.steps li::before {
+    content: counter(ss, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--green);
+    font-weight: 600;
+  }
+  ol.steps li code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--green);
+    font-size: 13px;
+  }
+  ol.steps li strong { color: var(--text); font-weight: 600; }
+
+  /* ---- INCIDENT CARDS ---- */
+  .incident {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--coral);
+    background: var(--bg-2);
+    padding: 18px 22px;
+    margin-bottom: 16px;
+  }
+  .incident .severity {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--coral);
+    margin-bottom: 6px;
+  }
+  .incident h4 {
+    font-family: "Geist", sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .incident .symptoms { color: var(--text-2); font-size: 13.5px; margin-bottom: 10px; }
+  .incident .symptoms strong { color: var(--amber); }
+  .incident .check {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    color: var(--green);
+    background: var(--code);
+    padding: 6px 10px;
+    border-left: 2px solid var(--green);
+    margin: 8px 0;
+  }
+  .incident .resolve { color: var(--text-2); font-size: 13.5px; }
+  .incident .resolve strong { color: var(--green); }
+
+  /* ---- CALLOUT ---- */
+  .callout {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--cyan);
+    padding: 14px 18px;
+    margin: 18px 0;
+    background: rgba(92,199,199,0.04);
+    font-size: 14px;
+    color: var(--text-2);
+  }
+  .callout.warn { border-left-color: var(--amber); background: rgba(232,184,106,0.04); }
+  .callout.danger { border-left-color: var(--coral); background: rgba(224,124,94,0.04); }
+  .callout .stamp {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-right: 8px;
+    font-weight: 600;
+  }
+  .callout.warn .stamp { color: var(--amber); }
+  .callout.danger .stamp { color: var(--coral); }
+  .callout strong { color: var(--text); font-weight: 600; }
+  .callout code { font-family: "JetBrains Mono", monospace; color: var(--green); }
+
+  /* ---- ANTI-PATTERN ---- */
+  .anti {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 760px) { .anti { grid-template-columns: 1fr; } }
+  .anti .item {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--coral);
+    background: var(--bg-2);
+    padding: 16px 18px;
+  }
+  .anti .item h5 {
+    font-family: "Geist", sans-serif;
+    font-weight: 600;
+    font-size: 15.5px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .anti .item p {
+    font-size: 13px;
+    color: var(--text-2);
+    margin: 0 0 8px;
+    line-height: 1.5;
+  }
+  .anti .item code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--coral);
+    font-size: 12.5px;
+  }
+  .anti .item .do {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--rule);
+    color: var(--green);
+    font-size: 12.5px;
+  }
+  .anti .item .do::before {
+    content: "DO INSTEAD · ";
+    font-family: "JetBrains Mono", monospace;
+    color: var(--green);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    font-size: 10.5px;
+  }
+
+  /* ---- DIRECTORY MAP ---- */
+  pre.tree {
+    background: var(--code);
+    border: 1px solid var(--rule);
+    padding: 16px 18px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  pre.tree .dir { color: var(--cyan); }
+  pre.tree .file { color: var(--text); }
+  pre.tree .cmt { color: var(--text-3); }
+  pre.tree .acc { color: var(--green); }
+
+  /* ---- FOOTER ---- */
+  footer.foot {
+    margin-top: 88px;
+    border-top: 1px solid var(--green);
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  footer.foot .doc-id { color: var(--green); }
+
+  @keyframes settle {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  header.head, section, footer.foot {
+    animation: settle 540ms ease-out both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    header.head, section, footer.foot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ============== HEADER ============== -->
+  <header class="head">
+    <div class="meta-strip">
+      <span class="doc-id">EAAP / DOC-PE-001</span>
+      <span class="crumbs"><span>ai-core-sdk</span><span>docs</span><span>survival-guide</span><span>platform</span></span>
+      <span>v0.1 · keep open while building</span>
+    </div>
+
+    <h1 class="title">Platform engineer's<br><span class="signal">survival</span> <span class="accent">guide.</span></h1>
+    <p class="subtitle">For new <strong>architects, software engineers, DevOps,</strong> and <strong>production support</strong> joining the team that maintains <span class="mono" style="color:var(--green)">ai-core-sdk</span>. What you own, where to find it, how to ship safely, and what to do when an alert fires at 02:14.</p>
+
+    <div class="head-meta-row">
+      <div class="cell"><div class="k">Read in</div><div class="v">~30 min · referenceable</div></div>
+      <div class="cell"><div class="k">First-week target</div><div class="v">Ship a small fix end-to-end</div></div>
+      <div class="cell"><div class="k">Source of truth</div><div class="v">src/ai_core/__init__.py</div></div>
+      <div class="cell"><div class="k">Companion docs</div><div class="v">Engineer's handbook · Stack &amp; lock-in</div></div>
+    </div>
+  </header>
+
+  <!-- ============== CHARTER PANEL ============== -->
+  <div class="charter">
+    <div class="stamp">YOUR CHARTER</div>
+    <h2>You make it impossible for an agent team<br>to ship something unsafe by accident.</h2>
+    <p>You own the <strong>cross-cutting concerns</strong> — auth, audit, observability, budgets, retries, schemas, secrets, MCP, memory, the test seam. The business AI team owns prompts, tools, schemas, evaluations, and business outcomes. The SDK is the contract between you.</p>
+    <p>If a regulated agent ships and it can't be audited, that's on you. If it can be audited but the prompts give bad answers, that's on the business AI team. <strong>Keep the line clean.</strong></p>
+  </div>
+
+  <!-- ============== TOC ============== -->
+  <nav class="toc">
+    <h2>Contents</h2>
+    <div class="toc-grid">
+      <a href="#ch-day1"><span class="n">CH 01</span><span class="t">Day 1 setup</span></a>
+      <a href="#ch-map"><span class="n">CH 02</span><span class="t">Architecture map</span></a>
+      <a href="#ch-interfaces"><span class="n">CH 03</span><span class="t">Interfaces you maintain</span></a>
+      <a href="#ch-concerns"><span class="n">CH 04</span><span class="t">Cross-cutting concerns</span></a>
+      <a href="#ch-workflow"><span class="n">CH 05</span><span class="t">Development workflow</span></a>
+      <a href="#ch-prod"><span class="n">CH 06</span><span class="t">Production operations</span></a>
+      <a href="#ch-oncall"><span class="n">CH 07</span><span class="t">Oncall &amp; incident response</span></a>
+      <a href="#ch-cookbook"><span class="n">CH 08</span><span class="t">Platform cookbook</span></a>
+      <a href="#ch-anti"><span class="n">CH 09</span><span class="t">Anti-patterns</span></a>
+      <a href="#ch-collab"><span class="n">CH 10</span><span class="t">Working with the AI team</span></a>
+      <a href="#ch-where"><span class="n">CH 11</span><span class="t">Where things live</span></a>
+      <a href="#ch-people"><span class="n">CH 12</span><span class="t">People &amp; escalation</span></a>
+    </div>
+  </nav>
+
+  <!-- ============== CH 01 DAY 1 ============== -->
+  <section id="ch-day1">
+    <div class="ch-head">
+      <span class="ch-num">CH 01</span>
+      <h2>Day 1 setup.</h2>
+    </div>
+    <p class="ch-blurb">If these steps complete cleanly, your environment is ready. If any step fails, that's your first ticket.</p>
+
+    <pre class="term">
+<span class="com"># 1. clone</span>
+git clone git@github.com:eaap/ai-core-sdk.git
+cd ai-core-sdk
+
+<span class="com"># 2. virtualenv + dev deps</span>
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev,sentry,datadog,storage-aws]"
+
+<span class="com"># 3. run the test matrix — should be green on a clean checkout</span>
+pytest -q                                  <span class="com"># all unit + component + contract tests</span>
+pytest -q -m integration                   <span class="com"># needs Postgres + OPA running locally</span>
+
+<span class="com"># 4. lint &amp; type-check — both must pass before PR</span>
+ruff check src tests
+mypy src
+
+<span class="com"># 5. exercise the CLI scaffold — proves the package built correctly</span>
+eaap --help
+eaap probe                                 <span class="com"># runs SDK health probes against the bound bindings</span></pre>
+
+    <div class="callout">
+      <span class="stamp">tip</span>If you see <code>asyncio_mode</code> collection errors, you're missing <code>pytest-asyncio</code>. Install with <code>pip install -e ".[dev]"</code>; the bare package install doesn't include it.
+    </div>
+  </section>
+
+  <!-- ============== CH 02 ARCHITECTURE MAP ============== -->
+  <section id="ch-map">
+    <div class="ch-head">
+      <span class="ch-num">CH 02</span>
+      <h2>Architecture map.</h2>
+    </div>
+    <p class="ch-blurb">A 60-second tour of <code class="mono" style="color:var(--green)">src/ai_core/</code>. If you remember nothing else, remember this layout — every other section refers back to it.</p>
+
+    <pre class="tree">
+<span class="dir">src/ai_core/</span>
+├── <span class="dir">agents/</span>          <span class="cmt"># BaseAgent, AgentState, MemoryManager — the LangGraph wrapper</span>
+├── <span class="dir">app/</span>             <span class="cmt"># AICoreApp — top-level lifecycle (container, hooks, health, runtime)</span>
+├── <span class="dir">audit/</span>           <span class="cmt"># IAuditSink, BufferedAuditSink, SentryAuditSink, DatadogAuditSink</span>
+├── <span class="dir">cli/</span>             <span class="cmt"># `eaap` CLI — scaffolding, probes, settings inspection</span>
+├── <span class="dir">config/</span>          <span class="cmt"># AppSettings (Pydantic), SecretRef, EnvSecretManager</span>
+├── <span class="dir">di/</span>              <span class="cmt"># Container, AgentModule, ProductionSecurityModule, all I* interfaces</span>
+├── <span class="file">exceptions.py</span>    <span class="cmt"># EAAPBaseException + ErrorCode + 15 typed subclasses</span>
+├── <span class="dir">health/</span>          <span class="cmt"># IHealthProbe, ProbeResult, HealthSnapshot</span>
+├── <span class="dir">llm/</span>             <span class="cmt"># LiteLLMClient (ILLMClient impl), retry, cost extraction</span>
+├── <span class="dir">mcp/</span>             <span class="cmt"># MCPServerSpec, IMCPConnectionFactory, fastmcp pool, resolver</span>
+├── <span class="dir">observability/</span>   <span class="cmt"># RealObservabilityProvider, structlog wiring, bind_context()</span>
+├── <span class="dir">persistence/</span>     <span class="cmt"># SQLAlchemy + asyncpg providers, vector store, alembic</span>
+├── <span class="dir">schema/</span>          <span class="cmt"># SchemaRegistry, validate_tool decorator</span>
+├── <span class="dir">security/</span>        <span class="cmt"># JWTVerifier, OPAPolicyEvaluator, OPAAuthorization (FastAPI dep)</span>
+├── <span class="dir">testing/</span>         <span class="cmt"># Fakes for every interface, FakeModule</span>
+└── <span class="dir">tools/</span>           <span class="cmt"># @tool decorator, ToolSpec, ToolInvoker pipeline</span>
+
+<span class="dir">tests/</span>
+├── <span class="dir">unit/</span>            <span class="cmt"># fast, isolated</span>
+├── <span class="dir">component/</span>       <span class="cmt"># multi-module in-process</span>
+├── <span class="dir">contract/</span>        <span class="cmt"># public surface, exception hierarchy</span>
+└── <span class="dir">integration/</span>     <span class="cmt"># real Postgres, OPA, OTel, LLM</span></pre>
+
+    <div class="callout">
+      <span class="stamp">north star</span>Anything in <code>src/ai_core/__init__.py</code>'s <code>__all__</code> is <strong>public</strong> — covered by contract tests, deprecated only with a release-cycle warning. Anything else is internal and you can refactor freely.
+    </div>
+  </section>
+
+  <!-- ============== CH 03 INTERFACES ============== -->
+  <section id="ch-interfaces">
+    <div class="ch-head">
+      <span class="ch-num">CH 03</span>
+      <h2>The interfaces you maintain.</h2>
+    </div>
+    <p class="ch-blurb">Every load-bearing dependency sits behind one of these. <strong>Keep the interface stable.</strong> Change the implementation freely.</p>
+
+    <table class="iface-table">
+      <thead>
+        <tr><th>Interface</th><th>Role</th><th>Production binding</th><th>Test fake</th><th>Source</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="iface">ILLMClient</td><td class="role">LLM completions</td><td class="binding">LiteLLMClient</td><td class="fake">FakeLLMClient</td><td class="where">di/interfaces.py:168</td></tr>
+        <tr><td class="iface">IPolicyEvaluator</td><td class="role">OPA decisions</td><td class="binding">OPAPolicyEvaluator</td><td class="fake">FakePolicyEvaluator</td><td class="where">di/interfaces.py:262</td></tr>
+        <tr><td class="iface">IObservabilityProvider</td><td class="role">Spans, generations</td><td class="binding">RealObservabilityProvider</td><td class="fake">FakeObservabilityProvider</td><td class="where">di/interfaces.py:88</td></tr>
+        <tr><td class="iface">IBudgetService</td><td class="role">Token/USD limits</td><td class="binding">SQLBudgetService</td><td class="fake">FakeBudgetService</td><td class="where">di/interfaces.py:224</td></tr>
+        <tr><td class="iface">IStorageProvider</td><td class="role">Persistence</td><td class="binding">SQLAlchemyStorage</td><td class="fake">InMemoryStorage</td><td class="where">di/interfaces.py:25</td></tr>
+        <tr><td class="iface">ICheckpointSaver</td><td class="role">LangGraph state</td><td class="binding">PostgresCheckpoint</td><td class="fake">InMemoryCheckpoint</td><td class="where">di/interfaces.py:278</td></tr>
+        <tr><td class="iface">ISecretManager</td><td class="role">Secret resolution</td><td class="binding">EnvSecretManager</td><td class="fake">InMemorySecretManager</td><td class="where">config/secrets.py:46</td></tr>
+        <tr><td class="iface">IAuditSink</td><td class="role">Audit fan-out</td><td class="binding">BufferedAuditSink</td><td class="fake">InMemoryAuditSink</td><td class="where">audit/interface.py:90</td></tr>
+        <tr><td class="iface">IMCPConnectionFactory</td><td class="role">MCP transport</td><td class="binding">FastMCPFactory</td><td class="fake">FakeMCPFactory</td><td class="where">mcp/transports.py:67</td></tr>
+        <tr><td class="iface">IMemoryManager</td><td class="role">Compaction</td><td class="binding">MemoryManager</td><td class="fake">NoOpMemoryManager</td><td class="where">agents/memory.py:110</td></tr>
+        <tr><td class="iface">IHealthProbe</td><td class="role">Liveness / readiness</td><td class="binding">multiple</td><td class="fake">FakeProbe</td><td class="where">health/interface.py:35</td></tr>
+        <tr><td class="iface">JWTVerifier</td><td class="role">Token verification</td><td class="binding">HS256JWTVerifier</td><td class="fake">UnverifiedJWTDecoder</td><td class="where">security/jwt.py:33</td></tr>
+        <tr><td class="iface">TokenCounter</td><td class="role">Tokenisation (Protocol)</td><td class="binding">LiteLLMTokenCounter</td><td class="fake">FixedTokenCounter</td><td class="where">agents/memory.py:58</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <span class="stamp">rule</span>If you add an interface, you also add: a production binding, a fake in <code>ai_core.testing</code>, a contract test in <code>tests/contract/</code>, and an entry in this table. <strong>None of those are optional.</strong>
+    </div>
+  </section>
+
+  <!-- ============== CH 04 CONCERNS ============== -->
+  <section id="ch-concerns">
+    <div class="ch-head">
+      <span class="ch-num">CH 04</span>
+      <h2>Cross-cutting concerns.</h2>
+    </div>
+    <p class="ch-blurb">Datasheet for each concern. Skim the headers; drop into a card when you need detail. Each card lists the files, the failure modes you'll see in production, and the test that catches regressions.</p>
+
+    <!-- 04.01 Auth -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 01</span>
+        <h3>Authentication &amp; Authorisation <code>(JWT + OPA)</code></h3>
+        <span class="tag">security/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">security/jwt.py · security/opa.py · security/fastapi_dep.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/security/ · tests/integration/security/</span></div>
+        </div>
+        <p>Bearer tokens are extracted by <code>OPAAuthorization.requires()</code>, decoded by the bound <code>JWTVerifier</code>, then submitted to OPA at <code>opa_decision_path</code>. Default is <strong>fail-closed</strong>: any policy or transport error denies. <code>NoOpPolicyEvaluator</code> is dev-only.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>OPA is the policy decision point — never inline rules</li>
+              <li><code>fail_closed=True</code> is the default in production</li>
+              <li><code>UnverifiedJWTDecoder</code> only when an upstream gateway already validated the signature</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>OPA unreachable → <code>PolicyDenialError</code> cascades for all tools</li>
+              <li>Misconfigured <code>opa_url</code> → silent dev-mode fallback if <code>fail_closed=False</code></li>
+              <li>JWT clock-skew → <code>InvalidTokenError</code> on every request</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>If 100% of <code>tool_call</code> events show <code>decision_allowed=False</code> with <code>error_code="opa.unreachable"</code>, it's an OPA outage, not a policy issue. Check <code>EAAP_SECURITY__OPA_URL</code> reachability first.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/security/test_opa.py -q</code></li>
+              <li><code>pytest -m integration tests/integration/security/</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.02 Audit -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 02</span>
+        <h3>Audit pipeline <code>(IAuditSink + redactors)</code></h3>
+        <span class="tag">audit/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">audit/interface.py · audit/buffered.py · audit/sentry.py · audit/datadog.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/audit/ · tests/component/audit/</span></div>
+        </div>
+        <p>Every <code>@tool</code> invocation emits an <code>AuditRecord</code> through the audit pipeline: redactor chain → buffered sink → fan-out (file, Sentry, Datadog). Sinks <strong>never raise</strong> — backend errors are logged and swallowed so audit failures don't break the agent.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Redactors run <strong>before</strong> any sink; PII never reaches a backend</li>
+              <li>Buffered sink writes JSONL via <code>asyncio.to_thread</code>; flush on container stop</li>
+              <li>Optional sinks (Sentry, Datadog) gate imports with <code>ConfigurationError</code> on missing extras</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Disk full → buffered sink errors logged; events lost (alert on this)</li>
+              <li>Sentry/Datadog rate limit → silent retry by their SDKs; eventual drop</li>
+              <li>New PII pattern un-redacted → audit a sample event in dashboards</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>If audit events stop arriving, check disk space first, then the bound sinks list (<code>EAAP_AUDIT__SINKS</code>). The agent is not affected — only the audit trail is.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/audit/ -q</code></li>
+              <li><code>InMemoryAuditSink</code> for unit tests</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.03 Observability -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 03</span>
+        <h3>Observability <code>(OTel + LangFuse + structlog)</code></h3>
+        <span class="tag">observability/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">observability/real.py · observability/logging.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/observability/ · tests/component/observability/</span></div>
+        </div>
+        <p>Three layers: OTel spans for trace topology, LangFuse generations for LLM-specific data (prompt/completion/tokens/cost), structlog with task-isolated <code>ContextVar</code> for log correlation. <strong>fail_open</strong> is the default — backend errors are logged and swallowed so observability never breaks the agent.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>One <code>trace_id</code> joins logs, spans, and audit records</li>
+              <li><code>bind_context()</code> + OTel baggage propagated automatically through asyncio tasks</li>
+              <li>LangFuse trace per task via <code>contextvars.ContextVar</code></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>OTel collector down → spans buffered then dropped (with warning logs)</li>
+              <li>LangFuse credentials wrong → traces created locally, never delivered</li>
+              <li>Forgetting <code>reset_context()</code> in a finally block → context leaks across requests</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>If incidents are hard to correlate, check that <code>bind_context()</code> is called early and <code>tenant_id</code>/<code>request_id</code> are bound. Missing binds, not missing infra, is the usual cause.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>FakeObservabilityProvider</code> for unit tests</li>
+              <li><code>pytest tests/component/observability/ -q</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.04 Budget -->
+    <div class="concern warn">
+      <div class="header">
+        <span class="num">04 · 04</span>
+        <h3>Budget enforcement <code>(BudgetService)</code></h3>
+        <span class="tag">budget/ · llm/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">budget/service.py · llm/litellm_client.py (call sites)</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/budget/ · tests/integration/budget/</span></div>
+        </div>
+        <p>Per-tenant and per-(tenant, agent) caps on tokens and USD. Reset at midnight UTC. Every <code>llm.complete()</code> call is bracketed by check + record. Override format: <code>{"tenant:agent_id": {"daily_usd_limit": N}}</code>.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Per-(tenant, agent) overrides take precedence over tenant defaults</li>
+              <li>Reset is idempotent — re-running on the same day doesn't double-charge</li>
+              <li>Cost extracted from LiteLLM's cost lookup tables</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Misspelled <code>agent_id</code> in overrides → silently ignored, tenant default applies</li>
+              <li>LiteLLM cost lookup missing for a model → cost recorded as 0 (token cap still applies)</li>
+              <li>DB unavailable → defaults to <strong>deny</strong> (configurable)</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>Spike in <code>BudgetExceededError</code>? Check the override JSON. A misformatted override silently invalidates the whole override map and falls back to tenant defaults — which may be too tight.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/budget/ -q</code></li>
+              <li>Integration: <code>pytest -m integration tests/integration/budget/</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.05 Retry / timeout -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 05</span>
+        <h3>Retry &amp; timeout <code>(internal · tenacity)</code></h3>
+        <span class="tag">llm/ · http</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">llm/litellm_client.py · http clients</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/llm/test_retry.py</span></div>
+        </div>
+        <p>Tenacity-driven, status-aware retries with jitter. Internal-only — agent code never configures retries. Timeouts honour cancellation (<code>asyncio.wait_for</code>). Retry exhaustion raises <code>LLMInvocationError</code> with the original cause attached.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Retry only on retryable HTTP statuses (429, 5xx) and connection errors</li>
+              <li>Maximum 3 attempts by default</li>
+              <li>Per-call timeout from <code>EAAP_LLM__REQUEST_TIMEOUT_SECONDS</code></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Retries hide rate-limiting → watch for <code>retry_count &gt; 0</code> as a leading indicator</li>
+              <li>Sticky 5xx from a vendor → all attempts fail; agent gets <code>LLMInvocationError</code></li>
+              <li>Cancellation during retry doesn't always abort instantly</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>If LLM p99 latency is high but error rate is low, retries are masking transient errors. The vendor's status page is the place to look.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/llm/test_retry.py -q</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.06 Schema -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 06</span>
+        <h3>Schema versioning <code>(SchemaRegistry)</code></h3>
+        <span class="tag">schema/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">schema/registry.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/schema/test_registry.py</span></div>
+        </div>
+        <p>Every <code>(name, version)</code> pair maps to one Pydantic input/output pair. <code>@registry.validate_tool</code> wraps sync or async handlers; <code>@tool</code> auto-registers with the active registry on agent compile.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Versions are positive integers — bump on any breaking change</li>
+              <li>Lookups take a snapshot; safe across coroutines on a single event loop</li>
+              <li><code>replace=True</code> only on intentional reregistration</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Two registries in one process → <code>SchemaValidationError</code> on cross-lookup</li>
+              <li>Forgot to bump version on schema change → callers silently get the new shape</li>
+              <li>Pydantic validation on egress fails → bug is in the handler, not the schema</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>Schema mismatches surface as <code>SchemaValidationError</code> with <code>name</code>, <code>version</code>, and <code>errors</code> in <code>details</code>. Use those fields directly in dashboards.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/schema/ -q</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.07 Secrets -->
+    <div class="concern danger">
+      <div class="header">
+        <span class="num">04 · 07</span>
+        <h3>Secret management <code>(ISecretManager)</code></h3>
+        <span class="tag">config/secrets.py</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">config/secrets.py · persistence/aws_secrets.py (extra)</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/config/test_secrets.py</span></div>
+        </div>
+        <p>Secrets are <strong>opaque references</strong> (<code>SecretRef(backend, name, version)</code>) resolved at call time. Never inlined in settings. Never logged. The bound <code>ISecretManager</code> handles backend specifics.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li><code>EnvSecretManager</code> is the dev default; <code>AWSSecretsManager</code> from the prod module</li>
+              <li><code>SecretResolutionError</code> exposes <code>backend</code> only — not the secret name</li>
+              <li><code>resolve_optional()</code> is the polite version</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Secret not in env → <code>SecretResolutionError</code> on first resolve attempt</li>
+              <li>AWS Secrets Manager IAM denied → looks identical to "missing"; check audit logs</li>
+              <li>Logging a resolved secret in a tool handler — fix this in code review</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>A failed secret resolve at app startup means <code>AICoreApp.__aenter__</code> never completes. Check container readiness probes — they fail fast.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/config/test_secrets.py -q</code></li>
+              <li><code>InMemorySecretManager</code> for unit tests</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.08 MCP -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 08</span>
+        <h3>MCP integration <code>(IMCPConnectionFactory)</code></h3>
+        <span class="tag">mcp/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">mcp/transports.py · mcp/registry.py · mcp/resolver.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/mcp/ · tests/component/mcp/</span></div>
+        </div>
+        <p>Connection pool with idle TTL and health checks. Late-binding-safe tool resolution (factory pattern avoids Python's late-binding closure bug). Tool name collisions across servers raise rather than silently picking one.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li><code>component_id</code> uniquely identifies a server in audit + obs</li>
+              <li>Health checks happen on first acquire after idle TTL</li>
+              <li>Resolver fails fast on tool-name collisions</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>MCP server crashes → next acquire reconnects; in-flight calls fail with <code>MCPTransportError</code></li>
+              <li>Tool collision across servers → <code>RegistryError</code> at agent compile time</li>
+              <li>Stdio server exits without sending a response → connection orphaned until idle TTL</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p><code>MCPTransportError</code> rate jump usually means the upstream server is unhealthy, not the SDK pool. Check the server's logs first.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/mcp/ -q</code></li>
+              <li><code>FakeMCPFactory</code> for unit tests</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.09 Memory -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 09</span>
+        <h3>Memory &amp; compaction <code>(MemoryManager)</code></h3>
+        <span class="tag">agents/memory.py</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">agents/memory.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/agents/test_memory.py</span></div>
+        </div>
+        <p>Token-aware summariser. Compaction wraps in <code>asyncio.wait_for</code> so a slow LLM cannot hang an agent. Preserves Essential Entities verbatim across compactions. Replacement (not append) semantics via <code>RemoveMessage(REMOVE_ALL_MESSAGES)</code>.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Compaction times out → input state returned unchanged, agent continues</li>
+              <li>Token counter falls back to <code>chars/4</code> heuristic with a debug log</li>
+              <li>Essential entities collected from settings + state</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Compaction loop — threshold below post-compaction size; tune <code>memory_compaction_target_tokens</code></li>
+              <li>Lost essential entity — key not in <code>essential_entity_keys</code> and not already in state</li>
+              <li>Tokenizer model mismatch — check <code>token_counter.fallback</code> debug logs</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p><code>compaction.skipped.budget_exceeded</code> warnings repeated for the same agent → the summariser model is too slow for the configured timeout. Investigate before raising the timeout.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/agents/test_memory.py -q</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.10 DI -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 10</span>
+        <h3>DI &amp; test seam <code>(Container · FakeModule)</code></h3>
+        <span class="tag">di/ · testing/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">di/container.py · di/module.py · testing/fakes.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/di/ · tests/contract/</span></div>
+        </div>
+        <p>Wraps <code>injector</code>. <code>Container.build([modules])</code> is the entry point; <code>container.override(I, impl)</code> is the test seam. Lifecycle hooks fire on <code>start()</code> and <code>stop()</code> in LIFO order.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Singleton scope by default; transient bindings are explicit</li>
+              <li>Overrides don't propagate across forked containers</li>
+              <li>Lifecycle hooks idempotent on repeated start</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Forgotten override → test silently uses production binding (and may hit real services)</li>
+              <li>Module ordering matters — last bound wins</li>
+              <li>Async teardown can race if hooks aren't awaited</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>If a test failure says "PostgreSQL connection refused" on a unit test, someone forgot a fake. The contract suite enforces this for new interfaces.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/di/ -q</code></li>
+              <li><code>pytest tests/contract/ -q</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04.11 Health -->
+    <div class="concern">
+      <div class="header">
+        <span class="num">04 · 11</span>
+        <h3>Health &amp; probes <code>(IHealthProbe · HealthSnapshot)</code></h3>
+        <span class="tag">health/</span>
+      </div>
+      <div class="body">
+        <div class="meta-row">
+          <div><span class="k">Files</span> <span class="v">health/interface.py · health/probes.py</span></div>
+          <div><span class="k">Tests</span> <span class="v">tests/unit/health/</span></div>
+        </div>
+        <p>Probes return <code>ProbeResult(status, details)</code>; never raise. <code>AICoreApp.health()</code> runs every bound probe in parallel and aggregates into <code>HealthSnapshot(status, components)</code>. Wire to <code>/health</code> for readiness.</p>
+
+        <div class="grid">
+          <div>
+            <h4 class="design">Design decisions</h4>
+            <ul>
+              <li>Probes are quick; budget &lt; 1s each</li>
+              <li>Snapshot is the AND of all probes (any down → down)</li>
+              <li>Probes catch their own exceptions and report degraded</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="bug">Failure modes</h4>
+            <ul>
+              <li>Slow probe blocks readiness — set strict timeouts</li>
+              <li>Reading external services in a probe — keep them lightweight</li>
+              <li>Forgetting to bind a probe — silent gap</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="oncall">Oncall note</h4>
+            <p>Liveness vs readiness: probes feed readiness. If liveness fails, the process is wedged — not the dependencies.</p>
+          </div>
+          <div>
+            <h4 class="test">Smoke tests</h4>
+            <ul>
+              <li><code>pytest tests/unit/health/ -q</code></li>
+              <li><code>eaap probe</code> from CLI</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============== CH 05 WORKFLOW ============== -->
+  <section id="ch-workflow">
+    <div class="ch-head">
+      <span class="ch-num">CH 05</span>
+      <h2>Development workflow.</h2>
+    </div>
+    <p class="ch-blurb">Branch, code, test, lint, type-check, PR, merge, release. The same loop, every time.</p>
+
+    <ol class="steps">
+      <li><strong>Branch</strong> from <code>main</code>. Name: <code>feat/...</code>, <code>fix/...</code>, <code>refactor/...</code>, <code>docs/...</code>, or <code>chore/...</code>.</li>
+      <li><strong>Write a contract test first</strong> if you're touching a public interface. Surface tests in <code>tests/contract/</code> guard <code>__all__</code> and the exception hierarchy.</li>
+      <li><strong>Implement</strong>, then run <code>pytest -q</code>. If you touched async code or DI, also run <code>pytest -m component</code>.</li>
+      <li><strong>Lint</strong>: <code>ruff check src tests</code>. <strong>Type-check</strong>: <code>mypy src</code> (strict mode). Both must pass.</li>
+      <li><strong>Update CHANGELOG.md</strong> if you changed public surface, settings, or behaviour. The release flow expects it.</li>
+      <li><strong>PR</strong>. Squash-merge after review. Use Conventional Commits in titles: <code>feat(scope): ...</code>.</li>
+      <li><strong>Release</strong>: tag <code>vX.Y.Z</code> on <code>main</code>; CI builds wheels and uploads to the internal index.</li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="stamp">deprecation policy</span>Public surface deprecations get one full release cycle of warning before removal — emit a <code>DeprecationWarning</code>, document in CHANGELOG, then remove the next minor.
+    </div>
+  </section>
+
+  <!-- ============== CH 06 PRODUCTION OPS ============== -->
+  <section id="ch-prod">
+    <div class="ch-head">
+      <span class="ch-num">CH 06</span>
+      <h2>Production operations.</h2>
+    </div>
+    <p class="ch-blurb">What you wire up before the first production agent ships. None of these are optional.</p>
+
+    <h3 style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--green); font-size: 16px; letter-spacing: 0.06em; margin-bottom: 14px; margin-top: 16px;">REQUIRED ENV VARS</h3>
+    <pre class="term">
+EAAP_DATABASE__URL=<span class="str">postgresql+asyncpg://...</span>
+EAAP_SECURITY__OPA_URL=<span class="str">http://opa.internal:8181</span>
+EAAP_SECURITY__OPA_DECISION_PATH=<span class="str">eaap/api/allow</span>
+EAAP_SECURITY__FAIL_CLOSED=<span class="num">true</span>
+EAAP_LLM__DEFAULT_MODEL=<span class="str">gpt-4o-mini</span>
+EAAP_LLM__REQUEST_TIMEOUT_SECONDS=<span class="num">30</span>
+EAAP_AGENT__DAILY_USD_LIMIT=<span class="num">200.00</span>
+EAAP_AGENT__DAILY_TOKEN_LIMIT=<span class="num">2000000</span>
+EAAP_AGENT__COMPACTION_TIMEOUT_SECONDS=<span class="num">30</span>
+EAAP_OBSERVABILITY__OTEL_EXPORTER_OTLP_ENDPOINT=<span class="str">http://otel:4317</span>
+EAAP_OBSERVABILITY__LANGFUSE_HOST=<span class="str">https://langfuse.internal</span>
+EAAP_AUDIT__SINKS=<span class="str">file,sentry,datadog</span></pre>
+
+    <div class="callout">
+      <span class="stamp">readiness checklist</span>
+      <strong>1.</strong> Postgres reachable; alembic migrations applied · <strong>2.</strong> OPA policies deployed at <code>opa_decision_path</code> · <strong>3.</strong> Secrets resolvable (test with <code>eaap probe</code>) · <strong>4.</strong> OTel collector receiving traces · <strong>5.</strong> Audit sink writing to disk / forwarding · <strong>6.</strong> Health endpoint <code>/health</code> returns 200.
+    </div>
+
+    <h3 style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--green); font-size: 16px; letter-spacing: 0.06em; margin: 28px 0 14px;">DATABASE MIGRATIONS</h3>
+    <p style="color: var(--text-2); margin-bottom: 12px;">Alembic. Run on deploy before the new pods start serving traffic.</p>
+    <pre class="term">
+alembic upgrade head                       <span class="com"># forward</span>
+alembic downgrade -1                       <span class="com"># rollback the last revision</span>
+alembic revision -m <span class="str">"add foo column"</span> --autogenerate</pre>
+
+    <h3 style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--green); font-size: 16px; letter-spacing: 0.06em; margin: 28px 0 14px;">CONTAINER / K8S NOTES</h3>
+    <ul style="color: var(--text-2); list-style: none; padding-left: 0;">
+      <li style="padding: 6px 0 6px 18px; position: relative;"><span style="position: absolute; left: 0; color: var(--green);">›</span><strong style="color: var(--text);">Liveness probe:</strong> <code class="mono" style="color: var(--green)">GET /health/live</code> — process responding.</li>
+      <li style="padding: 6px 0 6px 18px; position: relative;"><span style="position: absolute; left: 0; color: var(--green);">›</span><strong style="color: var(--text);">Readiness probe:</strong> <code class="mono" style="color: var(--green)">GET /health</code> — all <code>IHealthProbe</code> bindings up.</li>
+      <li style="padding: 6px 0 6px 18px; position: relative;"><span style="position: absolute; left: 0; color: var(--green);">›</span><strong style="color: var(--text);">Graceful shutdown:</strong> SIGTERM → <code>AICoreApp.__aexit__</code> drains in-flight, flushes audit, closes pools. 30s timeout.</li>
+      <li style="padding: 6px 0 6px 18px; position: relative;"><span style="position: absolute; left: 0; color: var(--green);">›</span><strong style="color: var(--text);">CPU/memory:</strong> Start at 1 CPU / 1 GiB. Memory grows with concurrent agent state; watch checkpoint table size.</li>
+    </ul>
+  </section>
+
+  <!-- ============== CH 07 ONCALL ============== -->
+  <section id="ch-oncall">
+    <div class="ch-head">
+      <span class="ch-num">CH 07</span>
+      <h2>Oncall &amp; incident response.</h2>
+    </div>
+    <p class="ch-blurb">The five most common alerts you'll see and what to do. Each card: symptoms → check → resolve.</p>
+
+    <div class="incident">
+      <div class="severity">SEV · OPA UNREACHABLE</div>
+      <h4>All policy decisions denying</h4>
+      <p class="symptoms"><strong>Symptoms:</strong> 100% of <code class="mono" style="color:var(--green)">tool_call</code> events show <code class="mono" style="color:var(--green)">decision_allowed=False</code> with <code class="mono" style="color:var(--green)">error_code="opa.unreachable"</code>. Agent latency stays normal — they fail fast.</p>
+      <div class="check">curl -s $EAAP_SECURITY__OPA_URL/health || echo "OPA DOWN"</div>
+      <p class="resolve"><strong>Resolve:</strong> Page the team that operates OPA. Do <em>not</em> flip <code class="mono" style="color:var(--coral)">FAIL_CLOSED=false</code> — that turns enforcement off entirely. Wait it out or roll back the bad OPA bundle.</p>
+    </div>
+
+    <div class="incident">
+      <div class="severity">SEV · LLM RATE LIMITED</div>
+      <h4>LLM calls failing in clusters</h4>
+      <p class="symptoms"><strong>Symptoms:</strong> <code class="mono" style="color:var(--green)">LLMInvocationError</code> rate spike, <code class="mono" style="color:var(--green)">retry_count</code> at the cap, vendor status page shows incident. Latency p99 elevated even when calls succeed (retries running).</p>
+      <div class="check">grep "LLMInvocationError" logs | head -50  # confirm vendor + status</div>
+      <p class="resolve"><strong>Resolve:</strong> If a single tenant is misbehaving, lower their <code class="mono" style="color:var(--green)">DAILY_TOKEN_LIMIT</code>. If vendor-wide, switch the affected agents to a different model via <code class="mono" style="color:var(--green)">EAAP_LLM__DEFAULT_MODEL</code> and let LiteLLM route to a backup provider.</p>
+    </div>
+
+    <div class="incident">
+      <div class="severity">SEV · POSTGRES UNREACHABLE</div>
+      <h4>Checkpoints + budget enforcement broken</h4>
+      <p class="symptoms"><strong>Symptoms:</strong> <code class="mono" style="color:var(--green)">StorageError</code> on agent start. Health probe red. Stateful agents fail; stateless tools may still work.</p>
+      <div class="check">psql "$EAAP_DATABASE__URL" -c "SELECT 1"</div>
+      <p class="resolve"><strong>Resolve:</strong> Page the DB team. Until back, scale stateless workloads only. The SDK's checkpoint saver is fail-loud — agents won't silently lose state.</p>
+    </div>
+
+    <div class="incident">
+      <div class="severity">SEV · MCP SERVER UNHEALTHY</div>
+      <h4>Tools from one MCP server time out</h4>
+      <p class="symptoms"><strong>Symptoms:</strong> <code class="mono" style="color:var(--green)">MCPTransportError</code> rate jump for one <code class="mono" style="color:var(--green)">component_id</code>. Other tools unaffected.</p>
+      <div class="check">curl http://&lt;mcp-server&gt;/health  # most MCP servers expose this</div>
+      <p class="resolve"><strong>Resolve:</strong> Restart the MCP server. The pool reconnects on next acquire. If recurring, raise <code class="mono" style="color:var(--green)">EAAP_MCP__IDLE_TTL_SECONDS</code> or check the server's logs for crashes.</p>
+    </div>
+
+    <div class="incident">
+      <div class="severity">SEV · AUDIT SINK FAILING</div>
+      <h4>No audit events arriving</h4>
+      <p class="symptoms"><strong>Symptoms:</strong> Audit dashboard shows no events for &gt;5 minutes. Agents working fine. Background log line: <code class="mono" style="color:var(--green)">audit.&lt;sink&gt;.record_failed</code>.</p>
+      <div class="check">df -h $EAAP_AUDIT__BUFFER_DIR  # disk full?</div>
+      <p class="resolve"><strong>Resolve:</strong> If buffered file sink: free disk. If Sentry/Datadog: check vendor status. Audit pipeline fails silently by design — agents don't break — but compliance is now accruing debt; treat as P2.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="stamp">postmortem rule</span>Every Sev1 / Sev2 produces a doc with: timeline, root cause, what we'll change. The doc lives in <code>docs/incidents/YYYY-MM-DD-short-name.md</code>. Add a regression test pointing at the failure mode.
+    </div>
+  </section>
+
+  <!-- ============== CH 08 COOKBOOK ============== -->
+  <section id="ch-cookbook">
+    <div class="ch-head">
+      <span class="ch-num">CH 08</span>
+      <h2>Platform cookbook.</h2>
+    </div>
+    <p class="ch-blurb">Common platform-engineering tasks and the smallest sequence that gets them done.</p>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 18px; margin-bottom: 8px;">→ Add a new <code>I*</code> interface</h4>
+      <ol class="steps">
+        <li>Define the abstract base in <code>src/ai_core/di/interfaces.py</code> (or a more specific module). Document return types and exception contracts in the docstring.</li>
+        <li>Implement the production binding alongside (or in its subpackage). Wire it in the relevant DI module (<code>AgentModule</code> / <code>ProductionSecurityModule</code>).</li>
+        <li>Add a <strong>fake</strong> in <code>src/ai_core/testing/fakes.py</code> and bind it in <code>FakeModule</code>.</li>
+        <li>Add a <strong>contract test</strong> in <code>tests/contract/</code> verifying both prod and fake satisfy the interface.</li>
+        <li>Update the table in <strong>CH 03</strong> of this guide. (Yes, really.)</li>
+        <li>Document in CHANGELOG under "Added".</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 18px; margin-bottom: 8px;">→ Add a new audit sink</h4>
+      <ol class="steps">
+        <li>Implement <code>IAuditSink</code> in <code>src/ai_core/audit/&lt;name&gt;.py</code>. Wrap optional imports with <code>ImportError</code> → <code>ConfigurationError(error_code=ErrorCode.CONFIG_OPTIONAL_DEP_MISSING, details={"extra": "&lt;name&gt;"})</code>.</li>
+        <li>Add the optional dep to <code>pyproject.toml</code> under <code>[project.optional-dependencies]</code>.</li>
+        <li>Wire it into the audit fan-out in <code>AgentModule</code> when <code>EAAP_AUDIT__SINKS</code> contains its name.</li>
+        <li><code>record</code> must <strong>never raise</strong> — catch <code>Exception</code>, log a warning, return.</li>
+        <li>Add a unit test that asserts the never-raise contract under a forced backend exception.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 18px; margin-bottom: 8px;">→ Add a new settings group</h4>
+      <ol class="steps">
+        <li>Define a Pydantic <code>BaseSettings</code> subclass in <code>src/ai_core/config/settings.py</code>.</li>
+        <li>Use <code>EAAP_</code> prefix and <code>__</code> nested separator (e.g. <code>EAAP_LLM__DEFAULT_MODEL</code>).</li>
+        <li>Attach to <code>AppSettings</code> as a field with a default factory.</li>
+        <li>Regenerate <code>docs/settings.md</code> via <code>scripts/regen-settings-docs.py</code>.</li>
+        <li>Add an entry to the survival-guide CH 06 env-var block.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 18px; margin-bottom: 8px;">→ Migrate a dependency major version (e.g. LangGraph 1.0)</h4>
+      <ol class="steps">
+        <li><strong>Stage on a feature branch</strong>. Bump the dep range in <code>pyproject.toml</code>; run the test matrix.</li>
+        <li>Identify breakage. Triage by location: internal-only changes are easy; public-surface changes need a deprecation cycle.</li>
+        <li>Migrate internals; keep the public API stable. The whole point of the SDK is that agents don't have to migrate.</li>
+        <li>Add regression tests for any behaviour you discovered while migrating.</li>
+        <li><strong>CHANGELOG entry</strong> describing what changed for agent authors (usually "nothing").</li>
+        <li>Release as a <strong>minor</strong> (not patch) to signal the dep change.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 18px; margin-bottom: 8px;">→ Add a new health probe</h4>
+      <ol class="steps">
+        <li>Implement <code>IHealthProbe</code> in <code>src/ai_core/health/probes.py</code>. <strong>Must complete in &lt;1s.</strong></li>
+        <li>Catch every exception inside <code>probe()</code>; return <code>ProbeResult(status="degraded", details={...})</code> on error. Never raise.</li>
+        <li>Bind it in <code>AgentModule.configure</code>.</li>
+        <li>Add a unit test that forces the underlying call to throw and asserts <code>status != "up"</code>.</li>
+        <li>Verify <code>eaap probe</code> shows it.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============== CH 09 ANTI-PATTERNS ============== -->
+  <section id="ch-anti">
+    <div class="ch-head">
+      <span class="ch-num">CH 09</span>
+      <h2>Anti-patterns.</h2>
+    </div>
+    <p class="ch-blurb">Things that look reasonable in week one and burn you in week six. Block these in code review.</p>
+
+    <div class="anti">
+      <div class="item">
+        <h5>Reading <code>os.environ</code> in SDK code</h5>
+        <p>Settings are typed and validated. Bypassing them means dev/prod parity breaks invisibly.</p>
+        <div class="do">Add to <code>AppSettings</code>; reference via the container.</div>
+      </div>
+      <div class="item">
+        <h5>Catching <code>Exception</code> broadly</h5>
+        <p>Hides <code>BudgetExceededError</code>, <code>PolicyDenialError</code>, and SDK contract errors.</p>
+        <div class="do">Catch the specific SDK exception. <code>EAAPBaseException</code> if you need a category.</div>
+      </div>
+      <div class="item">
+        <h5>Breaking the public surface without deprecation</h5>
+        <p>The contract test catches removals; the surprise lands on agent teams. <strong>Don't.</strong></p>
+        <div class="do">Emit <code>DeprecationWarning</code>, ship a release, then remove next minor.</div>
+      </div>
+      <div class="item">
+        <h5>Adding a dep without an optional-extra guard</h5>
+        <p>Forces every consumer to install your favourite cloud SDK. They won't thank you.</p>
+        <div class="do">Use <code>[project.optional-dependencies]</code> + ImportError → <code>ConfigurationError</code>.</div>
+      </div>
+      <div class="item">
+        <h5>Skipping the contract tests</h5>
+        <p>The contract suite is the social agreement with the business AI team. <strong>Bypassing it breaks trust.</strong></p>
+        <div class="do">Run <code>pytest tests/contract/ -q</code> as part of your normal flow. CI runs it too.</div>
+      </div>
+      <div class="item">
+        <h5>Hand-rolling DI to "make a test simpler"</h5>
+        <p>Test fixtures that build their own container without using <code>FakeModule</code> drift from the real binding pattern.</p>
+        <div class="do">Use <code>Container.build([AgentModule(), FakeModule()])</code> + <code>container.override()</code>.</div>
+      </div>
+      <div class="item">
+        <h5>Logging resolved secrets</h5>
+        <p>The redactor chain catches some patterns; defence-in-depth means avoiding the mistake at the source.</p>
+        <div class="do">Log the <code>SecretRef</code>, never the resolved value.</div>
+      </div>
+      <div class="item">
+        <h5>Putting business logic in the SDK</h5>
+        <p>The SDK serves every agent. Anything specific to one team's domain belongs in their package.</p>
+        <div class="do">Generic primitives only. Opinion belongs in the agent code.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== CH 10 COLLAB ============== -->
+  <section id="ch-collab">
+    <div class="ch-head">
+      <span class="ch-num">CH 10</span>
+      <h2>Working with the AI team.</h2>
+    </div>
+    <p class="ch-blurb">The platform/business contract works only if the relationship works. A short etiquette guide.</p>
+
+    <div class="card">
+      <h4 style="color: var(--cyan); font-size: 17px; margin-bottom: 8px;">Office hours</h4>
+      <p style="color: var(--text-2);">Hold a 30-minute weekly slot for the business AI team to surface friction. Treat the friction list as input to the next sprint, not as a complaint dump.</p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--cyan); font-size: 17px; margin-bottom: 8px;">Feature requests</h4>
+      <p style="color: var(--text-2);">If two agent teams independently ask for the same thing, it's a missing SDK feature. Build it once. If only one team asks, hold the bar — they may be the wrong abstraction looking for help.</p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--cyan); font-size: 17px; margin-bottom: 8px;">Breaking changes</h4>
+      <p style="color: var(--text-2);">Email + Slack + CHANGELOG. Announce one release ahead. Pair-debug with the affected team on the day of upgrade. Never silent.</p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--cyan); font-size: 17px; margin-bottom: 8px;">Don't take their work</h4>
+      <p style="color: var(--text-2);">Tempting to "just write the prompt for them" when an agent isn't behaving. Don't — it dissolves the role boundary and means you'll be on the hook for prompt quality next quarter.</p>
+    </div>
+  </section>
+
+  <!-- ============== CH 11 WHERE THINGS LIVE ============== -->
+  <section id="ch-where">
+    <div class="ch-head">
+      <span class="ch-num">CH 11</span>
+      <h2>Where things live.</h2>
+    </div>
+    <p class="ch-blurb">Everything you'll touch in your first month, indexed.</p>
+
+    <pre class="tree">
+<span class="acc"># Add a tool / type / interface here</span>
+src/ai_core/tools/decorator.py        <span class="cmt"># @tool decorator</span>
+src/ai_core/tools/spec.py             <span class="cmt"># ToolSpec, Tool Protocol</span>
+src/ai_core/tools/invoker.py          <span class="cmt"># 5-stage tool-call pipeline</span>
+src/ai_core/di/interfaces.py          <span class="cmt"># I* abstract base classes</span>
+
+<span class="acc"># Settings &amp; env vars</span>
+src/ai_core/config/settings.py        <span class="cmt"># AppSettings, SecuritySettings, etc.</span>
+src/ai_core/config/secrets.py         <span class="cmt"># SecretRef, ISecretManager</span>
+docs/settings.md                       <span class="cmt"># generated env-var reference</span>
+
+<span class="acc"># Tests &amp; fakes</span>
+src/ai_core/testing/fakes.py          <span class="cmt"># every fake bound by FakeModule</span>
+src/ai_core/testing/conftest.py       <span class="cmt"># shared fixtures</span>
+tests/contract/test_public_surface.py <span class="cmt"># pinned __all__</span>
+
+<span class="acc"># DI &amp; lifecycle</span>
+src/ai_core/di/container.py           <span class="cmt"># Container facade over injector</span>
+src/ai_core/di/module.py              <span class="cmt"># AgentModule, ProductionSecurityModule</span>
+src/ai_core/app/runtime.py            <span class="cmt"># AICoreApp lifecycle</span>
+
+<span class="acc"># CLI &amp; scaffolding</span>
+src/ai_core/cli/main.py               <span class="cmt"># `eaap` entry point</span>
+src/ai_core/cli/templates/            <span class="cmt"># Jinja templates for `eaap new`</span>
+
+<span class="acc"># Other docs</span>
+docs/sdk-engineer-handbook.html       <span class="cmt"># for business AI engineers using the SDK</span>
+docs/sdk-stack-and-lock-in.html       <span class="cmt"># dependency audit for architects</span>
+docs/sdk-leadership-slides.html       <span class="cmt"># 15-slide briefing for tech leadership</span>
+docs/testing.md                        <span class="cmt"># test markers, fixtures, integration setup</span></pre>
+  </section>
+
+  <!-- ============== CH 12 PEOPLE ============== -->
+  <section id="ch-people">
+    <div class="ch-head">
+      <span class="ch-num">CH 12</span>
+      <h2>People &amp; escalation.</h2>
+    </div>
+    <p class="ch-blurb">Who to ask, when. Update this when team structure changes.</p>
+
+    <div class="card">
+      <h4 style="color: var(--green); font-size: 16px; margin-bottom: 6px;">DI / interfaces / new abstractions</h4>
+      <p style="color: var(--text-2); font-size: 14px; margin: 0;">Platform architects. Slack: <code class="mono" style="color: var(--green)">#eaap-platform-arch</code></p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--green); font-size: 16px; margin-bottom: 6px;">Security · OPA · JWT</h4>
+      <p style="color: var(--text-2); font-size: 14px; margin: 0;">Platform security working group. Slack: <code class="mono" style="color: var(--green)">#eaap-security</code></p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--green); font-size: 16px; margin-bottom: 6px;">Observability · OTel · LangFuse</h4>
+      <p style="color: var(--text-2); font-size: 14px; margin: 0;">Platform observability. Slack: <code class="mono" style="color: var(--green)">#eaap-obs</code></p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--green); font-size: 16px; margin-bottom: 6px;">Production incidents · pages</h4>
+      <p style="color: var(--text-2); font-size: 14px; margin: 0;">PagerDuty rotation: <code class="mono" style="color: var(--green)">eaap-platform-oncall</code>. Postmortem in <code class="mono" style="color: var(--green)">docs/incidents/</code>.</p>
+    </div>
+    <div class="card">
+      <h4 style="color: var(--green); font-size: 16px; margin-bottom: 6px;">Business AI team · feature requests</h4>
+      <p style="color: var(--text-2); font-size: 14px; margin: 0;">Office hours: weekly. Slack: <code class="mono" style="color: var(--green)">#eaap-platform-office-hours</code></p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span class="doc-id">EAAP / DOC-PE-001</span>
+    <span>ai-core-sdk · platform engineer survival guide</span>
+    <span>v0.1 · keep open while building</span>
+  </footer>
+
+</div>
+</body>
+</html>
