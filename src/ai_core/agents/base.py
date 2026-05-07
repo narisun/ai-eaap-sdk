@@ -52,8 +52,13 @@ from ai_core.exceptions import (
     ToolExecutionError,
     ToolValidationError,
 )
-from ai_core.mcp.resolver import resolve_mcp_tools
-from ai_core.mcp.tools import MCPToolSpec  # noqa: TC001
+from ai_core.mcp.prompts import MCPPrompt, MCPPromptArgument, MCPPromptMessage
+from ai_core.mcp.resolver import (
+    is_method_not_found,
+    resolve_mcp_resources,
+    resolve_mcp_tools,
+)
+from ai_core.mcp.tools import MCPResourceSpec, MCPToolSpec
 from ai_core.mcp.transports import IMCPConnectionFactory, MCPServerSpec  # noqa: TC001
 from ai_core.observability.logging import bind_context, get_logger, unbind_context
 from ai_core.tools.invoker import ToolInvoker
@@ -396,37 +401,132 @@ class BaseAgent(ABC):
         )
 
     async def _all_tools(self) -> list[Tool | Mapping[str, Any]]:
-        """Return the merged list of local + resolved MCP tools.
+        """Return the merged list of local + resolved MCP tools + resources.
 
         Lazily resolves MCP servers on the first call; caches per-instance.
         Concurrent first-turn callers serialize on `_mcp_resolution_lock`.
 
         Raises:
             MCPTransportError: When a declared MCP server is unreachable.
-            RegistryError: When MCP tool names conflict with each other or
-                with local @tool names.
+            RegistryError: When MCP names conflict with each other or with
+                local @tool names. Conflicts span tools-vs-tools, tools-vs-resources,
+                and any of those vs local @tools.
         """
         if self._mcp_resolved is None:
             async with self._mcp_resolution_lock:
                 if self._mcp_resolved is None:
                     servers = list(self.mcp_servers())
-                    resolved = (
-                        await resolve_mcp_tools(servers, self._mcp_factory)
-                        if servers
-                        else []
-                    )
+                    if servers:
+                        tools_resolved = await resolve_mcp_tools(servers, self._mcp_factory)
+                        resources_resolved = await resolve_mcp_resources(servers, self._mcp_factory)
+                        resolved: list[MCPToolSpec] = (
+                            list(tools_resolved) + list(resources_resolved)
+                        )
+                    else:
+                        resolved = []
                     local_names = {
                         t.name for t in self.tools() if isinstance(t, ToolSpec)
                     }
+                    mcp_names_seen: set[str] = set()
                     for mcp_spec in resolved:
                         if mcp_spec.name in local_names:
+                            kind = "resource" if isinstance(mcp_spec, MCPResourceSpec) else "tool"
                             raise RegistryError(
-                                f"MCP tool name {mcp_spec.name!r} conflicts with a local tool",
+                                f"MCP {kind} name {mcp_spec.name!r} conflicts with a local tool",
                                 details={"tool": mcp_spec.name},
                             )
+                        if mcp_spec.name in mcp_names_seen:
+                            raise RegistryError(
+                                f"MCP name {mcp_spec.name!r} appears in both tools and resources "
+                                f"on declared servers",
+                                details={"name": mcp_spec.name},
+                            )
+                        mcp_names_seen.add(mcp_spec.name)
                         self._tool_invoker.register(mcp_spec)
                     self._mcp_resolved = resolved
         return list(self.tools()) + list(self._mcp_resolved)
+
+    async def list_prompts(self) -> list[MCPPrompt]:
+        """List all prompts across declared MCP servers.
+
+        Fetched fresh each call (no cache — application-invoked patterns vary,
+        consistency matters more than throughput).
+
+        Returns:
+            One MCPPrompt per discovered prompt, with its origin server tagged.
+
+        Raises:
+            RegistryError: When two servers expose prompts with the same name.
+            MCPTransportError: Propagated from the connection factory.
+        """
+        out: list[MCPPrompt] = []
+        seen_names: set[str] = set()
+        for server in self.mcp_servers():
+            async with self._mcp_factory.open(server) as client:
+                try:
+                    prompts = await client.list_prompts()
+                except Exception as exc:  # noqa: BLE001, RUF100 — narrow via predicate
+                    if is_method_not_found(exc):
+                        continue
+                    raise
+            for p in prompts:
+                if p.name in seen_names:
+                    raise RegistryError(
+                        f"MCP prompt name {p.name!r} appears in multiple servers",
+                        details={"name": p.name, "server": server.component_id},
+                    )
+                seen_names.add(p.name)
+                out.append(_to_mcp_prompt(p, server))
+        return out
+
+    async def get_prompt(
+        self,
+        name: str,
+        arguments: Mapping[str, Any] | None = None,
+        *,
+        server: str | None = None,
+    ) -> list[MCPPromptMessage]:
+        """Fetch a templated prompt's messages by name.
+
+        Args:
+            name: The prompt's name (must match what `list_prompts()` returned).
+            arguments: Argument dict to substitute into the template.
+            server: Optional component_id of the server known to host the prompt.
+                When omitted, the agent searches across declared servers (one
+                list_prompts call each until found).
+
+        Round trips: when `server` is provided, exactly two RPCs (one
+        list_prompts to verify, one get_prompt to fetch). When omitted with
+        N declared servers, up to 2N round trips in the worst case (prompt
+        on the last server checked). Use `server=...` for prompt fetches in
+        hot paths.
+
+        Returns:
+            List of MCPPromptMessage instances, ready to splice into
+            ainvoke(messages=...).
+
+        Raises:
+            RegistryError: When the prompt is not found on any declared server.
+            MCPTransportError: Propagated from the connection factory.
+        """
+        for srv in self.mcp_servers():
+            if server is not None and srv.component_id != server:
+                continue
+            async with self._mcp_factory.open(srv) as client:
+                try:
+                    prompts = await client.list_prompts()
+                except Exception as exc:  # noqa: BLE001, RUF100 — narrow via predicate
+                    if is_method_not_found(exc):
+                        continue
+                    raise
+                if not any(p.name == name for p in prompts):
+                    continue
+                result = await client.get_prompt(name, dict(arguments or {}))
+            return [_to_mcp_prompt_message(m) for m in result.messages]
+        raise RegistryError(
+            f"MCP prompt {name!r} not found in any declared server",
+            details={"name": name, "hint_server": server},
+        )
 
     # ------------------------------------------------------------------
     # Routing
@@ -461,6 +561,46 @@ class BaseAgent(ABC):
             if value:
                 ctx = baggage.set_baggage(f"eaap.{key}", str(value), context=ctx)
         return ctx
+
+
+def _to_mcp_prompt(fastmcp_prompt: Any, server: MCPServerSpec) -> MCPPrompt:  # noqa: ANN401
+    """Map a FastMCP `Prompt` to our typed MCPPrompt."""
+    args = tuple(
+        MCPPromptArgument(
+            name=a.name,
+            description=getattr(a, "description", None),
+            required=getattr(a, "required", False),
+        )
+        for a in (getattr(fastmcp_prompt, "arguments", None) or [])
+    )
+    return MCPPrompt(
+        name=fastmcp_prompt.name,
+        description=getattr(fastmcp_prompt, "description", None),
+        arguments=args,
+        mcp_server_spec=server,
+    )
+
+
+def _to_mcp_prompt_message(fastmcp_msg: Any) -> MCPPromptMessage:  # noqa: ANN401
+    """Map a FastMCP `PromptMessage` to our typed MCPPromptMessage.
+
+    PromptMessage.content is a union of TextContent | ImageContent | … .
+    v1 only handles TextContent; other types yield empty content with a
+    debug-level log (parallel to resource binary content suppression in
+    resolver.py).
+    """
+    content_obj = getattr(fastmcp_msg, "content", None)
+    text = ""
+    role = str(fastmcp_msg.role)
+    if content_obj is not None and getattr(content_obj, "type", None) == "text":
+        text = getattr(content_obj, "text", "") or ""
+    elif content_obj is not None:
+        _logger.debug(
+            "mcp.prompt.non_text_content_dropped",
+            role=role,
+            content_type=getattr(content_obj, "type", "unknown"),
+        )
+    return MCPPromptMessage(role=role, content=text)
 
 
 __all__ = ["BaseAgent"]

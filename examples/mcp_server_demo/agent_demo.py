@@ -1,15 +1,14 @@
-"""Agent that uses the demo MCP server's tools end-to-end.
+"""Agent that uses the demo MCP server's documentation resource end-to-end.
 
 Drives a real `BaseAgent` with `mcp_servers()` declaring the local
 `server.py` (spawned as a stdio subprocess by the SDK's connection
-factory). A `ScriptedLLM` emits a tool_call for `echo`; the agent
-runs through the full SDK pipeline (resolution, ToolInvoker, audit)
-and prints the result.
+factory). A `ScriptedLLM` emits a tool_call for the `documentation`
+resource; the agent runs through the full SDK pipeline (resolution,
+ToolInvoker, audit) and prints the result via `unwrap_mcp_tool_message`.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -38,7 +37,7 @@ class MCPAgent(BaseAgent):
     agent_id: str = "mcp-demo-agent"
 
     def system_prompt(self) -> str:
-        return "Repeat the user's message using the echo tool."
+        return "Read the documentation resource to learn what this server provides."
 
     def mcp_servers(self) -> Sequence[MCPServerSpec]:
         return [
@@ -64,20 +63,11 @@ def build_container(llm: ILLMClient) -> Container:
 
 
 def _render_tool_message(msg: object) -> str:
-    """Unwrap MCPToolSpec's `{"value": ...}` envelope when rendering for the demo.
-
-    The SDK's `_MCPPassthroughOutput` wraps tool results so they fit the
-    `output_model.model_validate(...)` contract. Unwrap here so the user-facing
-    output shows the actual tool result, not the wrapper.
-    """
+    """Render a ToolMessage's content using the SDK's unwrap helper."""
+    from ai_core.mcp import unwrap_mcp_tool_message  # noqa: PLC0415
     raw = str(getattr(msg, "content", ""))
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return raw
-    if isinstance(parsed, dict) and "value" in parsed and len(parsed) == 1:
-        return str(parsed["value"])
-    return raw
+    unwrapped = unwrap_mcp_tool_message(raw)
+    return unwrapped if isinstance(unwrapped, str) else str(unwrapped)
 
 
 async def main() -> None:
@@ -89,19 +79,19 @@ async def main() -> None:
                     "id": "call-1",
                     "type": "function",
                     "function": {
-                        "name": "echo",
-                        "arguments": '{"text": "hello from the SDK"}',
+                        "name": "documentation",
+                        "arguments": "{}",
                     },
                 },
             ],
         ),
-        make_llm_response("Echoed successfully."),
+        make_llm_response("Read the docs."),
     ])
     container = build_container(llm)
     async with container as c:
         agent = c.get(MCPAgent)
         final = await agent.ainvoke(
-            messages=[{"role": "user", "content": "say hi"}],
+            messages=[{"role": "user", "content": "what does this server provide?"}],
             tenant_id="demo",
         )
 
@@ -113,7 +103,7 @@ async def main() -> None:
         border_style="green",
     ))
     console.print(
-        "[bold green]Done.[/bold green] Agent invoked the remote MCP echo tool "
+        "[bold green]Done.[/bold green] Agent read the documentation resource "
         "through the full SDK pipeline (resolution + ToolInvoker + audit)."
     )
 

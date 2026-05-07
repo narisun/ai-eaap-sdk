@@ -146,3 +146,41 @@ async def test_mcp_resolution_caches_across_turns() -> None:
     assert len(tool_msgs) == 2
     assert "first" in tool_msgs[0].content
     assert "second" in tool_msgs[1].content
+
+
+async def test_agent_reads_documentation_resource_end_to_end() -> None:
+    """LLM calls the documentation resource → ToolMessage carries the resource text."""
+    llm = ScriptedLLM([
+        make_llm_response(
+            "",
+            tool_calls=[
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {
+                        "name": "documentation",
+                        "arguments": "{}",
+                    },
+                },
+            ],
+        ),
+        make_llm_response("Done."),
+    ])
+    audit = FakeAuditSink()
+    container = _build_container(llm, audit)
+
+    async with container as c:
+        agent = c.get(_MCPDemoAgent)
+        final = await agent.ainvoke(
+            messages=[{"role": "user", "content": "tell me about this server"}],
+            tenant_id="t",
+        )
+
+    msgs = final["messages"]
+    tool_msgs = [m for m in msgs if getattr(m, "type", None) == "tool"]
+    assert len(tool_msgs) == 1
+    # The documentation text must appear inside the tool message content.
+    assert "demo mcp server" in tool_msgs[0].content.lower()
+    # Audit recorded the resource invocation under the resource's name.
+    completed = [r for r in audit.records if r.tool_name == "documentation"]
+    assert len(completed) >= 1

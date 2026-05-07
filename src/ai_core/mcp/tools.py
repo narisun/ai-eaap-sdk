@@ -16,6 +16,7 @@ The handler that actually invokes the remote tool is built in
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -70,4 +71,64 @@ class MCPToolSpec(ToolSpec):
         }
 
 
-__all__ = ["MCPToolSpec"]
+@dataclass(frozen=True, slots=True)
+class MCPResourceSpec(MCPToolSpec):
+    """An MCP resource exposed as a parameter-less read-only tool.
+
+    Phase 12 maps each resource the server advertises via `list_resources()`
+    to one `MCPResourceSpec`. The handler closure (built by the resolver)
+    hardcodes `mcp_resource_uri` and dispatches via `client.read_resource(uri)`.
+
+    Attributes:
+        mcp_resource_uri: The resource's URI (stored as plain str; FastMCP
+            returns `pydantic.AnyUrl` which the resolver casts via `str()`
+            on the way in).
+    """
+
+    mcp_resource_uri: str
+
+    def openai_schema(self) -> dict[str, Any]:
+        """Return the OpenAI function-calling schema with no parameters."""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+
+
+def unwrap_mcp_tool_message(content: str) -> Any:  # noqa: ANN401
+    """Unwrap MCPToolSpec's {"value": ...} envelope from a ToolMessage.content string.
+
+    Returns the inner value when content is a JSON object with exactly one key
+    "value" (the standard MCPToolSpec/MCPResourceSpec envelope). Otherwise
+    returns the parsed JSON, or the raw string if it's not JSON at all.
+
+    Use this to display MCP tool results cleanly in user-facing UIs without
+    re-implementing the unwrap pattern inline.
+
+    Args:
+        content: The `ToolMessage.content` string from an MCP tool dispatch.
+
+    Returns:
+        The unwrapped value, parsed JSON, or raw string.
+
+    Raises:
+        TypeError: If `content` is not a string.
+    """
+    if not isinstance(content, str):
+        raise TypeError(
+            f"unwrap_mcp_tool_message expected str, got {type(content).__name__}"
+        )
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return content
+    if isinstance(parsed, dict) and set(parsed.keys()) == {"value"}:
+        return parsed["value"]
+    return parsed
+
+
+__all__ = ["MCPResourceSpec", "MCPToolSpec", "unwrap_mcp_tool_message"]

@@ -19,6 +19,18 @@ tools, and invoke one.
   server via `mcp_servers()` and uses its tools through the standard
   `ToolInvoker` pipeline (validation, OPA, audit, observability).
 
+## What's also shown (Phase 12)
+
+- **Resource as tool**: the `documentation` resource is exposed to the LLM
+  as a parameter-less read-only tool. `agent_demo.py` shows the LLM calling
+  it; the result flows through the standard `ToolInvoker` pipeline.
+- **Prompt as application helper**: `prompt_demo.py` shows the application-side
+  flow — `agent.list_prompts()` enumerates available prompts; `agent.get_prompt(...)`
+  fetches a templated prompt's messages; the application splices them into
+  `agent.ainvoke(messages=...)`.
+- **`unwrap_mcp_tool_message` helper**: the `agent_demo.py` panel uses this
+  to display the unwrapped tool result (no more `{"value": ...}` envelope visible).
+
 ## Prerequisites
 
 ```bash
@@ -64,6 +76,15 @@ uv run python examples/mcp_server_demo/agent_demo.py
 The agent declares this server via `mcp_servers()`, the SDK resolves
 its tools on the first turn, and `ToolInvoker` dispatches the call
 through the same pipeline as local `@tool`s.
+
+### Run the prompt-demo
+
+```bash
+uv run python examples/mcp_server_demo/prompt_demo.py
+```
+
+The application discovers the server's `summarize_text` prompt, fetches it
+with sample text, and runs the agent over the templated messages.
 
 ## Add your own tool
 

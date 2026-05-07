@@ -27,5 +27,24 @@ def current_time() -> str:
     return datetime.now(tz=UTC).isoformat()
 
 
+@mcp.resource("mcp-demo://documentation")
+def documentation() -> str:
+    """Project documentation — exposed as an MCP resource."""
+    return (
+        "This is the demo MCP server's documentation.\n\n"
+        "It exposes:\n"
+        "  - echo(text): repeat a string\n"
+        "  - current_time(): UTC ISO-8601 timestamp\n"
+        "  - documentation: this resource\n"
+        "  - summarize_text(text): a prompt template"
+    )
+
+
+@mcp.prompt()
+def summarize_text(text: str) -> str:
+    """Generate a summarization prompt for a given text."""
+    return f"Please summarize the following text in one sentence:\n\n{text}"
+
+
 if __name__ == "__main__":
     mcp.run()
