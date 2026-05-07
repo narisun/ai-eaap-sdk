@@ -63,6 +63,7 @@ LiteLLM-fronted LLM proxy configuration.
 | `prompt_cache_enabled` | `bool` | `True` | `EAAP_LLM__PROMPT_CACHE_ENABLED` | When True (default), automatically apply Anthropic cache_control headers to system prompts and stable conversation history. Skipped for non-Anthropic providers and for prompts below the configured thresholds. Set False to disable for tests that require deterministic cache-miss responses. |
 | `prompt_cache_min_messages` | `int` | `6` | `EAAP_LLM__PROMPT_CACHE_MIN_MESSAGES` |  |
 | `prompt_cache_min_tokens` | `int` | `1024` | `EAAP_LLM__PROMPT_CACHE_MIN_TOKENS` |  |
+| `latency_slo_ms` | `UnionType[int, None]` | `None` | `EAAP_LLM__LATENCY_SLO_MS` | LLM call latency SLO threshold in milliseconds. When set and exceeded by an LLM call's wall-time, emits a llm.slo_violated observability event with model/agent/tenant/latency/threshold attributes. None disables the check (default; no event emitted regardless of latency). Distinct from request_timeout_seconds: timeout aborts; SLO is observational. |
 
 ## BudgetSettings (`AppSettings.budget`)
 
@@ -74,6 +75,7 @@ Per-tenant / per-agent budget enforcement.
 | `default_daily_token_limit` | `int` | `1000000` | `EAAP_BUDGET__DEFAULT_DAILY_TOKEN_LIMIT` |  |
 | `default_daily_usd_limit` | `float` | `50.0` | `EAAP_BUDGET__DEFAULT_DAILY_USD_LIMIT` |  |
 | `hard_fail_on_exceeded` | `bool` | `True` | `EAAP_BUDGET__HARD_FAIL_ON_EXCEEDED` |  |
+| `overrides` | `list[BudgetOverride]` | *(factory)* | `EAAP_BUDGET__OVERRIDES` | Per-(tenant, agent) overrides. See BudgetOverride for resolution semantics. Defaults to empty list — global limits apply uniformly. |
 
 ## ObservabilitySettings (`AppSettings.observability`)
 
