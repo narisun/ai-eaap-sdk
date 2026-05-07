@@ -21,7 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -170,6 +170,32 @@ class LLMSettings(BaseSettings):
     prompt_cache_min_tokens: int = Field(default=1024, ge=512)
 
 
+class BudgetOverride(BaseModel):
+    """Per-(tenant, agent) budget override entry.
+
+    Resolution by InMemoryBudgetService is per-field, most-specific-wins:
+
+    1. (tenant_id, agent_id) — both set → exact pair
+    2. (tenant_id, None) — tenant-only — matches all agents under tenant
+    3. (None, agent_id) — agent-only — matches that agent across all tenants
+
+    Each limit field is optional; partial overrides compose with defaults
+    (e.g. an entry that only sets daily_token_limit leaves daily_usd_limit
+    falling through to the global default).
+
+    An entry with both tenant_id=None AND agent_id=None never matches anything
+    (the resolver does not include the all-None candidate). Such entries are
+    silently inert — no validation error at load time, but no effect either.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str | None = None
+    agent_id: str | None = None
+    daily_token_limit: int | None = Field(default=None, ge=0)
+    daily_usd_limit: float | None = Field(default=None, ge=0.0)
+
+
 class BudgetSettings(BaseSettings):
     """Per-tenant / per-agent budget enforcement."""
 
@@ -179,6 +205,13 @@ class BudgetSettings(BaseSettings):
     default_daily_token_limit: int = Field(default=1_000_000, ge=0)
     default_daily_usd_limit: float = Field(default=50.0, ge=0.0)
     hard_fail_on_exceeded: bool = True
+    overrides: list[BudgetOverride] = Field(
+        default_factory=list,
+        description=(
+            "Per-(tenant, agent) overrides. See BudgetOverride for resolution "
+            "semantics. Defaults to empty list — global limits apply uniformly."
+        ),
+    )
 
 
 class ObservabilitySettings(BaseSettings):
