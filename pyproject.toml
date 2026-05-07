@@ -77,7 +77,7 @@ vector-pgvector = [
 ]
 datadog = ["datadog>=0.50,<1.0"]
 sentry = ["sentry-sdk>=1.40,<3.0"]
-testing = ["pytest>=7.0"]
+testing = ["pytest>=7.0", "pytest-asyncio>=0.23.5"]
 dev = [
     "pytest>=8.1.0",
     "pytest-asyncio>=0.23.5",

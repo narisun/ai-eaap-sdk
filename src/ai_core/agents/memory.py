@@ -70,7 +70,13 @@ class LiteLLMTokenCounter:
         normalised = [_msg_to_dict(m) for m in messages]
         try:
             return int(litellm.token_counter(model=model, messages=normalised))
-        except Exception:  # noqa: BLE001 — fall back to character heuristic
+        except Exception as exc:  # noqa: BLE001 — fall back to character heuristic
+            _logger.debug(
+                "token_counter.fallback",
+                model=model,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             approx = sum(len(_msg_content(m)) for m in messages)
             return max(0, approx // 4)
 
