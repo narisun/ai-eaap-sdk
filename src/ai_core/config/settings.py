@@ -168,6 +168,18 @@ class LLMSettings(BaseSettings):
     )
     prompt_cache_min_messages: int = Field(default=6, ge=2)
     prompt_cache_min_tokens: int = Field(default=1024, ge=512)
+    latency_slo_ms: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "LLM call latency SLO threshold in milliseconds. When set and "
+            "exceeded by an LLM call's wall-time, emits a llm.slo_violated "
+            "observability event with model/agent/tenant/latency/threshold "
+            "attributes. None disables the check (default; no event emitted "
+            "regardless of latency). Distinct from request_timeout_seconds: "
+            "timeout aborts; SLO is observational."
+        ),
+    )
 
 
 class BudgetOverride(BaseModel):

@@ -205,6 +205,19 @@ class LiteLLMClient(ILLMClient):
             cost_usd=cost_usd,
             attributes=attributes,
         )
+        # Phase 13: latency SLO alert-only check.
+        slo_ms = self._settings.llm.latency_slo_ms
+        if slo_ms is not None and latency_ms > slo_ms:
+            await self._observability.record_event(
+                "llm.slo_violated",
+                attributes={
+                    "llm.model": resolved_model,
+                    "llm.tenant_id": tenant_id or "",
+                    "llm.agent_id": agent_id or "",
+                    "llm.latency_ms": latency_ms,
+                    "llm.threshold_ms": slo_ms,
+                },
+            )
         await self._budget.record_usage(
             tenant_id=tenant_id,
             agent_id=agent_id,
