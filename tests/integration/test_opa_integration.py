@@ -47,7 +47,7 @@ async def test_opa_reachability_probe_returns_ok_against_real_opa(
     opa_container: DockerContainer,
 ) -> None:
     settings = _make_settings(opa_container)
-    probe = OPAReachabilityProbe(settings)
+    probe = OPAReachabilityProbe(settings.security)
     result = await probe.probe()
     assert result.status == "ok"
     assert result.component == "opa"
@@ -58,7 +58,7 @@ async def test_opa_reachability_probe_honours_custom_health_path(
     opa_container: DockerContainer,
 ) -> None:
     settings = _make_settings(opa_container, opa_health_path="/health")
-    probe = OPAReachabilityProbe(settings)
+    probe = OPAReachabilityProbe(settings.security)
     result = await probe.probe()
     assert result.status == "ok"
 
@@ -78,7 +78,7 @@ async def test_opa_policy_evaluator_evaluates_starter_agent_policy(
     So a tool call that is NOT in the deny list should return allowed=True.
     """
     settings = _make_settings(opa_container)
-    evaluator = OPAPolicyEvaluator(settings)
+    evaluator = OPAPolicyEvaluator(settings.security)
     try:
         decision = await evaluator.evaluate(
             decision_path="eaap/agent/tool_call/allow",
@@ -95,7 +95,7 @@ async def test_opa_policy_evaluator_denies_blocked_tool(
 ) -> None:
     """The starter policy denies tool.name=='delete_everything'."""
     settings = _make_settings(opa_container)
-    evaluator = OPAPolicyEvaluator(settings)
+    evaluator = OPAPolicyEvaluator(settings.security)
     try:
         decision = await evaluator.evaluate(
             decision_path="eaap/agent/tool_call/allow",

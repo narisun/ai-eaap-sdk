@@ -31,7 +31,15 @@ lives in its respective subpackage.
 
 from __future__ import annotations
 
-from ai_core.agents import AgentRuntime, AgentState, BaseAgent, new_agent_state
+from ai_core.agents import (
+    AgentRuntime,
+    AgentState,
+    BaseAgent,
+    SupervisorAgent,
+    TaskInput,
+    TaskOutput,
+    new_agent_state,
+)
 from ai_core.app import AICoreApp, HealthSnapshot
 from ai_core.audit import AuditEvent, AuditRecord, IAuditSink
 from ai_core.exceptions import (
@@ -83,6 +91,9 @@ __all__ = [
     "SchemaValidationError",
     "SecretResolutionError",
     "StorageError",
+    "SupervisorAgent",
+    "TaskInput",
+    "TaskOutput",
     "Tool",
     "ToolExecutionError",
     "ToolSpec",

@@ -62,6 +62,11 @@ class Container:
         # auto_bind is retained for backwards compatibility and is scheduled
         # to be removed in v2.0.
         self.injector: Injector = Injector(modules=list(modules), auto_bind=True)
+        # Self-bind so providers / sub-agents can receive the running
+        # Container without smuggling it through closure state. Used by
+        # AgentResolver for child-agent resolution and by the FastAPI
+        # OPAAuthorization dependency for per-request lookups.
+        self.injector.binder.bind(Container, to=self)
         self._lifecycle_hooks: list[Any] = []
         self._started: bool = False
 

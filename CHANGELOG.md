@@ -4,6 +4,70 @@ All notable changes to `ai-eaap-sdk` are documented here. The format
 roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — Phase 14: agent compositional primitives
+
+First slice of the Phase 14 work: ship higher-level agent patterns
+(supervisor, planner, verifier, harness) as first-class primitives so
+AI engineers can build cutting-edge multi-agent applications without
+hand-rolling LangGraph subgraphs. Each pattern auto-inherits v1's
+cross-cutting concerns (DI, observability, policy, budget, audit, error
+handling).
+
+### Added
+
+- **`ai_core.agents.SupervisorAgent`** — coordinates child
+  `BaseAgent` instances through LLM-driven tool-call routing.
+  Subclasses declare `children() -> Mapping[str, type[BaseAgent]]`;
+  each entry becomes a tool the supervisor's LLM can invoke.
+  Children-as-tools by design: 100 % reuse of `ToolInvoker`'s
+  validation / OPA / audit / observability / `IToolErrorRenderer`
+  pipelines. Each child runs through its own `BaseAgent.ainvoke`,
+  with its own observability span nested under the supervisor's,
+  its own budget binding (same tenant pool, separate agent
+  budget), and OTel baggage propagation tagging delegation flow.
+
+  Default child contract: `TaskInput(task: str, context: str | None)`
+  → `TaskOutput(result: str)`. Hosts override
+  `child_input_schema(name)` / `child_output_schema(name)` /
+  `render_child_input` / `render_child_output` for typed contracts.
+
+- **`ai_core.agents.AgentResolver`** (DI-aware sub-agent resolver) —
+  thin wrapper over `Container.get` so compositional patterns don't
+  smuggle the container into agent code. Provided by
+  `AgentModule.provide_agent_resolver`; the running `Container`
+  self-binds in its constructor.
+
+- **New top-level exports**: `SupervisorAgent`, `TaskInput`,
+  `TaskOutput`. Public surface contract test updated.
+
+- **`AgentRuntime` gains** `agent_resolver: AgentResolver`. Existing
+  `BaseAgent` subclasses that inherited the implicit constructor
+  pass-through unchanged.
+
+- **`Container.__init__`** self-binds via
+  `injector.binder.bind(Container, to=self)` so internal providers
+  (`AgentResolver`, FastAPI integrations) can receive the running
+  container without closure-state hacks.
+
+- **Runnable example** at `examples/supervisor_demo/run.py` —
+  scripted-LLM demonstration with two children (`TriageAgent`,
+  `ResearchAgent`).
+
+### Fixed
+
+- `tests/integration/test_opa_integration.py` was carrying a
+  pre-existing v1 PR #1 regression: `OPAReachabilityProbe` and
+  `OPAPolicyEvaluator` switched to `SecuritySettings` parameters in
+  v1, but the integration test still passed `AppSettings`. CI's
+  `-m "not integration"` filter hid the breakage. Fixed in passing.
+
+### Tests
+
+- 628 passed, 6 Docker-skipped (+11 supervisor unit tests, +2
+  end-to-end component tests covering full DI + LangGraph flow).
+- mypy strict: clean.
+- ruff: clean.
+
 ## [1.0.1] — 2026-05-08
 
 Type-checking and lint cleanup pass on top of v1.0.0. **No behavioural

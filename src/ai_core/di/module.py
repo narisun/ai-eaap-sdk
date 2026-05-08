@@ -23,6 +23,7 @@ from __future__ import annotations
 from injector import Module, multiprovider, provider, singleton
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from ai_core.agents._resolver import AgentResolver
 from ai_core.agents.memory import (
     IMemoryManager,
     LiteLLMTokenCounter,
@@ -45,6 +46,7 @@ from ai_core.config.settings import (
     ObservabilitySettings,
     SecuritySettings,
 )
+from ai_core.di.container import Container
 from ai_core.di.interfaces import (
     IBudgetService,
     ICheckpointSaver,
@@ -488,6 +490,20 @@ class AgentModule(Module):
         """
         return ToolRegistrar(tool_invoker)
 
+    # ----- Agent resolver ---------------------------------------------------
+    @singleton
+    @provider
+    def provide_agent_resolver(self, container: Container) -> AgentResolver:
+        """Return the DI-aware sub-agent resolver.
+
+        Compositional patterns (:class:`SupervisorAgent` and similar)
+        use the resolver to fetch child :class:`BaseAgent` instances at
+        runtime without smuggling the container into agent code. The
+        resolver is a thin facade — overrideable in tests to inject a
+        :class:`FakeAgentResolver`.
+        """
+        return AgentResolver(container)
+
     # ----- Agent runtime ----------------------------------------------------
     @singleton
     @provider
@@ -502,6 +518,7 @@ class AgentModule(Module):
         tool_error_renderer: IToolErrorRenderer,
         tool_resolver: IToolResolver,
         tool_registrar: ToolRegistrar,
+        agent_resolver: AgentResolver,
     ) -> AgentRuntime:
         """Return the bundle of SDK services injected into :class:`BaseAgent`.
 
@@ -520,6 +537,7 @@ class AgentModule(Module):
             tool_error_renderer=tool_error_renderer,
             tool_resolver=tool_resolver,
             tool_registrar=tool_registrar,
+            agent_resolver=agent_resolver,
         )
 
 
