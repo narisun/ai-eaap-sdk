@@ -30,6 +30,7 @@ from ai_core.agents.memory import (
     TokenCounter,
 )
 from ai_core.agents.runtime import AgentRuntime
+from ai_core.agents.tool_errors import DefaultToolErrorRenderer, IToolErrorRenderer
 from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import (
@@ -64,6 +65,9 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.tools.invoker import ToolInvoker
+from ai_core.tools.middleware import ToolMiddleware  # noqa: TC001
+from ai_core.tools.registrar import ToolRegistrar
+from ai_core.tools.resolver import DefaultToolResolver, IToolResolver
 
 
 class AgentModule(Module):
@@ -405,6 +409,19 @@ class AgentModule(Module):
 
     # ----- Tool invoker -----------------------------------------------------
     @singleton
+    @multiprovider
+    def provide_tool_middlewares(self) -> list[ToolMiddleware]:
+        """Default contribution to the :class:`ToolMiddleware` multibind.
+
+        Returns an empty list so the default :class:`ToolInvoker`
+        pipeline runs unwrapped — byte-identical to pre-v1 behaviour.
+        Hosts add their own middlewares by including a :class:`Module`
+        whose ``@multiprovider`` returns a non-empty list; injector
+        concatenates the lists in module-registration order.
+        """
+        return []
+
+    @singleton
     @provider
     def provide_tool_invoker(
         self,
@@ -413,6 +430,7 @@ class AgentModule(Module):
         registry: SchemaRegistry,
         audit: IAuditSink,
         redactor: PayloadRedactor,
+        middlewares: list[ToolMiddleware],
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
         return ToolInvoker(
@@ -421,7 +439,46 @@ class AgentModule(Module):
             registry=registry,
             audit=audit,
             redactor=redactor,
+            middlewares=middlewares,
         )
+
+    # ----- Tool error renderer ---------------------------------------------
+    @singleton
+    @provider
+    def provide_tool_error_renderer(self) -> IToolErrorRenderer:
+        """Default :class:`IToolErrorRenderer` — preserves pre-v1 English text.
+
+        Override this binding to enforce strict failure (raise instead
+        of returning a recovery message), localize text, or redact error
+        details before they flow back to the LLM.
+        """
+        return DefaultToolErrorRenderer()
+
+    # ----- Tool resolver + registrar ---------------------------------------
+    @singleton
+    @provider
+    def provide_tool_resolver(
+        self,
+        mcp_factory: IMCPConnectionFactory,
+        tool_invoker: ToolInvoker,
+    ) -> IToolResolver:
+        """Default :class:`IToolResolver` — pre-v1 MCP-merge behaviour.
+
+        Hosts override this binding to cache MCP resolutions across
+        agents, redact tools by tenant, or stub the MCP backend in
+        tests.
+        """
+        return DefaultToolResolver(mcp_factory, tool_invoker)
+
+    @singleton
+    @provider
+    def provide_tool_registrar(self, tool_invoker: ToolInvoker) -> ToolRegistrar:
+        """Default :class:`ToolRegistrar` — bulk register on the invoker.
+
+        Override the binding to gate registration (e.g. by tenant or
+        feature flag) without touching :meth:`BaseAgent.compile`.
+        """
+        return ToolRegistrar(tool_invoker)
 
     # ----- Agent runtime ----------------------------------------------------
     @singleton
@@ -434,6 +491,9 @@ class AgentModule(Module):
         observability: IObservabilityProvider,
         tool_invoker: ToolInvoker,
         mcp_factory: IMCPConnectionFactory,
+        tool_error_renderer: IToolErrorRenderer,
+        tool_resolver: IToolResolver,
+        tool_registrar: ToolRegistrar,
     ) -> AgentRuntime:
         """Return the bundle of SDK services injected into :class:`BaseAgent`.
 
@@ -449,6 +509,9 @@ class AgentModule(Module):
             observability=observability,
             tool_invoker=tool_invoker,
             mcp_factory=mcp_factory,
+            tool_error_renderer=tool_error_renderer,
+            tool_resolver=tool_resolver,
+            tool_registrar=tool_registrar,
         )
 
 

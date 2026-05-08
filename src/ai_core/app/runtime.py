@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, TypeVar
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.container import Container
-from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
+from ai_core.di.interfaces import IObservabilityProvider  # noqa: TC001  # re-exported via get()
 from ai_core.di.module import AgentModule
 from ai_core.health.interface import HealthStatus, IHealthProbe, ProbeResult
 from ai_core.mcp.registry import ComponentRegistry, RegisteredComponent
@@ -240,6 +240,23 @@ class AICoreApp:
             service_name=self._settings.service_name,
         )
 
+    # ----- Resolution ---------------------------------------------------------
+    def get(self, interface: type[A]) -> A:
+        """Resolve any DI binding through the running container.
+
+        The recommended power-user seam: equivalent to
+        ``app.container.get(IFoo)`` but discoverable on the facade and
+        type-stable across SDK refactors.
+
+        Pre-v1 the facade exposed two ad-hoc properties
+        (``app.policy_evaluator``, ``app.observability``) covering only
+        a slice of the bound interfaces. Those were dropped in v1 in
+        favour of this single accessor — replace
+        ``app.observability`` with ``app.get(IObservabilityProvider)``
+        and ``app.policy_evaluator`` with ``app.get(IPolicyEvaluator)``.
+        """
+        return self._require_container().get(interface)
+
     # ----- Properties ---------------------------------------------------------
     @property
     def settings(self) -> AppSettings:
@@ -249,15 +266,15 @@ class AICoreApp:
 
     @property
     def container(self) -> Container:
+        """Return the underlying DI container.
+
+        Exposed for FastAPI / web-host integrations that need to wire
+        the container into request-scoped dependencies before lifespan
+        startup completes (see :mod:`examples.fastapi_integration`).
+        Most callers should prefer :py:meth:`get` for type-stable
+        resolution.
+        """
         return self._require_container()
-
-    @property
-    def policy_evaluator(self) -> IPolicyEvaluator:
-        return self._require_container().get(IPolicyEvaluator)  # type: ignore[type-abstract]
-
-    @property
-    def observability(self) -> IObservabilityProvider:
-        return self._require_container().get(IObservabilityProvider)  # type: ignore[type-abstract]
 
     # ----- Internal -----------------------------------------------------------
     def _require_container(self) -> Container:

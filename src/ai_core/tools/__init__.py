@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from ai_core.tools.decorator import tool
+from ai_core.tools.factory import make_tool
 from ai_core.tools.invoker import ToolInvoker
 from ai_core.tools.spec import Tool, ToolHandler, ToolSpec
 
-__all__ = ["Tool", "ToolHandler", "ToolInvoker", "ToolSpec", "tool"]
+__all__ = ["Tool", "ToolHandler", "ToolInvoker", "ToolSpec", "make_tool", "tool"]

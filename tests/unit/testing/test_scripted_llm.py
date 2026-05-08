@@ -65,3 +65,36 @@ def test_scripted_llm_init_rejects_empty_responses() -> None:
 def test_scripted_llm_satisfies_illmclient_protocol() -> None:
     llm = ScriptedLLM([make_llm_response()])
     assert isinstance(llm, ILLMClient)
+
+
+@pytest.mark.asyncio
+async def test_astream_yields_single_terminal_chunk_matching_complete() -> None:
+    """ScriptedLLM.astream defaults to one terminal chunk per scripted response."""
+    response = make_llm_response("hello world", finish_reason="stop")
+    llm = ScriptedLLM([response])
+
+    chunks = [c async for c in await llm.astream(model=None, messages=[])]
+
+    assert len(chunks) == 1
+    chunk = chunks[0]
+    assert chunk.delta_content == "hello world"
+    assert chunk.finish_reason == "stop"
+    assert chunk.usage is not None
+    assert chunk.usage.prompt_tokens == response.usage.prompt_tokens
+    # astream uses the same call counter as complete().
+    assert len(llm.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_astream_advances_through_scripted_sequence() -> None:
+    """Each astream() call consumes the next scripted response, like complete()."""
+    llm = ScriptedLLM([
+        make_llm_response("one"),
+        make_llm_response("two"),
+    ])
+
+    first = [c async for c in await llm.astream(model=None, messages=[])]
+    second = [c async for c in await llm.astream(model=None, messages=[])]
+
+    assert first[0].delta_content == "one"
+    assert second[0].delta_content == "two"

@@ -41,11 +41,14 @@ if TYPE_CHECKING:
     from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
     from ai_core.mcp.transports import IMCPConnectionFactory
     from ai_core.tools.invoker import ToolInvoker
+    from ai_core.tools.registrar import ToolRegistrar
+    from ai_core.tools.resolver import IToolResolver
 
-    # IMemoryManager lives in agents.memory; declared lazily to avoid the
-    # import-cycle that would arise if runtime.py loaded memory.py at module
-    # init time (memory.py uses agents.state, which agents.runtime is sibling to).
+    # IMemoryManager and IToolErrorRenderer live in sibling modules under
+    # ai_core.agents.* — declared lazily here to avoid the import cycles that
+    # would arise if runtime.py loaded them at module init time.
     from ai_core.agents.memory import IMemoryManager
+    from ai_core.agents.tool_errors import IToolErrorRenderer
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,15 @@ class AgentRuntime:
         observability: Span + event sink for tracing and metrics.
         tool_invoker: Validated, policy-aware tool dispatcher.
         mcp_factory: Factory that opens MCP server connections lazily.
+        tool_error_renderer: Strategy that turns tool-dispatch failures
+            into ``ToolMessage`` instances for the next LLM turn. Override
+            via DI for strict-failure semantics or localized text.
+        tool_resolver: Strategy for resolving an agent's local tools and
+            declared MCP servers into a single dispatchable list. Default
+            implementation reproduces pre-v1 behaviour.
+        tool_registrar: Strategy for registering local :class:`ToolSpec`
+            instances with the invoker at compile time. Extracted from
+            :meth:`BaseAgent.compile` so graph construction stays pure.
     """
 
     agent_settings: AgentSettings
@@ -68,6 +80,9 @@ class AgentRuntime:
     observability: IObservabilityProvider
     tool_invoker: ToolInvoker
     mcp_factory: IMCPConnectionFactory
+    tool_error_renderer: IToolErrorRenderer
+    tool_resolver: IToolResolver
+    tool_registrar: ToolRegistrar
 
 
 __all__ = ["AgentRuntime"]
