@@ -41,7 +41,7 @@ class SentryAuditSink(IAuditSink):
         sample_rate: float = 1.0,
     ) -> None:
         try:
-            import sentry_sdk  # noqa: PLC0415
+            import sentry_sdk
         except ImportError as exc:
             raise ConfigurationError(
                 "Sentry sink requires the 'sentry' optional dependency. "
@@ -93,7 +93,7 @@ class SentryAuditSink(IAuditSink):
                     "latency_ms": record.latency_ms,
                 },
             }
-            self._sentry_sdk.capture_event(event)  # type: ignore[arg-type]
+            self._sentry_sdk.capture_event(event)
         except Exception as exc:  # audit-sink never-raise contract
             _logger.warning(
                 "audit.sentry.record_failed",

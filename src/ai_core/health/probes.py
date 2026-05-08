@@ -87,7 +87,7 @@ class ModelLookupProbe(IHealthProbe):
 
     async def probe(self) -> ProbeResult:
         try:
-            import litellm.utils  # noqa: PLC0415 — defer optional dep
+            import litellm.utils
 
             params = await asyncio.to_thread(
                 litellm.utils.get_supported_openai_params,  # type: ignore[attr-defined]

@@ -92,7 +92,7 @@ class RealObservabilityProvider(IObservabilityProvider):
     # ------------------------------------------------------------------
     # IObservabilityProvider
     # ------------------------------------------------------------------
-    def start_span(  # type: ignore[override]
+    def start_span(
         self,
         name: str,
         *,
@@ -143,7 +143,7 @@ class RealObservabilityProvider(IObservabilityProvider):
                     },
                     metadata={k: v for k, v in attrs.items() if not k.startswith("llm.")},
                 )
-            except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
+            except Exception as exc:
                 if not self._should_swallow(exc, "record_llm_usage"):
                     raise
 
@@ -165,7 +165,7 @@ class RealObservabilityProvider(IObservabilityProvider):
         if trace_handle is not None:
             try:
                 trace_handle.event(name=name, metadata=attrs)
-            except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
+            except Exception as exc:
                 if not self._should_swallow(exc, "record_event"):
                     raise
 
@@ -174,14 +174,14 @@ class RealObservabilityProvider(IObservabilityProvider):
         if self._langfuse is not None:
             try:
                 self._langfuse.flush()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _logger.warning("LangFuse flush() failed: %s", exc)
         provider = otel_trace.get_tracer_provider()
         shutdown = getattr(provider, "shutdown", None)
         if callable(shutdown):
             try:
                 shutdown()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _logger.warning("OTel TracerProvider shutdown() failed: %s", exc)
 
     # ------------------------------------------------------------------
@@ -203,7 +203,7 @@ class RealObservabilityProvider(IObservabilityProvider):
         # Attempt to start the OTel span; respect fail_open on backend failure.
         try:
             _otel_cm = self._tracer.start_as_current_span(name, attributes=attrs)
-        except Exception as exc:  # noqa: BLE001 — observability boundary, controlled by fail_open
+        except Exception as exc:
             if not self._should_swallow(exc, "start_span"):
                 raise
             # fail_open=True path: yield a no-op fallback so the caller's body still runs.
@@ -241,7 +241,7 @@ class RealObservabilityProvider(IObservabilityProvider):
             )
             try:
                 yield ctx
-            except BaseException as exc:  # noqa: BLE001 — record then re-raise
+            except BaseException as exc:
                 if isinstance(exc, EAAPBaseException):
                     otel_span.set_attribute("eaap.error.code", exc.error_code)
                     for k, v in (exc.details or {}).items():
@@ -250,8 +250,12 @@ class RealObservabilityProvider(IObservabilityProvider):
                 otel_span.record_exception(exc)
                 otel_span.set_status(otel_trace.Status(otel_trace.StatusCode.ERROR, str(exc)))
                 if lf_span is not None:
+                    # Capture the error message before the lambda so ``exc`` does
+                    # not need to live across the implicit ``del exc`` Python
+                    # performs on except-block exit (ruff F821).
+                    err_msg = str(exc)
                     self._safe_lf_call(
-                        lambda: lf_span.end(level="ERROR", status_message=str(exc))
+                        lambda: lf_span.end(level="ERROR", status_message=err_msg)
                     )
                 raise
             else:
@@ -296,7 +300,7 @@ class RealObservabilityProvider(IObservabilityProvider):
                 )
                 new_provider.add_span_processor(BatchSpanProcessor(exporter))
                 installed_exporter = True
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _logger.warning("OTel OTLP exporter setup failed: %s", exc)
 
         # Dev-mode console exporter: only when nothing else is exporting and
@@ -318,7 +322,7 @@ class RealObservabilityProvider(IObservabilityProvider):
         if not isinstance(existing, TracerProvider):
             try:
                 otel_trace.set_tracer_provider(new_provider)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _logger.debug("OTel global TracerProvider install failed: %s", exc)
 
         self._otel_provider = new_provider
@@ -335,7 +339,7 @@ class RealObservabilityProvider(IObservabilityProvider):
                 secret_key=self._cfg.langfuse_secret_key.get_secret_value(),
                 host=str(self._cfg.langfuse_host) if self._cfg.langfuse_host else None,
             )
-        except Exception as exc:  # noqa: BLE001 — degrade rather than crash
+        except Exception as exc:
             _logger.warning("LangFuse init failed; continuing without it: %s", exc)
             return None
 

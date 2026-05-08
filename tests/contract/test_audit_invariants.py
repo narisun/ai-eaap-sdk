@@ -105,14 +105,14 @@ def _construct_sink_with_failing_backend(
         monkeypatch.setitem(sys.modules, "sentry_sdk", fake)
         # Force a fresh import of the sink module so it sees the fake.
         monkeypatch.delitem(sys.modules, "ai_core.audit.sentry", raising=False)
-        from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+        from ai_core.audit.sentry import SentryAuditSink
         return SentryAuditSink(dsn="https://x@x/1")
     if name == "DatadogAuditSink":
         fake = MagicMock()
         fake.api.Event.create.side_effect = RuntimeError("backend-down")
         monkeypatch.setitem(sys.modules, "datadog", fake)
         monkeypatch.delitem(sys.modules, "ai_core.audit.datadog", raising=False)
-        from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+        from ai_core.audit.datadog import DatadogAuditSink
         return DatadogAuditSink(api_key="dd-key")
     pytest.skip(f"No fault-injection harness defined for {name}")
 

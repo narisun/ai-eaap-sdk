@@ -9,7 +9,6 @@ from typer.testing import CliRunner
 
 from ai_core.cli.main import app
 
-
 pytestmark = pytest.mark.unit
 
 

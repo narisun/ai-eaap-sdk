@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from ai_core.schema import SchemaRegistry, export_schemas
 
-
 pytestmark = pytest.mark.unit
 
 

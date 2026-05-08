@@ -14,7 +14,6 @@ from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
 from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
 
-
 pytestmark = pytest.mark.unit
 
 

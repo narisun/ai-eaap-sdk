@@ -142,8 +142,10 @@ def require_authorization(
     ) -> AuthorizedPrincipal:
         # Resolve dependencies fresh per call so that overrides
         # (e.g. a test container with a fake evaluator) take effect.
-        verifier = container.get(JWTVerifier)
-        evaluator = container.get(IPolicyEvaluator)
+        # mypy strict flags ``type[Protocol]`` as abstract, but the DI
+        # container's binding makes the lookup concrete at runtime.
+        verifier = container.get(JWTVerifier)  # type: ignore[type-abstract]
+        evaluator = container.get(IPolicyEvaluator)  # type: ignore[type-abstract]
         settings = container.get(AppSettings)
 
         if credentials is None:
@@ -204,4 +206,4 @@ def require_authorization(
     return _dep
 
 
-__all__ = ["OPAAuthorization", "AuthorizedPrincipal", "require_authorization"]
+__all__ = ["AuthorizedPrincipal", "OPAAuthorization", "require_authorization"]

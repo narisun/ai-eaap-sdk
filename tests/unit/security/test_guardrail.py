@@ -12,7 +12,6 @@ from ai_core.di.interfaces import IPolicyEvaluator, PolicyDecision
 from ai_core.exceptions import PolicyDenialError
 from ai_core.security.guardrail import GuardrailNode
 
-
 pytestmark = pytest.mark.unit
 
 

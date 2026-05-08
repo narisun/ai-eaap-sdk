@@ -26,7 +26,7 @@ class NoOpObservabilityProvider(IObservabilityProvider):
     """
 
     @asynccontextmanager
-    async def _span(  # type: ignore[override]
+    async def _span(
         self,
         name: str,
         attributes: Mapping[str, Any] | None,
@@ -42,7 +42,7 @@ class NoOpObservabilityProvider(IObservabilityProvider):
         finally:  # nothing to flush, but keep the structure for parity
             pass
 
-    def start_span(  # type: ignore[override]
+    def start_span(
         self,
         name: str,
         *,
@@ -62,7 +62,7 @@ class NoOpObservabilityProvider(IObservabilityProvider):
         attributes: Mapping[str, Any] | None = None,
     ) -> None:
         """No-op."""
-        return None
+        return
 
     async def record_event(
         self,
@@ -71,11 +71,11 @@ class NoOpObservabilityProvider(IObservabilityProvider):
         attributes: Mapping[str, Any] | None = None,
     ) -> None:
         """No-op."""
-        return None
+        return
 
     async def shutdown(self) -> None:
         """No-op."""
-        return None
+        return
 
 
 __all__ = ["NoOpObservabilityProvider"]

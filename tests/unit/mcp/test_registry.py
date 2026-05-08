@@ -9,7 +9,6 @@ import pytest
 from ai_core.exceptions import RegistryError
 from ai_core.mcp.registry import ComponentRegistry
 
-
 pytestmark = pytest.mark.unit
 
 

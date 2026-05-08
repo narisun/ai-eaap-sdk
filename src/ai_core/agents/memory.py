@@ -73,13 +73,13 @@ class LiteLLMTokenCounter:
     def count(self, messages: Sequence[Any], *, model: str) -> int:
         normalised = [_msg_to_dict(m) for m in messages]
         try:
-            import litellm  # noqa: PLC0415 — defer optional dep
+            import litellm
         except ImportError:
             approx = sum(len(_msg_content(m)) for m in messages)
             return max(0, approx // 4)
         try:
             return int(litellm.token_counter(model=model, messages=normalised))
-        except Exception as exc:  # noqa: BLE001 — fall back to character heuristic
+        except Exception as exc:
             _logger.debug(
                 "token_counter.fallback",
                 model=model,
@@ -428,9 +428,9 @@ def _trailing_user_assistant_pair(messages: Sequence[Any]) -> list[Any]:
 
 __all__ = [
     "IMemoryManager",
+    "LiteLLMTokenCounter",
     "MemoryManager",
     "TokenCounter",
-    "LiteLLMTokenCounter",
     "to_openai_message",
     "to_openai_messages",
 ]

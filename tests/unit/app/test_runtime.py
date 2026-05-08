@@ -68,7 +68,7 @@ async def test_aenter_runs_validation_and_builds_container(
     fake_observability: FakeObservabilityProvider,
     fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
 ) -> None:
-    from ai_core.di.interfaces import (  # noqa: PLC0415
+    from ai_core.di.interfaces import (
         IObservabilityProvider,
         IPolicyEvaluator,
     )
@@ -254,7 +254,7 @@ async def test_health_snapshot_components_is_read_only(
 @pytest.mark.asyncio
 async def test_health_probe_timeout_marks_probe_down() -> None:
     """A probe that exceeds health.probe_timeout_seconds is marked down."""
-    from ai_core.config.settings import HealthSettings  # noqa: PLC0415
+    from ai_core.config.settings import HealthSettings
 
     class _SlowProbe(IHealthProbe):
         component = "slow"

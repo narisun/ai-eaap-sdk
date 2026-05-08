@@ -30,7 +30,7 @@ POSTGRES_IMAGE = "postgres:16"
 def docker_available() -> bool:
     """Probe the Docker socket; return False if unreachable."""
     try:
-        from testcontainers.core.docker_client import DockerClient  # noqa: PLC0415
+        from testcontainers.core.docker_client import DockerClient
         DockerClient().client.ping()
     except Exception:  # broad catch is intentional — any failure means Docker is unusable
         return False
@@ -43,7 +43,7 @@ def postgres_container(
 ) -> Iterator[PostgresContainer]:
     if not docker_available:
         pytest.skip("Docker not available — integration tests skipped")
-    from testcontainers.postgres import PostgresContainer  # noqa: PLC0415
+    from testcontainers.postgres import PostgresContainer
     with PostgresContainer(POSTGRES_IMAGE) as pg:
         yield pg
 
@@ -54,8 +54,8 @@ def opa_container(
 ) -> Iterator[DockerContainer]:
     if not docker_available:
         pytest.skip("Docker not available — integration tests skipped")
-    from testcontainers.core.container import DockerContainer  # noqa: PLC0415
-    from testcontainers.core.wait_strategies import LogMessageWaitStrategy  # noqa: PLC0415
+    from testcontainers.core.container import DockerContainer
+    from testcontainers.core.wait_strategies import LogMessageWaitStrategy
     container = (
         DockerContainer(OPA_IMAGE)
         .with_command("run --server --addr 0.0.0.0:8181 /policies")

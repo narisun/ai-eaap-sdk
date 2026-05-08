@@ -108,13 +108,13 @@ def _load_entry_points_once() -> None:
     _ENTRY_POINTS_LOADED = True
     try:
         eps = importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP)
-    except Exception as exc:  # noqa: BLE001 — metadata API is best-effort
+    except Exception as exc:
         _logger.debug("audit_sink.entry_points.scan_failed: %s", exc)
         return
     for ep in eps:
         try:
             factory = ep.load()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _logger.warning(
                 "audit_sink.entry_point.load_failed name=%r value=%r error=%s",
                 ep.name, ep.value, exc,
@@ -133,19 +133,19 @@ def _load_entry_points_once() -> None:
 # Built-in factory registrations
 # ---------------------------------------------------------------------------
 def _null_factory(_cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditSink:
-    from ai_core.audit.null import NullAuditSink  # noqa: PLC0415
+    from ai_core.audit.null import NullAuditSink
     return NullAuditSink()
 
 
 def _otel_event_factory(
     _cfg: AuditSettings, observability: IObservabilityProvider
 ) -> IAuditSink:
-    from ai_core.audit.otel_event import OTelEventAuditSink  # noqa: PLC0415
+    from ai_core.audit.otel_event import OTelEventAuditSink
     return OTelEventAuditSink(observability)
 
 
 def _jsonl_factory(cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditSink:
-    from ai_core.audit.jsonl import JsonlFileAuditSink  # noqa: PLC0415
+    from ai_core.audit.jsonl import JsonlFileAuditSink
     if cfg.jsonl_path is None:
         raise ConfigurationError(
             "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
@@ -155,7 +155,7 @@ def _jsonl_factory(cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditSi
 
 
 def _sentry_factory(cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditSink:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     if cfg.sentry_dsn is None:
         raise ConfigurationError(
             "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
@@ -170,7 +170,7 @@ def _sentry_factory(cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditS
 
 
 def _datadog_factory(cfg: AuditSettings, _obs: IObservabilityProvider) -> IAuditSink:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     if cfg.datadog_api_key is None:
         raise ConfigurationError(
             "audit.sink_type='datadog' requires audit.datadog_api_key to be set",

@@ -10,7 +10,7 @@ every invocation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ai_core.exceptions import RegistryError, ToolExecutionError
 from ai_core.mcp.tools import (
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ai_core.mcp.transports import IMCPConnectionFactory
+    from ai_core.tools.spec import ToolHandler
 
 _logger = get_logger(__name__)
 
@@ -45,7 +46,7 @@ def is_method_not_found(exc: BaseException) -> bool:
 
     Centralized here so a single line changes if FastMCP's exception shape evolves.
     """
-    from mcp.shared.exceptions import McpError  # noqa: PLC0415 — defer FastMCP import
+    from mcp.shared.exceptions import McpError
     return isinstance(exc, McpError) and exc.error.code == _JSONRPC_METHOD_NOT_FOUND
 
 
@@ -89,7 +90,7 @@ async def resolve_mcp_tools(
 
 def _build_mcp_tool_spec(
     server: MCPServerSpec,
-    fastmcp_tool: Any,  # noqa: ANN401 — intentionally untyped; FastMCP tool shape
+    fastmcp_tool: Any,
     factory: IMCPConnectionFactory,
 ) -> MCPToolSpec:
     """Construct an MCPToolSpec wrapping a closure handler that calls the remote tool.
@@ -141,13 +142,16 @@ def _build_mcp_tool_spec(
         )
 
     _input_schema = getattr(fastmcp_tool, "inputSchema", None)
+    # ToolHandler is `Callable[[BaseModel], Awaitable[BaseModel]]`; the
+    # _handler closure is more narrowly typed via the MCP passthrough
+    # models. Cast at the boundary so the contravariance check passes.
     return MCPToolSpec(
         name=tool_name,
         version=1,
         description=fastmcp_tool.description or "",
         input_model=_MCPPassthroughInput,
         output_model=_MCPPassthroughOutput,
-        handler=_handler,
+        handler=cast("ToolHandler", _handler),
         opa_path=server.opa_decision_path,
         mcp_server_spec=server,
         mcp_input_schema=(
@@ -157,7 +161,7 @@ def _build_mcp_tool_spec(
     )
 
 
-def _join_text_content(content: Any) -> str:  # noqa: ANN401 — heterogeneous content list
+def _join_text_content(content: Any) -> str:
     """Join text-bearing content items into a single string."""
     return "\n".join(c.text for c in content if hasattr(c, "text"))
 
@@ -213,7 +217,7 @@ async def resolve_mcp_resources(
 
 def _build_mcp_resource_spec(
     server: MCPServerSpec,
-    fastmcp_resource: Any,  # noqa: ANN401 — FastMCP resource shape is duck-typed
+    fastmcp_resource: Any,
     factory: IMCPConnectionFactory,
 ) -> MCPResourceSpec:
     """Construct an MCPResourceSpec wrapping a closure handler that reads the resource.
@@ -264,7 +268,7 @@ def _build_mcp_resource_spec(
         description=description,
         input_model=_MCPPassthroughInput,
         output_model=_MCPPassthroughOutput,
-        handler=_handler,
+        handler=cast("ToolHandler", _handler),
         opa_path=server.opa_decision_path,
         mcp_server_spec=server,
         mcp_input_schema={"type": "object", "properties": {}},

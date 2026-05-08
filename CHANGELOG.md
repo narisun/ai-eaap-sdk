@@ -4,6 +4,70 @@ All notable changes to `ai-eaap-sdk` are documented here. The format
 roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] — 2026-05-08
+
+Type-checking and lint cleanup pass on top of v1.0.0. **No behavioural
+changes**; the wheel built from this commit is byte-functional with
+the v1.0.0 wheel for SDK consumers.
+
+### Fixed
+
+- `ai_core.observability.real`: `lf_span.end(status_message=str(exc))`
+  closure-on-`exc` issue. The lambda captured `exc` from an
+  `except` block; Python clears `except as exc` bindings on
+  block-exit, so the deferred lambda would raise `NameError` if
+  `_safe_lf_call` ever moved to async-deferred execution. Captures
+  `err_msg = str(exc)` ahead of the lambda. Caught by ruff
+  `F821` and verified.
+- `ai_core.persistence.langgraph_checkpoint`: `aput` / `aget_tuple` /
+  `alist` / `aput_writes` parameter and return-type annotations
+  switched from `dict[str, Any]` to `RunnableConfig` so they no
+  longer violate the Liskov substitution principle against
+  LangGraph's `BaseCheckpointSaver`.
+- `ai_core.agents.base._tool_node`: coerce LLM-supplied
+  `tool_call.id` / `tool_call.name` to `str` before passing to the
+  `IToolErrorRenderer`. Prevents a `TypeError` if a misbehaving
+  provider returns `None` for either field.
+- `ai_core.di.interfaces.ILLMClient.astream`: declared `async def`
+  to match the implementations in `LiteLLMClient` and
+  `ScriptedLLM`. Existing call shape (`await llm.astream(...)`
+  followed by `async for chunk in stream:`) is unchanged.
+- `ai_core.cli.main._jinja_env`: explicit `# noqa: S701` with
+  rationale — the scaffold subcommand renders Python source files,
+  not HTML, so HTML autoescape would mangle generated code.
+
+### Build
+
+- `pyproject.toml`: removed the redundant
+  `[tool.hatch.build.targets.wheel.force-include]` block. The
+  `packages = ["src/ai_core"]` directive already includes
+  `cli/templates/`; listing them in force-include duplicated paths
+  inside the wheel zip and emitted "Duplicate name" warnings on
+  every build.
+- `ai_core.__version__` now derives from
+  `importlib.metadata.version("ai-eaap-sdk")` (already in v1.0.0
+  re-cut, recapped here for the changelog record).
+
+### Tooling
+
+- `pyproject.toml` ruff ignore list expanded for our deliberate
+  patterns: `PLC0415` (lazy imports for optional extras), `B008`
+  (Pydantic `Field(default_factory=...)` and FastAPI `Depends`),
+  `ANN401` (`Any` at untyped third-party boundaries). Reduces
+  noise without weakening real checks.
+- `pyproject.toml` mypy overrides extended to include
+  `sentry_sdk.*` and `datadog.*`; both ship without stubs.
+- 132 ruff auto-fixes applied (unused `# noqa` comments, trivial
+  re-ordering, etc.). Tests untouched.
+- 36 mypy strict errors fixed. `mypy src` is now **clean** —
+  "Success: no issues found in 84 source files".
+
+### Tests
+
+- 611 passed, 6 Docker-skipped — same as v1.0.0.
+
+[1.0.1]: https://github.com/narisun/ai-eaap-sdk/releases/tag/v1.0.1
+
 ## [1.0.0] — 2026-05-08
 
 First production-ready release. Bundles Phase 13 cost/latency hardening

@@ -88,8 +88,11 @@ def _write_file(target: Path, content: str, *, force: bool) -> bool:
 
 
 def _jinja_env() -> Environment:
+    # autoescape is intentionally False: templates render Python source files
+    # for the scaffold subcommand, not HTML. HTML autoescape would mangle
+    # generated code (e.g. converting `<` to `&lt;` in type annotations).
     return Environment(
-        autoescape=False,
+        autoescape=False,  # noqa: S701
         keep_trailing_newline=True,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -326,7 +329,7 @@ def _populate_registry_from_file(
         added = True
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 — surface any user-import error
+    except Exception as exc:
         raise typer.BadParameter(
             f"Failed to import {module_path}: {type(exc).__name__}: {exc}"
         ) from exc

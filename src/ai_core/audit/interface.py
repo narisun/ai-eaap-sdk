@@ -12,11 +12,10 @@ its failure must not block the calling pipeline.
 from __future__ import annotations
 
 import enum
-from typing import Protocol, runtime_checkable
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 
 class AuditEvent(enum.StrEnum):

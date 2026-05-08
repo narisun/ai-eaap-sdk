@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 from ai_core.exceptions import SchemaValidationError
 from ai_core.schema import SchemaRegistry
 
-
 pytestmark = pytest.mark.unit
 
 

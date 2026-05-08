@@ -12,7 +12,6 @@ from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container, IStorageProvider
 from ai_core.exceptions import DependencyResolutionError
 
-
 pytestmark = pytest.mark.unit
 
 

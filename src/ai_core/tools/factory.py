@@ -170,13 +170,13 @@ def _resolve_payload_types(
 
     if any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in all_params):
         raise TypeError(
-            f"make_tool() handler must not use *args. "
-            f"Tools accept a single payload object."
+            "make_tool() handler must not use *args. "
+            "Tools accept a single payload object."
         )
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in all_params):
         raise TypeError(
-            f"make_tool() handler must not use **kwargs. "
-            f"Tools accept a single payload object."
+            "make_tool() handler must not use **kwargs. "
+            "Tools accept a single payload object."
         )
     kw_only = [p for p in all_params if p.kind is inspect.Parameter.KEYWORD_ONLY]
     if kw_only:

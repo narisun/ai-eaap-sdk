@@ -11,7 +11,6 @@ from ai_core.config.settings import AppSettings
 from ai_core.exceptions import PolicyDenialError
 from ai_core.security.jwt import HS256JWTVerifier, UnverifiedJWTDecoder
 
-
 pytestmark = pytest.mark.unit
 
 

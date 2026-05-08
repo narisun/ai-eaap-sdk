@@ -189,7 +189,7 @@ class SchemaRegistry:
 
     def __contains__(self, key: object) -> bool:
         if isinstance(key, tuple) and len(key) == 2:
-            return cast(tuple, key) in self._records
+            return cast("tuple[str, SchemaVersion]", key) in self._records
         return False
 
     def __len__(self) -> int:
@@ -250,11 +250,11 @@ class SchemaRegistry:
                 async def _async_wrapper(payload: Any, /, *args: Any, **kwargs: Any) -> Any:
                     parsed = _parse_input(record, payload)
                     raw_result = await cast(
-                        Callable[..., Awaitable[Any]], func
+                        "Callable[..., Awaitable[Any]]", func
                     )(parsed, *args, **kwargs)
                     return _validate_output(record, raw_result)
 
-                return cast(_F, _async_wrapper)
+                return cast("_F", _async_wrapper)
 
             @functools.wraps(func)
             def _sync_wrapper(payload: Any, /, *args: Any, **kwargs: Any) -> Any:
@@ -262,7 +262,7 @@ class SchemaRegistry:
                 raw_result = func(parsed, *args, **kwargs)
                 return _validate_output(record, raw_result)
 
-            return cast(_F, _sync_wrapper)
+            return cast("_F", _sync_wrapper)
 
         return _decorator
 
@@ -308,4 +308,4 @@ def _validate_output(record: SchemaRecord, value: Any) -> BaseModel:
         ) from exc
 
 
-__all__ = ["SchemaRegistry", "SchemaRecord", "SchemaVersion"]
+__all__ = ["SchemaRecord", "SchemaRegistry", "SchemaVersion"]

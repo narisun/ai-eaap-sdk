@@ -140,4 +140,4 @@ class UnverifiedJWTDecoder(JWTVerifier):
         return claims
 
 
-__all__ = ["JWTVerifier", "HS256JWTVerifier", "UnverifiedJWTDecoder"]
+__all__ = ["HS256JWTVerifier", "JWTVerifier", "UnverifiedJWTDecoder"]

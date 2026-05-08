@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from injector import Module, provider, singleton
 
 from ai_core.config.settings import AppSettings
-from ai_core.di import Container, AgentModule
+from ai_core.di import AgentModule, Container
 from ai_core.di.interfaces import IPolicyEvaluator, PolicyDecision
 from ai_core.security import (
     AuthorizedPrincipal,
@@ -21,7 +21,6 @@ from ai_core.security import (
     JWTVerifier,
     OPAAuthorization,
 )
-
 
 pytestmark = pytest.mark.unit
 

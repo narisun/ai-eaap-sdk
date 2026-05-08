@@ -226,9 +226,9 @@ class Container:
         # cycles when the container is built without these bindings.
         from sqlalchemy.ext.asyncio import AsyncEngine
 
-        from ai_core.audit import IAuditSink  # noqa: PLC0415
+        from ai_core.audit import IAuditSink
         from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
-        from ai_core.mcp.transports import IMCPConnectionFactory  # noqa: PLC0415
+        from ai_core.mcp.transports import IMCPConnectionFactory
 
         steps: list[tuple[str, type[Any], tuple[str, ...]]] = [
             ("observability.shutdown", IObservabilityProvider, ("shutdown",)),
@@ -269,7 +269,7 @@ class Container:
             result = method()
             if inspect.isawaitable(result):
                 await result
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if swallow:
                 _logger.warning("Lifecycle %s failed: %s", descriptor, exc)
                 return

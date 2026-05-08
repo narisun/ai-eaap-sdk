@@ -90,7 +90,7 @@ def configure(
     )
 
 
-def bind_context(**kwargs: Any) -> dict[str, contextvars.Token[Any]]:  # noqa: ANN401
+def bind_context(**kwargs: Any) -> dict[str, contextvars.Token[Any]]:
     """Bind ``kwargs`` as ContextVar fields visible on every log line.
 
     Returns a token-map; pass it to :func:`unbind_context` to release.

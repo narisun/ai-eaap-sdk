@@ -110,10 +110,10 @@ class _AgentWithMCP(BaseAgent):
 # ---- Helpers --------------------------------------------------------------------
 def _build_agent(agent_cls, factory) -> BaseAgent:
     """Construct an agent with mostly-no-op deps; only mcp_factory matters here."""
-    from ai_core.agents.runtime import AgentRuntime  # noqa: PLC0415
-    from ai_core.agents.tool_errors import DefaultToolErrorRenderer  # noqa: PLC0415
-    from ai_core.tools.registrar import ToolRegistrar  # noqa: PLC0415
-    from ai_core.tools.resolver import DefaultToolResolver  # noqa: PLC0415
+    from ai_core.agents.runtime import AgentRuntime
+    from ai_core.agents.tool_errors import DefaultToolErrorRenderer
+    from ai_core.tools.registrar import ToolRegistrar
+    from ai_core.tools.resolver import DefaultToolResolver
     invoker = ToolInvoker(observability=MagicMock())
     runtime = AgentRuntime(
         agent_settings=AppSettings(service_name="test", environment="local").agent,

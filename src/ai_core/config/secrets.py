@@ -120,4 +120,4 @@ class EnvSecretManager(ISecretManager):
             ) from exc
 
 
-__all__ = ["SecretRef", "ISecretManager", "EnvSecretManager"]
+__all__ = ["EnvSecretManager", "ISecretManager", "SecretRef"]

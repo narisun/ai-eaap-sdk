@@ -67,8 +67,8 @@ class ToolInvoker:
         redactor: PayloadRedactor | None = None,
         middlewares: Sequence[ToolMiddleware] = (),
     ) -> None:
-        from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
-        from ai_core.audit.null import NullAuditSink as _NullAuditSink  # noqa: PLC0415
+        from ai_core.audit.interface import _identity_redactor
+        from ai_core.audit.null import NullAuditSink as _NullAuditSink
         self._observability = observability
         self._policy = policy
         self._registry = registry
@@ -258,7 +258,7 @@ class ToolInvoker:
                     "tool.completed",
                     attributes={**attrs, "latency_ms": latency_ms},
                 )
-            except Exception as exc:  # noqa: BLE001 — observability boundary; never fail the tool result
+            except Exception as exc:
                 _logger.warning(
                     "tool.completed_event_failed",
                     tool_name=spec.name, agent_id=agent_id, tenant_id=tenant_id,

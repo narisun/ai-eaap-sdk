@@ -9,4 +9,4 @@ from ai_core.schema.registry import (
     SchemaVersion,
 )
 
-__all__ = ["SchemaRegistry", "SchemaRecord", "SchemaVersion", "export_schemas"]
+__all__ = ["SchemaRecord", "SchemaRegistry", "SchemaVersion", "export_schemas"]

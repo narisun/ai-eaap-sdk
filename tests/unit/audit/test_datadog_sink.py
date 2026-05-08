@@ -44,7 +44,7 @@ def _record(
 def test_init_calls_datadog_initialize_with_api_key_and_site(
     fake_datadog: MagicMock,
 ) -> None:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(
         api_key="dd-api-1",
         app_key="dd-app-1",
@@ -64,7 +64,7 @@ def test_init_calls_datadog_initialize_with_api_key_and_site(
 async def test_record_emits_event_create_with_info_alert_type(
     fake_datadog: MagicMock,
 ) -> None:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(api_key="k")
     await sink.record(_record(decision_allowed=True))
     fake_datadog.api.Event.create.assert_called_once()
@@ -76,7 +76,7 @@ async def test_record_emits_event_create_with_info_alert_type(
 async def test_record_emits_warning_alert_type_for_denied(
     fake_datadog: MagicMock,
 ) -> None:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(api_key="k")
     await sink.record(_record(decision_allowed=False))
     kwargs = fake_datadog.api.Event.create.call_args.kwargs
@@ -85,7 +85,7 @@ async def test_record_emits_warning_alert_type_for_denied(
 
 @pytest.mark.asyncio
 async def test_record_includes_event_tags(fake_datadog: MagicMock) -> None:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(api_key="k", environment="prod")
     await sink.record(_record(decision_allowed=True))
     kwargs = fake_datadog.api.Event.create.call_args.kwargs
@@ -103,14 +103,14 @@ async def test_record_swallows_exception_from_event_create(
     fake_datadog: MagicMock,
 ) -> None:
     fake_datadog.api.Event.create.side_effect = RuntimeError("backend down")
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(api_key="k")
     await sink.record(_record())  # must not raise
 
 
 @pytest.mark.asyncio
 async def test_flush_is_noop(fake_datadog: MagicMock) -> None:
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     sink = DatadogAuditSink(api_key="k")
     await sink.flush()
     # Datadog has no flush API; the sink's flush is a no-op.
@@ -123,7 +123,7 @@ def test_missing_datadog_raises_configuration_error_with_extra_detail(
     monkeypatch.setitem(sys.modules, "datadog", None)
     if "ai_core.audit.datadog" in sys.modules:
         del sys.modules["ai_core.audit.datadog"]
-    from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
+    from ai_core.audit.datadog import DatadogAuditSink
     with pytest.raises(ConfigurationError) as exc:
         DatadogAuditSink(api_key="k")
     assert exc.value.error_code == "config.optional_dep_missing"
@@ -133,9 +133,9 @@ def test_missing_datadog_raises_configuration_error_with_extra_detail(
 def test_provide_audit_sink_datadog_without_api_key_raises_configuration_error(
     fake_datadog: MagicMock,
 ) -> None:
-    from ai_core.config.settings import AppSettings  # noqa: PLC0415
-    from ai_core.di.interfaces import IObservabilityProvider  # noqa: PLC0415
-    from ai_core.di.module import AgentModule  # noqa: PLC0415
+    from ai_core.config.settings import AppSettings
+    from ai_core.di.interfaces import IObservabilityProvider
+    from ai_core.di.module import AgentModule
 
     settings = AppSettings()
     settings.audit.sink_type = "datadog"  # type: ignore[assignment]
