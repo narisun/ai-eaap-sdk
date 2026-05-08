@@ -6,7 +6,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import httpx
-import litellm.utils
 from sqlalchemy import text
 
 from ai_core.health.interface import IHealthProbe, ProbeResult
@@ -88,6 +87,8 @@ class ModelLookupProbe(IHealthProbe):
 
     async def probe(self) -> ProbeResult:
         try:
+            import litellm.utils  # noqa: PLC0415 — defer optional dep
+
             params = await asyncio.to_thread(
                 litellm.utils.get_supported_openai_params,  # type: ignore[attr-defined]
                 self._model,

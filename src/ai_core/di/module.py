@@ -54,8 +54,8 @@ from ai_core.di.interfaces import (
     IPolicyEvaluator,
 )
 from ai_core.health import IHealthProbe  # noqa: TC001
+from ai_core.llm._raise import RaiseOnUseLLMClient
 from ai_core.llm.budget import InMemoryBudgetService
-from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
 from ai_core.mcp.transports import IMCPConnectionFactory, PoolingMCPConnectionFactory
 from ai_core.observability.real import RealObservabilityProvider
@@ -189,14 +189,21 @@ class AgentModule(Module):
     # ----- LLM client -------------------------------------------------------
     @singleton
     @provider
-    def provide_llm_client(
-        self,
-        llm_settings: LLMSettings,
-        budget: IBudgetService,
-        observability: IObservabilityProvider,
-    ) -> ILLMClient:
-        """Return the LiteLLM-backed client singleton."""
-        return LiteLLMClient(llm_settings, budget, observability)
+    def provide_llm_client(self) -> ILLMClient:
+        """Bind the raise-on-use default :class:`ILLMClient`.
+
+        Hosts that want the LiteLLM-backed adapter compose
+        :class:`ai_core.llm.LiteLLMModule` alongside this module — the
+        last binding wins, so :class:`LiteLLMClient` overrides this
+        stub. Hosts with their own LLM stack bind their own
+        :class:`ILLMClient` implementation in a custom module.
+
+        Tests that exercise non-LLM behaviour use
+        :class:`ai_core.testing.ScriptedLLM`, which also overrides this
+        binding via its own :class:`Module` and avoids requiring the
+        ``[litellm]`` extra.
+        """
+        return RaiseOnUseLLMClient()
 
     # ----- Token counter + memory manager -----------------------------------
     @singleton
