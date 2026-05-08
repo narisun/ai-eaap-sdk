@@ -46,6 +46,7 @@ from ai_core.config.settings import (
 from ai_core.di.interfaces import (
     IBudgetService,
     ICheckpointSaver,
+    ICompactionLLM,
     ILLMClient,
     IObservabilityProvider,
     IPolicyEvaluator,
@@ -197,15 +198,27 @@ class AgentModule(Module):
 
     @singleton
     @provider
+    def provide_compaction_llm(self, llm: ILLMClient) -> ICompactionLLM:
+        """Default :class:`ICompactionLLM` aliases the request LLM client.
+
+        Override this binding (or supply a layered :class:`Module`) when
+        you want compaction to use a cheaper/faster model than agent
+        reasoning. Both interfaces are structurally identical, so any
+        :class:`ILLMClient` implementation satisfies :class:`ICompactionLLM`.
+        """
+        return llm  # type: ignore[return-value]  # ILLMClient structurally satisfies ICompactionLLM
+
+    @singleton
+    @provider
     def provide_memory_manager(
         self,
         agent_settings: AgentSettings,
         llm_settings: LLMSettings,
-        llm: ILLMClient,
+        compaction_llm: ICompactionLLM,
         counter: TokenCounter,
     ) -> MemoryManager:
         """Return the concrete :class:`MemoryManager` singleton."""
-        return MemoryManager(agent_settings, llm_settings, llm, counter)
+        return MemoryManager(agent_settings, llm_settings, compaction_llm, counter)
 
     @singleton
     @provider

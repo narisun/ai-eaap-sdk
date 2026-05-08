@@ -167,6 +167,33 @@ class LLMResponse:
 
 
 @runtime_checkable
+class ICompactionLLM(Protocol):
+    """Distinct LLM client used by :class:`MemoryManager` for summarisation.
+
+    Structurally identical to :class:`ILLMClient` but bound separately so
+    deployments can route compaction to a cheaper / faster model than the
+    one that drives agent reasoning. The default :class:`AgentModule`
+    binding aliases :class:`ICompactionLLM` to the request :class:`ILLMClient`,
+    so behaviour is unchanged unless the host overrides the binding.
+    """
+
+    async def complete(
+        self,
+        *,
+        model: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+        extra: Mapping[str, Any] | None = None,
+    ) -> LLMResponse:
+        """Generate a completion. See :meth:`ILLMClient.complete`."""
+        ...
+
+
+@runtime_checkable
 class ILLMClient(Protocol):
     """LiteLLM-backed completion client with budgeting + retries.
 
@@ -321,16 +348,17 @@ class IComponent(Protocol):
 
 
 __all__ = [
-    "IStorageProvider",
-    "IObservabilityProvider",
-    "SpanContext",
-    "ILLMClient",
-    "LLMResponse",
-    "LLMUsage",
-    "IBudgetService",
     "BudgetCheck",
-    "IPolicyEvaluator",
-    "PolicyDecision",
+    "IBudgetService",
     "ICheckpointSaver",
     "IComponent",
+    "ICompactionLLM",
+    "ILLMClient",
+    "IObservabilityProvider",
+    "IPolicyEvaluator",
+    "IStorageProvider",
+    "LLMResponse",
+    "LLMUsage",
+    "PolicyDecision",
+    "SpanContext",
 ]

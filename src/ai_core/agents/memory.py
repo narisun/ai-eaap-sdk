@@ -43,7 +43,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from ai_core.agents.state import AgentState
 from ai_core.config.settings import AgentSettings, LLMSettings
-from ai_core.di.interfaces import ILLMClient
+from ai_core.di.interfaces import ICompactionLLM
 from ai_core.exceptions import LLMTimeoutError
 from ai_core.observability.logging import get_logger
 
@@ -144,7 +144,9 @@ class MemoryManager:  # implements IMemoryManager Protocol structurally
             target tokens, timeout, essential entity keys).
         llm_settings: LLM configuration — only ``default_model`` is consumed
             so token counting and compaction can default consistently.
-        llm: LLM client used by the summarization chain.
+        llm: Compaction LLM client used by the summarization chain. Bound
+            separately from the request :class:`ILLMClient` so deployments
+            can route compaction to a cheaper model.
         token_counter: Token counter used by :meth:`should_compact`.
     """
 
@@ -153,7 +155,7 @@ class MemoryManager:  # implements IMemoryManager Protocol structurally
         self,
         agent_settings: AgentSettings,
         llm_settings: LLMSettings,
-        llm: ILLMClient,
+        llm: ICompactionLLM,
         token_counter: TokenCounter,
     ) -> None:
         self._agent_cfg = agent_settings
