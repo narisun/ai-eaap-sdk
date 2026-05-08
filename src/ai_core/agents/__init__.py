@@ -11,6 +11,7 @@ from ai_core.agents.memory import (
 )
 from ai_core.agents.runtime import AgentRuntime
 from ai_core.agents.state import AgentState, EssentialEntities, new_agent_state
+from ai_core.agents.supervisor import SupervisorAgent, TaskInput, TaskOutput
 
 __all__ = [
     "AgentRuntime",
@@ -20,6 +21,9 @@ __all__ = [
     "IMemoryManager",
     "LiteLLMTokenCounter",
     "MemoryManager",
+    "SupervisorAgent",
+    "TaskInput",
+    "TaskOutput",
     "TokenCounter",
     "new_agent_state",
 ]

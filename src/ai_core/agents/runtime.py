@@ -37,9 +37,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # IMemoryManager and IToolErrorRenderer live in sibling modules under
-    # ai_core.agents.* — declared lazily here to avoid the import cycles that
-    # would arise if runtime.py loaded them at module init time.
+    # IMemoryManager / IToolErrorRenderer / AgentResolver live in sibling
+    # modules under ai_core.agents.* — declared lazily here to avoid the
+    # import cycles that would arise if runtime.py loaded them at module
+    # init time.
+    from ai_core.agents._resolver import AgentResolver
     from ai_core.agents.memory import IMemoryManager
     from ai_core.agents.tool_errors import IToolErrorRenderer
     from ai_core.config.settings import AgentSettings
@@ -71,6 +73,10 @@ class AgentRuntime:
         tool_registrar: Strategy for registering local :class:`ToolSpec`
             instances with the invoker at compile time. Extracted from
             :meth:`BaseAgent.compile` so graph construction stays pure.
+        agent_resolver: DI-aware resolver for sub-agents. Used by
+            compositional patterns (:class:`SupervisorAgent` and
+            friends) to resolve child :class:`BaseAgent` instances at
+            runtime without leaking the container into agent code.
     """
 
     agent_settings: AgentSettings
@@ -82,6 +88,7 @@ class AgentRuntime:
     tool_error_renderer: IToolErrorRenderer
     tool_resolver: IToolResolver
     tool_registrar: ToolRegistrar
+    agent_resolver: AgentResolver
 
 
 __all__ = ["AgentRuntime"]

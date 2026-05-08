@@ -110,11 +110,14 @@ class _AgentWithMCP(BaseAgent):
 # ---- Helpers --------------------------------------------------------------------
 def _build_agent(agent_cls, factory) -> BaseAgent:
     """Construct an agent with mostly-no-op deps; only mcp_factory matters here."""
+    from ai_core.agents._resolver import AgentResolver
     from ai_core.agents.runtime import AgentRuntime
     from ai_core.agents.tool_errors import DefaultToolErrorRenderer
     from ai_core.tools.registrar import ToolRegistrar
     from ai_core.tools.resolver import DefaultToolResolver
     invoker = ToolInvoker(observability=MagicMock())
+    # MagicMock stands in for Container in unit tests — AgentResolver only
+    # forwards .get() to it, so a mock with .get() configured is sufficient.
     runtime = AgentRuntime(
         agent_settings=AppSettings(service_name="test", environment="local").agent,
         llm=MagicMock(),
@@ -125,6 +128,7 @@ def _build_agent(agent_cls, factory) -> BaseAgent:
         tool_error_renderer=DefaultToolErrorRenderer(),
         tool_resolver=DefaultToolResolver(factory, invoker),
         tool_registrar=ToolRegistrar(invoker),
+        agent_resolver=AgentResolver(MagicMock()),
     )
     return agent_cls(runtime)
 
