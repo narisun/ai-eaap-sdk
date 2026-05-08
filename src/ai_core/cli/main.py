@@ -149,7 +149,7 @@ def init(
         f"  pip install -e \".[dev]\"          # install this app (and its dev deps)\n"
         f"  python -m {package}.main\n"
         f"\n"
-        f"[dim]Note: ai-core-sdk is installed separately from source — see the\n"
+        f"[dim]Note: ai-eaap-sdk is installed separately from source — see the\n"
         f"generated README for details.[/dim]"
     )
 

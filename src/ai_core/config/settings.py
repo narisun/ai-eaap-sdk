@@ -17,11 +17,10 @@ from __future__ import annotations
 
 import enum
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -168,6 +167,44 @@ class LLMSettings(BaseSettings):
     )
     prompt_cache_min_messages: int = Field(default=6, ge=2)
     prompt_cache_min_tokens: int = Field(default=1024, ge=512)
+    latency_slo_ms: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "LLM call latency SLO threshold in milliseconds. When set and "
+            "exceeded by an LLM call's wall-time, emits a llm.slo_violated "
+            "observability event with model/agent/tenant/latency/threshold "
+            "attributes. None disables the check (default; no event emitted "
+            "regardless of latency). Distinct from request_timeout_seconds: "
+            "timeout aborts; SLO is observational."
+        ),
+    )
+
+
+class BudgetOverride(BaseModel):
+    """Per-(tenant, agent) budget override entry.
+
+    Resolution by InMemoryBudgetService is per-field, most-specific-wins:
+
+    1. (tenant_id, agent_id) — both set → exact pair
+    2. (tenant_id, None) — tenant-only — matches all agents under tenant
+    3. (None, agent_id) — agent-only — matches that agent across all tenants
+
+    Each limit field is optional; partial overrides compose with defaults
+    (e.g. an entry that only sets daily_token_limit leaves daily_usd_limit
+    falling through to the global default).
+
+    An entry with both tenant_id=None AND agent_id=None never matches anything
+    (the resolver does not include the all-None candidate). Such entries are
+    silently inert — no validation error at load time, but no effect either.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str | None = None
+    agent_id: str | None = None
+    daily_token_limit: int | None = Field(default=None, ge=0)
+    daily_usd_limit: float | None = Field(default=None, ge=0.0)
 
 
 class BudgetSettings(BaseSettings):
@@ -179,6 +216,13 @@ class BudgetSettings(BaseSettings):
     default_daily_token_limit: int = Field(default=1_000_000, ge=0)
     default_daily_usd_limit: float = Field(default=50.0, ge=0.0)
     hard_fail_on_exceeded: bool = True
+    overrides: list[BudgetOverride] = Field(
+        default_factory=list,
+        description=(
+            "Per-(tenant, agent) overrides. See BudgetOverride for resolution "
+            "semantics. Defaults to empty list — global limits apply uniformly."
+        ),
+    )
 
 
 class ObservabilitySettings(BaseSettings):
@@ -186,7 +230,7 @@ class ObservabilitySettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    service_name: str = "ai-core-sdk"
+    service_name: str = "ai-eaap-sdk"
     otel_endpoint: AnyHttpUrl | None = Field(
         default=None,
         description="OTLP/gRPC collector endpoint. Disables export when None.",
@@ -322,7 +366,7 @@ class AuditSettings(BaseSettings):
         description="Datadog site (e.g. 'datadoghq.com', 'datadoghq.eu', 'us3.datadoghq.com').",
     )
     datadog_source: str = Field(
-        default="ai-core-sdk",
+        default="ai-eaap-sdk",
         description="Source name attached to Datadog events (free text).",
     )
     datadog_environment: str | None = Field(
@@ -399,7 +443,7 @@ class AppSettings(BaseSettings):
     )
 
     environment: Environment = Environment.LOCAL
-    service_name: str = "ai-core-sdk"
+    service_name: str = "ai-eaap-sdk"
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     vector_db: VectorDBSettings = Field(default_factory=VectorDBSettings)
@@ -567,19 +611,10 @@ class AppSettings(BaseSettings):
         )
 
 
-# ---------------------------------------------------------------------------
-# Accessor — used by the DI container only; never read directly elsewhere.
-# ---------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def get_settings() -> AppSettings:
-    """Return a process-wide cached :class:`AppSettings` instance.
-
-    The cache is populated on first access and is intentionally process-scoped;
-    tests should call :func:`get_settings.cache_clear` between cases or — better —
-    inject an ``AppSettings`` override through the DI container instead of
-    relying on this accessor.
-
-    Returns:
-        A validated :class:`AppSettings` populated from the environment.
-    """
-    return AppSettings()
+# Note: there is intentionally no module-level ``get_settings()`` accessor.
+# Hosts construct :class:`AppSettings` directly (it reads env / YAML / defaults
+# via Pydantic Settings) or pass a pre-built instance to
+# :class:`ai_core.app.AICoreApp` / :class:`ai_core.di.AgentModule`. A process-
+# wide ``lru_cache`` global was removed in v1 so tests no longer have to call
+# ``cache_clear()`` between cases — the DI container is the only intended
+# sharing seam.

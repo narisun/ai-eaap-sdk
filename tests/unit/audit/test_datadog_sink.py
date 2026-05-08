@@ -144,6 +144,6 @@ def test_provide_audit_sink_datadog_without_api_key_raises_configuration_error(
     obs = MagicMock(spec=IObservabilityProvider)
     module = AgentModule()
     with pytest.raises(ConfigurationError) as exc:
-        module.provide_audit_sink(settings, obs)
+        module.provide_audit_sink(settings.audit, obs)
     assert exc.value.error_code == "config.invalid"
     assert "datadog_api_key" in exc.value.message.lower()

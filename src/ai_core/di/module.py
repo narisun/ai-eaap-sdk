@@ -29,20 +29,33 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
+from ai_core.agents.runtime import AgentRuntime
+from ai_core.agents.tool_errors import DefaultToolErrorRenderer, IToolErrorRenderer
 from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import (
+    AgentSettings,
+    AppSettings,
+    AuditSettings,
+    BudgetSettings,
+    DatabaseSettings,
+    HealthSettings,
+    LLMSettings,
+    MCPSettings,
+    ObservabilitySettings,
+    SecuritySettings,
+)
 from ai_core.di.interfaces import (
     IBudgetService,
     ICheckpointSaver,
+    ICompactionLLM,
     ILLMClient,
     IObservabilityProvider,
     IPolicyEvaluator,
 )
-from ai_core.exceptions import ConfigurationError, ErrorCode
 from ai_core.health import IHealthProbe  # noqa: TC001
+from ai_core.llm._raise import RaiseOnUseLLMClient
 from ai_core.llm.budget import InMemoryBudgetService
-from ai_core.llm.litellm_client import LiteLLMClient
 from ai_core.mcp.registry import ComponentRegistry
 from ai_core.mcp.transports import IMCPConnectionFactory, PoolingMCPConnectionFactory
 from ai_core.observability.real import RealObservabilityProvider
@@ -52,6 +65,9 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.tools.invoker import ToolInvoker
+from ai_core.tools.middleware import ToolMiddleware  # noqa: TC001
+from ai_core.tools.registrar import ToolRegistrar
+from ai_core.tools.resolver import DefaultToolResolver, IToolResolver
 
 
 class AgentModule(Module):
@@ -81,12 +97,66 @@ class AgentModule(Module):
     @singleton
     @provider
     def provide_settings(self) -> AppSettings:
-        """Return the bound :class:`AppSettings` singleton."""
+        """Return the bound :class:`AppSettings` singleton.
+
+        When the host did not pass an explicit ``settings`` to the module,
+        a fresh :class:`AppSettings` is constructed here. Pydantic Settings
+        sources (env, ``.env``, YAML) are evaluated at construction time;
+        the container caches the result as a singleton, so subsequent
+        injections see the same instance without a process-global cache.
+        """
         if self._settings is not None:
             return self._settings
-        from ai_core.config.settings import get_settings
+        return AppSettings()
 
-        return get_settings()
+    # Per-subsystem settings slices — bind each nested settings group as its
+    # own singleton so concrete services can inject only the slice they need.
+    # This keeps unit tests honest: a fake LLM client does not need to fabricate
+    # a full :class:`AppSettings` just to satisfy DI.
+    @singleton
+    @provider
+    def provide_llm_settings(self, settings: AppSettings) -> LLMSettings:
+        return settings.llm
+
+    @singleton
+    @provider
+    def provide_agent_settings(self, settings: AppSettings) -> AgentSettings:
+        return settings.agent
+
+    @singleton
+    @provider
+    def provide_database_settings(self, settings: AppSettings) -> DatabaseSettings:
+        return settings.database
+
+    @singleton
+    @provider
+    def provide_observability_settings(self, settings: AppSettings) -> ObservabilitySettings:
+        return settings.observability
+
+    @singleton
+    @provider
+    def provide_security_settings(self, settings: AppSettings) -> SecuritySettings:
+        return settings.security
+
+    @singleton
+    @provider
+    def provide_audit_settings(self, settings: AppSettings) -> AuditSettings:
+        return settings.audit
+
+    @singleton
+    @provider
+    def provide_budget_settings(self, settings: AppSettings) -> BudgetSettings:
+        return settings.budget
+
+    @singleton
+    @provider
+    def provide_mcp_settings(self, settings: AppSettings) -> MCPSettings:
+        return settings.mcp
+
+    @singleton
+    @provider
+    def provide_health_settings(self, settings: AppSettings) -> HealthSettings:
+        return settings.health
 
     # ----- Secret manager ---------------------------------------------------
     @singleton
@@ -112,21 +182,28 @@ class AgentModule(Module):
     # ----- Budget -----------------------------------------------------------
     @singleton
     @provider
-    def provide_budget(self, settings: AppSettings) -> IBudgetService:
+    def provide_budget(self, budget_settings: BudgetSettings) -> IBudgetService:
         """Return the in-memory budget service singleton."""
-        return InMemoryBudgetService(settings)
+        return InMemoryBudgetService(budget_settings)
 
     # ----- LLM client -------------------------------------------------------
     @singleton
     @provider
-    def provide_llm_client(
-        self,
-        settings: AppSettings,
-        budget: IBudgetService,
-        observability: IObservabilityProvider,
-    ) -> ILLMClient:
-        """Return the LiteLLM-backed client singleton."""
-        return LiteLLMClient(settings, budget, observability)
+    def provide_llm_client(self) -> ILLMClient:
+        """Bind the raise-on-use default :class:`ILLMClient`.
+
+        Hosts that want the LiteLLM-backed adapter compose
+        :class:`ai_core.llm.LiteLLMModule` alongside this module — the
+        last binding wins, so :class:`LiteLLMClient` overrides this
+        stub. Hosts with their own LLM stack bind their own
+        :class:`ILLMClient` implementation in a custom module.
+
+        Tests that exercise non-LLM behaviour use
+        :class:`ai_core.testing.ScriptedLLM`, which also overrides this
+        binding via its own :class:`Module` and avoids requiring the
+        ``[litellm]`` extra.
+        """
+        return RaiseOnUseLLMClient()
 
     # ----- Token counter + memory manager -----------------------------------
     @singleton
@@ -137,14 +214,27 @@ class AgentModule(Module):
 
     @singleton
     @provider
+    def provide_compaction_llm(self, llm: ILLMClient) -> ICompactionLLM:
+        """Default :class:`ICompactionLLM` aliases the request LLM client.
+
+        Override this binding (or supply a layered :class:`Module`) when
+        you want compaction to use a cheaper/faster model than agent
+        reasoning. Both interfaces are structurally identical, so any
+        :class:`ILLMClient` implementation satisfies :class:`ICompactionLLM`.
+        """
+        return llm  # type: ignore[return-value]  # ILLMClient structurally satisfies ICompactionLLM
+
+    @singleton
+    @provider
     def provide_memory_manager(
         self,
-        settings: AppSettings,
-        llm: ILLMClient,
+        agent_settings: AgentSettings,
+        llm_settings: LLMSettings,
+        compaction_llm: ICompactionLLM,
         counter: TokenCounter,
     ) -> MemoryManager:
         """Return the concrete :class:`MemoryManager` singleton."""
-        return MemoryManager(settings, llm, counter)
+        return MemoryManager(agent_settings, llm_settings, compaction_llm, counter)
 
     @singleton
     @provider
@@ -161,9 +251,9 @@ class AgentModule(Module):
     # ----- Persistence ------------------------------------------------------
     @singleton
     @provider
-    def provide_engine_factory(self, settings: AppSettings) -> EngineFactory:
+    def provide_engine_factory(self, db_settings: DatabaseSettings) -> EngineFactory:
         """Return the engine factory singleton (lazy connection)."""
-        return EngineFactory(settings)
+        return EngineFactory(db_settings)
 
     @singleton
     @provider
@@ -201,11 +291,11 @@ class AgentModule(Module):
 
     @singleton
     @provider
-    def provide_mcp_connection_factory(self, settings: AppSettings) -> IMCPConnectionFactory:
+    def provide_mcp_connection_factory(self, mcp_settings: MCPSettings) -> IMCPConnectionFactory:
         """Return the pooling MCP connection factory."""
         return PoolingMCPConnectionFactory(
-            pool_enabled=settings.mcp.pool_enabled,
-            pool_idle_seconds=settings.mcp.pool_idle_seconds,
+            pool_enabled=mcp_settings.pool_enabled,
+            pool_idle_seconds=mcp_settings.pool_idle_seconds,
         )
 
     # ----- Security ---------------------------------------------------------
@@ -269,82 +359,75 @@ class AgentModule(Module):
     @provider
     def provide_audit_sink(
         self,
-        settings: AppSettings,
+        audit_settings: AuditSettings,
         observability: IObservabilityProvider,
     ) -> IAuditSink:
-        """Default audit sink — switchable via settings.audit.sink_type."""
-        sink_type = settings.audit.sink_type
-        if sink_type == "null":
-            from ai_core.audit.null import NullAuditSink  # noqa: PLC0415
-            return NullAuditSink()
-        if sink_type == "otel_event":
-            from ai_core.audit.otel_event import OTelEventAuditSink  # noqa: PLC0415
-            return OTelEventAuditSink(observability)
-        if sink_type == "jsonl":
-            from ai_core.audit.jsonl import JsonlFileAuditSink  # noqa: PLC0415
-            if settings.audit.jsonl_path is None:
-                raise ConfigurationError(
-                    "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return JsonlFileAuditSink(settings.audit.jsonl_path)
-        if sink_type == "sentry":
-            from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
-            if settings.audit.sentry_dsn is None:
-                raise ConfigurationError(
-                    "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return SentryAuditSink(
-                dsn=settings.audit.sentry_dsn.get_secret_value(),
-                environment=settings.audit.sentry_environment,
-                release=settings.audit.sentry_release,
-                sample_rate=settings.audit.sentry_sample_rate,
-            )
-        if sink_type == "datadog":
-            from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
-            if settings.audit.datadog_api_key is None:
-                raise ConfigurationError(
-                    "audit.sink_type='datadog' requires audit.datadog_api_key to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return DatadogAuditSink(
-                api_key=settings.audit.datadog_api_key.get_secret_value(),
-                app_key=(
-                    settings.audit.datadog_app_key.get_secret_value()
-                    if settings.audit.datadog_app_key
-                    else None
-                ),
-                site=settings.audit.datadog_site,
-                source=settings.audit.datadog_source,
-                environment=settings.audit.datadog_environment,
-            )
-        raise ConfigurationError(
-            f"Unknown audit.sink_type: {sink_type!r}",
-            error_code=ErrorCode.CONFIG_INVALID,
-        )
+        """Resolve an :class:`IAuditSink` via the pluggable registry.
+
+        Built-in sinks (``null``, ``otel_event``, ``jsonl``, ``sentry``,
+        ``datadog``) register themselves in
+        :mod:`ai_core.audit.registry`. Third-party sinks register either
+        by calling :func:`ai_core.audit.register_audit_sink` or by
+        declaring an ``ai_eaap_sdk.audit_sinks`` entry point.
+        """
+        from ai_core.audit.registry import get_audit_sink_factory  # noqa: PLC0415
+        factory = get_audit_sink_factory(audit_settings.sink_type)
+        return factory(audit_settings, observability)
 
     # ----- Health probes ----------------------------------------------------
     @singleton
     @multiprovider
     def provide_health_probes(
         self,
-        settings: AppSettings,
+        security_settings: SecuritySettings,
+        llm_settings: LLMSettings,
         engine: AsyncEngine,
     ) -> list[IHealthProbe]:
-        """Default health-probe set. Override in a custom module to add probes."""
+        """Default health-probe set.
+
+        :class:`injector.Module` ``@multiprovider`` semantics allow hosts to
+        **add** probes by including an extra :class:`Module` that also
+        contributes a ``list[IHealthProbe]``. The lists are concatenated;
+        no override of this provider is required.
+
+        Example — register an extra probe alongside the defaults::
+
+            class ExtraProbes(Module):
+                @multiprovider
+                def provide_extra(self) -> list[IHealthProbe]:
+                    return [VectorDBProbe(), KafkaProbe()]
+
+            async with AICoreApp(modules=[ExtraProbes()]) as app:
+                ...
+
+        For a one-off addition without authoring a Module, use
+        :py:meth:`AICoreApp.add_health_probe`.
+        """
         from ai_core.health.probes import (  # noqa: PLC0415
             DatabaseProbe,
             ModelLookupProbe,
             OPAReachabilityProbe,
         )
         return [
-            OPAReachabilityProbe(settings),
+            OPAReachabilityProbe(security_settings),
             DatabaseProbe(engine),
-            ModelLookupProbe(settings),
+            ModelLookupProbe(llm_settings),
         ]
 
     # ----- Tool invoker -----------------------------------------------------
+    @singleton
+    @multiprovider
+    def provide_tool_middlewares(self) -> list[ToolMiddleware]:
+        """Default contribution to the :class:`ToolMiddleware` multibind.
+
+        Returns an empty list so the default :class:`ToolInvoker`
+        pipeline runs unwrapped — byte-identical to pre-v1 behaviour.
+        Hosts add their own middlewares by including a :class:`Module`
+        whose ``@multiprovider`` returns a non-empty list; injector
+        concatenates the lists in module-registration order.
+        """
+        return []
+
     @singleton
     @provider
     def provide_tool_invoker(
@@ -354,6 +437,7 @@ class AgentModule(Module):
         registry: SchemaRegistry,
         audit: IAuditSink,
         redactor: PayloadRedactor,
+        middlewares: list[ToolMiddleware],
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
         return ToolInvoker(
@@ -362,6 +446,79 @@ class AgentModule(Module):
             registry=registry,
             audit=audit,
             redactor=redactor,
+            middlewares=middlewares,
+        )
+
+    # ----- Tool error renderer ---------------------------------------------
+    @singleton
+    @provider
+    def provide_tool_error_renderer(self) -> IToolErrorRenderer:
+        """Default :class:`IToolErrorRenderer` — preserves pre-v1 English text.
+
+        Override this binding to enforce strict failure (raise instead
+        of returning a recovery message), localize text, or redact error
+        details before they flow back to the LLM.
+        """
+        return DefaultToolErrorRenderer()
+
+    # ----- Tool resolver + registrar ---------------------------------------
+    @singleton
+    @provider
+    def provide_tool_resolver(
+        self,
+        mcp_factory: IMCPConnectionFactory,
+        tool_invoker: ToolInvoker,
+    ) -> IToolResolver:
+        """Default :class:`IToolResolver` — pre-v1 MCP-merge behaviour.
+
+        Hosts override this binding to cache MCP resolutions across
+        agents, redact tools by tenant, or stub the MCP backend in
+        tests.
+        """
+        return DefaultToolResolver(mcp_factory, tool_invoker)
+
+    @singleton
+    @provider
+    def provide_tool_registrar(self, tool_invoker: ToolInvoker) -> ToolRegistrar:
+        """Default :class:`ToolRegistrar` — bulk register on the invoker.
+
+        Override the binding to gate registration (e.g. by tenant or
+        feature flag) without touching :meth:`BaseAgent.compile`.
+        """
+        return ToolRegistrar(tool_invoker)
+
+    # ----- Agent runtime ----------------------------------------------------
+    @singleton
+    @provider
+    def provide_agent_runtime(
+        self,
+        agent_settings: AgentSettings,
+        llm: ILLMClient,
+        memory: IMemoryManager,
+        observability: IObservabilityProvider,
+        tool_invoker: ToolInvoker,
+        mcp_factory: IMCPConnectionFactory,
+        tool_error_renderer: IToolErrorRenderer,
+        tool_resolver: IToolResolver,
+        tool_registrar: ToolRegistrar,
+    ) -> AgentRuntime:
+        """Return the bundle of SDK services injected into :class:`BaseAgent`.
+
+        Centralising these collaborators in :class:`AgentRuntime` lets
+        :class:`BaseAgent` subclasses receive a single argument and add
+        their own DI-resolved dependencies without mirroring the SDK's
+        internal service surface.
+        """
+        return AgentRuntime(
+            agent_settings=agent_settings,
+            llm=llm,
+            memory=memory,
+            observability=observability,
+            tool_invoker=tool_invoker,
+            mcp_factory=mcp_factory,
+            tool_error_renderer=tool_error_renderer,
+            tool_resolver=tool_resolver,
+            tool_registrar=tool_registrar,
         )
 
 
@@ -381,10 +538,12 @@ class ProductionSecurityModule(Module):
 
     @singleton
     @provider
-    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
+    def provide_policy_evaluator(
+        self, security_settings: SecuritySettings
+    ) -> IPolicyEvaluator:
         """Return the OPA-backed policy evaluator. Loaded from `ai_core.security.opa`."""
         from ai_core.security.opa import OPAPolicyEvaluator  # noqa: PLC0415
-        return OPAPolicyEvaluator(settings)
+        return OPAPolicyEvaluator(security_settings)
 
 
 __all__ = ["AgentModule", "ProductionSecurityModule"]

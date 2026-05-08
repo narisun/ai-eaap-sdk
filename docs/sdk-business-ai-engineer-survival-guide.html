@@ -1,0 +1,1395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ai-eaap-sdk · Business AI engineer's survival guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@200..900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:    #eef1f3;
+    --paper-2:  #e3e7eb;
+    --ink:      #0d1820;
+    --ink-2:    #2c3a45;
+    --ink-3:    #5a6874;
+    --rule:     #b8c0c8;
+    --rule-2:   #8a939e;
+    --teal:     #3c7d92;       /* primary accent */
+    --teal-d:   #2a5b6c;
+    --teal-l:   #62a3b8;
+    --warm:     #d4753a;       /* highlight / "next" */
+    --warm-l:   #e89767;
+    --sage:     #5e7a4b;       /* "do" */
+    --brick:    #a85a40;       /* "don't" */
+    --plum:     #7a4a72;       /* "tip" */
+    --gold:     #b58a32;       /* "watch out" */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Outfit", system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(circle at 6% 8%, rgba(60,125,146,0.05), transparent 36%),
+      radial-gradient(circle at 94% 96%, rgba(212,117,58,0.05), transparent 38%),
+      repeating-linear-gradient(
+        0deg, transparent 0,
+        transparent 31px,
+        rgba(13,24,32,0.018) 31px,
+        rgba(13,24,32,0.018) 32px);
+  }
+
+  ::selection { background: var(--ink); color: var(--paper); }
+
+  .mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-feature-settings: "ss01","ss02";
+  }
+  .serif {
+    font-family: "DM Serif Display", Georgia, serif;
+  }
+  .italic {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-style: italic;
+  }
+
+  /* ---- LAYOUT ---- */
+  .frame {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 56px 96px;
+    position: relative;
+    z-index: 1;
+  }
+  @media (max-width: 760px) { .frame { padding: 32px 22px 64px; } }
+
+  /* ---- HEADER ---- */
+  header.head {
+    border-top: 1px solid var(--ink);
+    padding: 22px 0 36px;
+    margin-bottom: 56px;
+    position: relative;
+  }
+  header.head::before {
+    content: "";
+    position: absolute; top: -1px; left: 0;
+    width: 16%; height: 3px; background: var(--teal);
+  }
+  header.head::after {
+    content: "";
+    position: absolute; top: -1px; right: 0;
+    width: 16%; height: 3px; background: var(--warm);
+  }
+
+  .meta-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 32px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .meta-strip .doc-id { color: var(--teal); }
+  .meta-strip .crumbs span:not(:last-child)::after { content: " / "; color: var(--rule-2); margin: 0 6px; }
+  .meta-strip .right { color: var(--warm); }
+
+  h1.title {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-size: clamp(48px, 7.2vw, 100px);
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 22px;
+    font-weight: 400;
+  }
+  h1.title .it { font-style: italic; color: var(--teal); }
+  h1.title .accent { color: var(--warm); font-style: italic; }
+
+  p.subtitle {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 64ch;
+    margin: 0 0 32px;
+    font-weight: 400;
+  }
+  p.subtitle strong { color: var(--ink); font-weight: 600; }
+
+  .head-meta-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) { .head-meta-row { grid-template-columns: repeat(2, 1fr); } }
+  .head-meta-row .cell {
+    padding: 14px 18px 14px 0;
+    border-right: 1px solid var(--rule);
+  }
+  .head-meta-row .cell:last-child { border-right: none; }
+  .head-meta-row .cell:nth-child(n+2) { padding-left: 18px; }
+  .head-meta-row .cell .k {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+  }
+  .head-meta-row .cell .v {
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ---- CHARTER PANEL ---- */
+  .charter {
+    border: 1px solid var(--teal);
+    background: linear-gradient(180deg, rgba(60,125,146,0.06), transparent);
+    padding: 28px 32px;
+    margin: 36px 0 56px;
+    position: relative;
+  }
+  .charter .stamp {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 8px;
+  }
+  .charter h2 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.05;
+    color: var(--ink);
+    margin-bottom: 16px;
+    letter-spacing: -0.012em;
+    max-width: 22ch;
+  }
+  .charter h2 em { font-style: italic; color: var(--teal); }
+  .charter p { color: var(--ink-2); margin-bottom: 10px; font-size: 16px; }
+  .charter p:last-child { margin-bottom: 0; }
+  .charter strong { color: var(--ink); font-weight: 600; }
+  .charter code { color: var(--teal-d); font-family: "JetBrains Mono", monospace; font-size: 14px; }
+
+  /* ---- TWO-COL OWN/DON'T-OWN ---- */
+  .own-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-top: 18px;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) { .own-grid { grid-template-columns: 1fr; } }
+  .own-grid .col {
+    padding: 18px 22px 22px;
+  }
+  .own-grid .col + .col { border-left: 1px solid var(--rule); }
+  @media (max-width: 760px) {
+    .own-grid .col + .col { border-left: none; border-top: 1px solid var(--rule); }
+  }
+  .own-grid .col h3 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+  .own-grid .col.you h3   { color: var(--sage); }
+  .own-grid .col.them h3  { color: var(--brick); }
+  .own-grid .col ul { list-style: none; margin: 0; padding: 0; }
+  .own-grid .col ul li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+    font-size: 15px;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+  .own-grid .col.you  ul li::before { content: "✓"; color: var(--sage);  position: absolute; left: 0; font-weight: 700; }
+  .own-grid .col.them ul li::before { content: "✕"; color: var(--brick); position: absolute; left: 0; font-weight: 700; }
+  .own-grid .col ul li strong { color: var(--ink); font-weight: 600; }
+  .own-grid .col ul li code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--teal-d);
+    font-size: 13.5px;
+  }
+
+  /* ---- TOC ---- */
+  nav.toc {
+    margin-bottom: 80px;
+  }
+  nav.toc h2 {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 16px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) { .toc-grid { grid-template-columns: 1fr; } }
+  .toc-grid a {
+    background: var(--paper);
+    padding: 14px 18px;
+    text-decoration: none;
+    color: var(--ink);
+    display: block;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .toc-grid a:hover { background: var(--paper-2); color: var(--teal); }
+  .toc-grid a .n {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    color: var(--teal);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .toc-grid a .t {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    font-size: 19px;
+    line-height: 1.15;
+  }
+  .toc-grid a .t em { font-style: italic; color: var(--teal); }
+  .toc-grid a .d {
+    font-size: 13px;
+    color: var(--ink-3);
+    display: block;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  /* ---- SECTION ---- */
+  section {
+    margin-bottom: 72px;
+    scroll-margin-top: 24px;
+  }
+  .ch-head {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: baseline;
+    gap: 22px;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 12px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 760px) {
+    .ch-head { grid-template-columns: 1fr; gap: 4px; }
+  }
+  .ch-head .ch-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--warm);
+    font-weight: 600;
+  }
+  .ch-head h2 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(32px, 4vw, 48px);
+    margin: 0;
+    line-height: 1.0;
+    letter-spacing: -0.018em;
+    color: var(--ink);
+  }
+  .ch-head h2 em { font-style: italic; color: var(--teal); }
+  .ch-blurb {
+    font-size: 17px;
+    color: var(--ink-2);
+    max-width: 70ch;
+    margin: 0 0 24px;
+    line-height: 1.55;
+  }
+  .ch-blurb strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- TIMELINE / WEEKS ---- */
+  .timeline {
+    margin-top: 16px;
+  }
+  .timeline .week {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 32px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: start;
+  }
+  .timeline .week:first-child { border-top: 1px solid var(--ink); }
+  @media (max-width: 760px) {
+    .timeline .week { grid-template-columns: 1fr; gap: 8px; }
+  }
+  .timeline .week .when {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-style: italic;
+    font-size: 22px;
+    color: var(--teal);
+    line-height: 1.1;
+  }
+  .timeline .week h4 {
+    font-family: "Outfit", sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--ink);
+    margin-bottom: 6px;
+    letter-spacing: -0.005em;
+  }
+  .timeline .week p {
+    font-size: 14.5px;
+    color: var(--ink-2);
+    margin: 0 0 6px;
+    line-height: 1.55;
+  }
+  .timeline .week p code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--teal-d);
+    font-size: 13px;
+  }
+
+  /* ---- CODE BLOCK ---- */
+  pre.code {
+    background: var(--ink);
+    color: #e3e7eb;
+    border: 1px solid var(--ink);
+    padding: 16px 20px;
+    margin: 14px 0 18px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-x: auto;
+    border-radius: 4px;
+    border-left: 3px solid var(--warm);
+  }
+  pre.code .head-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: -16px -20px 12px;
+    padding: 8px 16px;
+    background: rgba(0,0,0,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(227,231,235,0.5);
+  }
+  pre.code .head-bar .filename {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--warm-l);
+  }
+  pre.code .kw  { color: #c89bd0; }
+  pre.code .str { color: var(--warm-l); }
+  pre.code .com { color: rgba(227,231,235,0.4); font-style: italic; }
+  pre.code .dec { color: var(--warm-l); }
+  pre.code .id  { color: var(--teal-l); }
+  pre.code .num { color: #9bc174; }
+  pre.code .typ { color: #e8c170; }
+
+  /* ---- RECIPE CARD ---- */
+  .recipe {
+    border: 1px solid var(--rule);
+    background: rgba(255,255,255,0.4);
+    padding: 22px 26px;
+    margin-bottom: 22px;
+    transition: border-color 200ms ease;
+  }
+  .recipe:hover { border-color: var(--teal); }
+  .recipe h4 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    font-size: 24px;
+    margin: 0 0 6px;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .recipe h4 em { font-style: italic; color: var(--teal); }
+  .recipe h4::before {
+    content: "→ ";
+    color: var(--warm);
+    font-family: "JetBrains Mono", monospace;
+    font-style: normal;
+    margin-right: 4px;
+  }
+  .recipe p { color: var(--ink-2); margin-bottom: 8px; font-size: 14.5px; }
+  .recipe ol.steps {
+    counter-reset: rs;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .recipe ol.steps li {
+    counter-increment: rs;
+    padding: 8px 0 8px 36px;
+    position: relative;
+    font-size: 14.5px;
+    color: var(--ink-2);
+    border-bottom: 1px dotted var(--rule);
+    line-height: 1.55;
+  }
+  .recipe ol.steps li:last-child { border-bottom: none; }
+  .recipe ol.steps li::before {
+    content: counter(rs, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .recipe ol.steps li code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--teal-d);
+    font-size: 13px;
+  }
+  .recipe ol.steps li strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- ASIDE BOXES ---- */
+  .aside {
+    border-left: 3px solid var(--teal);
+    background: rgba(60,125,146,0.06);
+    padding: 14px 20px;
+    margin: 18px 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .aside.tip      { border-left-color: var(--plum); background: rgba(122,74,114,0.06); }
+  .aside.watch    { border-left-color: var(--gold); background: rgba(181,138,50,0.07); }
+  .aside.ask      { border-left-color: var(--warm); background: rgba(212,117,58,0.06); }
+  .aside.dont     { border-left-color: var(--brick); background: rgba(168,90,64,0.06); }
+  .aside .stamp {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-right: 8px;
+    font-weight: 600;
+    color: var(--teal);
+  }
+  .aside.tip   .stamp { color: var(--plum); }
+  .aside.watch .stamp { color: var(--gold); }
+  .aside.ask   .stamp { color: var(--warm); }
+  .aside.dont  .stamp { color: var(--brick); }
+  .aside p { margin: 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+  .aside p strong { color: var(--ink); font-weight: 600; }
+  .aside p code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--teal-d);
+    font-size: 13px;
+  }
+
+  /* ---- ANATOMY DIAGRAM ---- */
+  figure.anatomy {
+    margin: 24px 0;
+    border: 1px solid var(--rule);
+    background: rgba(255,255,255,0.6);
+    padding: 24px 28px;
+  }
+  figure.anatomy svg { display: block; width: 100%; height: auto; }
+  figure.anatomy figcaption {
+    margin-top: 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    padding-top: 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  figure.anatomy figcaption .id { color: var(--warm); }
+
+  /* ---- ANTI-PATTERN ---- */
+  .anti {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 760px) { .anti { grid-template-columns: 1fr; } }
+  .anti .item {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--brick);
+    background: rgba(255,255,255,0.5);
+    padding: 16px 20px;
+  }
+  .anti .item h5 {
+    font-family: "DM Serif Display", Georgia, serif;
+    font-weight: 400;
+    font-size: 18px;
+    color: var(--ink);
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+  .anti .item p {
+    font-size: 13.5px;
+    color: var(--ink-2);
+    margin: 0 0 8px;
+    line-height: 1.5;
+  }
+  .anti .item code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--brick);
+    font-size: 13px;
+  }
+  .anti .item .do {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+    color: var(--sage);
+    font-size: 13px;
+  }
+  .anti .item .do::before {
+    content: "DO INSTEAD · ";
+    font-family: "JetBrains Mono", monospace;
+    color: var(--sage);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    font-size: 10.5px;
+  }
+  .anti .item .do code { color: var(--sage); }
+
+  /* ---- HELP TABLE ---- */
+  .help-list {
+    margin-top: 12px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .help-list .row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .help-list .row:last-child { border-bottom: none; }
+  @media (max-width: 760px) {
+    .help-list .row { grid-template-columns: 1fr; gap: 4px; }
+  }
+  .help-list .row .when {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--warm);
+    text-transform: uppercase;
+  }
+  .help-list .row .who {
+    font-size: 14.5px;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+  .help-list .row .who strong { color: var(--ink); }
+  .help-list .row .who code {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--teal-d);
+    font-size: 13px;
+  }
+
+  /* ---- WHERE TO LOOK ---- */
+  pre.tree {
+    background: rgba(13,24,32,0.04);
+    border: 1px solid var(--rule);
+    padding: 16px 20px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    overflow-x: auto;
+  }
+  pre.tree .file { color: var(--ink); font-weight: 500; }
+  pre.tree .cmt  { color: var(--ink-3); }
+  pre.tree .acc  { color: var(--warm); }
+
+  /* ---- FOOTER ---- */
+  footer.foot {
+    margin-top: 88px;
+    border-top: 1px solid var(--ink);
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  footer.foot .doc-id { color: var(--teal); }
+
+  @keyframes settle {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  header.head, section, footer.foot {
+    animation: settle 540ms ease-out both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    header.head, section, footer.foot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ============== HEADER ============== -->
+  <header class="head">
+    <div class="meta-strip">
+      <span class="doc-id">EAAP / DOC-BAI-001</span>
+      <span class="crumbs"><span>ai-eaap-sdk</span><span>docs</span><span>survival-guide</span><span class="right">business-ai</span></span>
+      <span class="right">v0.1 · welcome</span>
+    </div>
+
+    <h1 class="title">Welcome to the<br>business <span class="it">AI</span><br><span class="accent">team.</span></h1>
+    <p class="subtitle">A friendly, opinionated guide for new <strong>agent engineers, MCP tool authors, RAG engineers,</strong> and <strong>domain experts</strong>. What you'll build, what the SDK gives you, and what you can safely leave to the platform team.</p>
+
+    <div class="head-meta-row">
+      <div class="cell"><div class="k">Read in</div><div class="v">~25 min · keep it open</div></div>
+      <div class="cell"><div class="k">Day-1 target</div><div class="v">Hello-world agent runs</div></div>
+      <div class="cell"><div class="k">Week-1 target</div><div class="v">Your first tool in production</div></div>
+      <div class="cell"><div class="k">When stuck</div><div class="v">See CH 13 — Asking for help</div></div>
+    </div>
+  </header>
+
+  <!-- ============== CHARTER ============== -->
+  <div class="charter">
+    <div class="stamp">YOUR CHARTER</div>
+    <h2>Build agents that solve <em>real business problems.</em></h2>
+    <p>You're hired to bring domain knowledge to AI — to translate the messy, specific reality of your business into prompts, tools, schemas, and evaluations that move metrics that matter. <strong>That's the work only you can do.</strong></p>
+    <p>You don't have to learn OPA, OTel, LangGraph internals, MCP transports, or how retries interact with timeouts. The platform team handles all of that, behind clean interfaces. You hold them to that contract; they hold you to writing agents the SDK can safely run.</p>
+
+    <div class="own-grid">
+      <div class="col you">
+        <h3>What you own</h3>
+        <ul>
+          <li>Prompts &amp; system messages</li>
+          <li>Tool design — what's a tool, at what granularity</li>
+          <li>Pydantic input/output schemas for tools</li>
+          <li>Choice of <strong>model</strong> (gpt-4o-mini, sonnet, etc.)</li>
+          <li>RAG pipelines &amp; retrieval quality</li>
+          <li>Eval harnesses against business outcomes</li>
+          <li>Agent topology — single, hand-off, supervisor</li>
+          <li>Deciding which OPA <code>opa_path</code> a tool needs</li>
+        </ul>
+      </div>
+      <div class="col them">
+        <h3>What the platform team owns</h3>
+        <ul>
+          <li>JWT verification &amp; OPA wiring</li>
+          <li>Audit pipeline &amp; redactors</li>
+          <li>OpenTelemetry &amp; LangFuse integration</li>
+          <li>Budget enforcement &amp; daily limits</li>
+          <li>Retry, timeout, and cancellation policies</li>
+          <li>MCP connection pool &amp; lifecycle</li>
+          <li>Compaction internals (you configure thresholds)</li>
+          <li>Test fakes for every interface</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== TOC ============== -->
+  <nav class="toc">
+    <h2>Contents</h2>
+    <div class="toc-grid">
+      <a href="#ch-day1"><span class="n">CH 01</span><span class="t">Day <em>one</em></span><span class="d">Install, scaffold, hello-agent.</span></a>
+      <a href="#ch-anatomy"><span class="n">CH 02</span><span class="t">Anatomy of an <em>agent</em></span><span class="d">BaseAgent, tools, MCP, the LangGraph that runs underneath.</span></a>
+      <a href="#ch-tools"><span class="n">CH 03</span><span class="t">Writing <em>tools</em></span><span class="d">@tool, schemas, OPA paths, error handling.</span></a>
+      <a href="#ch-llm"><span class="n">CH 04</span><span class="t">Calling <em>LLMs</em></span><span class="d">Picking models, passing tenant_id, handling exceptions.</span></a>
+      <a href="#ch-memory"><span class="n">CH 05</span><span class="t">Memory &amp; <em>compaction</em></span><span class="d">When you need it, what to configure.</span></a>
+      <a href="#ch-mcp"><span class="n">CH 06</span><span class="t">MCP <em>servers</em></span><span class="d">When to use a tool vs an MCP server.</span></a>
+      <a href="#ch-tests"><span class="n">CH 07</span><span class="t">Tests <em>without</em> external services</span><span class="d">Fakes, fixtures, container.override().</span></a>
+      <a href="#ch-evals"><span class="n">CH 08</span><span class="t">Evaluating <em>agents</em></span><span class="d">Business metrics over latency.</span></a>
+      <a href="#ch-deploy"><span class="n">CH 09</span><span class="t">Deploying <em>agents</em></span><span class="d">FastAPI, env vars, observability bind.</span></a>
+      <a href="#ch-cookbook"><span class="n">CH 10</span><span class="t">Cookbook <em>recipes</em></span><span class="d">The 6 things you'll do most weeks.</span></a>
+      <a href="#ch-anti"><span class="n">CH 11</span><span class="t">Anti-<em>patterns</em></span><span class="d">Common mistakes — block them in your own code review.</span></a>
+      <a href="#ch-ramp"><span class="n">CH 12</span><span class="t">Your first <em>month</em></span><span class="d">A week-by-week ramp plan.</span></a>
+      <a href="#ch-help"><span class="n">CH 13</span><span class="t">Asking for <em>help</em></span><span class="d">Who, when, how.</span></a>
+      <a href="#ch-where"><span class="n">CH 14</span><span class="t">Where to <em>look</em></span><span class="d">The files you'll touch most.</span></a>
+    </div>
+  </nav>
+
+  <!-- ============== CH 01 DAY 1 ============== -->
+  <section id="ch-day1">
+    <div class="ch-head">
+      <span class="ch-num">CH 01</span>
+      <h2>Day <em>one.</em></h2>
+    </div>
+    <p class="ch-blurb">If a hello-world agent answers a question by lunch, you've cleared the highest hurdle. Everything after this is iteration.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">$ shell</span><span>install + scaffold</span></span><span class="com"># 1. install the SDK</span>
+pip install ai-eaap-sdk
+
+<span class="com"># 2. scaffold a project</span>
+eaap new my-agents
+<span class="kw">cd</span> my-agents
+
+<span class="com"># 3. run the example agent</span>
+python -m my_agents.main</pre>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">my_agents/main.py</span><span>~30 lines · the whole hello-world</span></span><span class="kw">from</span> <span class="id">ai_core</span> <span class="kw">import</span> AICoreApp, BaseAgent, tool
+<span class="kw">from</span> <span class="id">pydantic</span> <span class="kw">import</span> BaseModel
+
+<span class="kw">class</span> <span class="typ">HiIn</span>(BaseModel):  name: <span class="kw">str</span>
+<span class="kw">class</span> <span class="typ">HiOut</span>(BaseModel): greeting: <span class="kw">str</span>
+
+<span class="dec">@tool</span>(name=<span class="str">"say_hi"</span>, version=<span class="num">1</span>)
+<span class="kw">async def</span> <span class="id">say_hi</span>(p: <span class="typ">HiIn</span>) -> <span class="typ">HiOut</span>:
+    <span class="kw">return</span> <span class="typ">HiOut</span>(greeting=<span class="str">f"Hi </span>{p.name}<span class="str">!"</span>)
+
+<span class="kw">class</span> <span class="typ">Greeter</span>(BaseAgent):
+    agent_id = <span class="str">"greeter"</span>
+    <span class="kw">def</span> <span class="id">system_prompt</span>(<span class="kw">self</span>) -> <span class="kw">str</span>:
+        <span class="kw">return</span> <span class="str">"You greet people warmly and end with a smiley."</span>
+    <span class="kw">def</span> <span class="id">tools</span>(<span class="kw">self</span>):
+        <span class="kw">return</span> [say_hi]
+
+<span class="kw">async def</span> <span class="id">main</span>() -> <span class="kw">None</span>:
+    <span class="kw">async with</span> AICoreApp() <span class="kw">as</span> app:
+        agent = app.agent(<span class="typ">Greeter</span>)
+        out = <span class="kw">await</span> agent.invoke({<span class="str">"messages"</span>: [
+            {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"hi, I'm Sam"</span>}
+        ]})
+        print(out[<span class="str">"messages"</span>][-<span class="num">1</span>])
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    <span class="kw">import</span> <span class="id">asyncio</span>; asyncio.run(main())</pre>
+
+    <div class="aside tip">
+      <span class="stamp">tip</span><strong>That's the whole agent.</strong> The SDK supplied the other ~10,000 lines of cross-cutting infrastructure you didn't have to write. Reread the file and notice what's <em>not</em> there: no auth, no retry, no audit, no observability code. All of that is wired automatically by <code>AICoreApp()</code>.
+    </div>
+
+    <div class="aside watch">
+      <span class="stamp">watch out</span>The dev defaults bind a <strong>no-op</strong> policy evaluator and an <strong>env-based</strong> secret manager. That's fine for local dev. Production deployments use <code>ProductionSecurityModule</code> — see CH 09.
+    </div>
+  </section>
+
+  <!-- ============== CH 02 ANATOMY ============== -->
+  <section id="ch-anatomy">
+    <div class="ch-head">
+      <span class="ch-num">CH 02</span>
+      <h2>Anatomy of an <em>agent.</em></h2>
+    </div>
+    <p class="ch-blurb">The smallest mental model that's accurate. <code>BaseAgent</code> compiles to a LangGraph; you don't usually need to know that, but the seams are useful when you do.</p>
+
+    <figure class="anatomy">
+      <svg viewBox="0 0 1000 360" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#3c7d92"/>
+          </marker>
+        </defs>
+
+        <!-- BaseAgent box -->
+        <rect x="20" y="20" width="960" height="320" fill="#ffffff" stroke="#3c7d92" stroke-width="1.6" rx="4"/>
+        <text x="40" y="50" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#3c7d92" font-weight="600">CLASS BASEAGENT</text>
+        <text x="40" y="78" font-family="DM Serif Display" font-size="22" fill="#0d1820">YourAgent(BaseAgent)</text>
+
+        <!-- system_prompt -->
+        <rect x="40" y="100" width="280" height="62" fill="#eef1f3" stroke="#3c7d92" stroke-width="1" rx="2"/>
+        <text x="52" y="124" font-family="JetBrains Mono" font-size="13" fill="#3c7d92" font-weight="500">def system_prompt(self):</text>
+        <text x="52" y="146" font-family="Outfit" font-size="12" fill="#5a6874">your agent's voice + rules</text>
+
+        <!-- tools -->
+        <rect x="340" y="100" width="280" height="62" fill="#eef1f3" stroke="#3c7d92" stroke-width="1" rx="2"/>
+        <text x="352" y="124" font-family="JetBrains Mono" font-size="13" fill="#3c7d92" font-weight="500">def tools(self):</text>
+        <text x="352" y="146" font-family="Outfit" font-size="12" fill="#5a6874">return [tool_a, tool_b, ...]</text>
+
+        <!-- mcp_servers -->
+        <rect x="640" y="100" width="320" height="62" fill="#eef1f3" stroke="#3c7d92" stroke-width="1" rx="2"/>
+        <text x="652" y="124" font-family="JetBrains Mono" font-size="13" fill="#3c7d92" font-weight="500">def mcp_servers(self):</text>
+        <text x="652" y="146" font-family="Outfit" font-size="12" fill="#5a6874">optional — declare external MCP servers</text>
+
+        <!-- arrow down -->
+        <line x1="500" y1="172" x2="500" y2="200" stroke="#3c7d92" stroke-width="1" marker-end="url(#arr)"/>
+        <text x="510" y="190" font-family="JetBrains Mono" font-size="11" fill="#5a6874" letter-spacing="1">compile()</text>
+
+        <!-- compiled graph -->
+        <rect x="40" y="208" width="920" height="120" fill="#e3e7eb" stroke="#3c7d92" stroke-width="1" stroke-dasharray="4 3" rx="2"/>
+        <text x="52" y="230" font-family="JetBrains Mono" font-size="11" letter-spacing="2" fill="#3c7d92" font-weight="600">COMPILED LANGGRAPH — INTERNAL</text>
+
+        <rect x="68" y="248" width="180" height="60" fill="#ffffff" stroke="#3c7d92" stroke-width="0.8"/>
+        <text x="78" y="268" font-family="Outfit" font-size="13" fill="#0d1820" font-weight="600">compaction node</text>
+        <text x="78" y="288" font-family="JetBrains Mono" font-size="11" fill="#5a6874">summarises history</text>
+
+        <rect x="278" y="248" width="180" height="60" fill="#ffffff" stroke="#3c7d92" stroke-width="0.8"/>
+        <text x="288" y="268" font-family="Outfit" font-size="13" fill="#0d1820" font-weight="600">agent node</text>
+        <text x="288" y="288" font-family="JetBrains Mono" font-size="11" fill="#5a6874">LLM call + tool dispatch</text>
+
+        <rect x="488" y="248" width="220" height="60" fill="#ffffff" stroke="#3c7d92" stroke-width="0.8"/>
+        <text x="498" y="268" font-family="Outfit" font-size="13" fill="#0d1820" font-weight="600">tool invocation</text>
+        <text x="498" y="288" font-family="JetBrains Mono" font-size="11" fill="#5a6874">5-stage pipeline (auto)</text>
+
+        <rect x="738" y="248" width="208" height="60" fill="#ffffff" stroke="#3c7d92" stroke-width="0.8"/>
+        <text x="748" y="268" font-family="Outfit" font-size="13" fill="#0d1820" font-weight="600">checkpoint</text>
+        <text x="748" y="288" font-family="JetBrains Mono" font-size="11" fill="#5a6874">state persistence (optional)</text>
+      </svg>
+      <figcaption>
+        <span><span class="id">FIG · 01</span> &nbsp; what BaseAgent compiles to</span>
+        <span>you fill in 3 methods · the SDK does the rest</span>
+      </figcaption>
+    </figure>
+
+    <p style="color: var(--ink-2); font-size: 15.5px; max-width: 70ch;">You override <strong>three methods</strong>: <code class="mono" style="color: var(--teal-d)">system_prompt()</code>, <code class="mono" style="color: var(--teal-d)">tools()</code>, <code class="mono" style="color: var(--teal-d)">mcp_servers()</code>. Optionally <code class="mono" style="color: var(--teal-d)">extend_graph()</code> if you need custom nodes. The SDK builds the rest of the LangGraph for you and wraps it in observability, audit, and budget enforcement.</p>
+
+    <div class="aside">
+      <span class="stamp">key idea</span>An agent is <strong>data + functions</strong>: the system prompt (data), the tools (functions). Most of your design work is deciding what's a tool and what its schema looks like. CH 03.
+    </div>
+  </section>
+
+  <!-- ============== CH 03 TOOLS ============== -->
+  <section id="ch-tools">
+    <div class="ch-head">
+      <span class="ch-num">CH 03</span>
+      <h2>Writing <em>tools.</em></h2>
+    </div>
+    <p class="ch-blurb">A tool is an <code>async def</code> with a single Pydantic input and a Pydantic output, decorated with <code>@tool</code>. Three pieces. That's the whole contract.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">tools/lookup_ticket.py</span><span>the canonical shape</span></span><span class="kw">from</span> <span class="id">ai_core.tools</span> <span class="kw">import</span> tool
+<span class="kw">from</span> <span class="id">pydantic</span> <span class="kw">import</span> BaseModel, Field
+
+<span class="kw">class</span> <span class="typ">LookupTicketIn</span>(BaseModel):
+    ticket_id: <span class="kw">str</span> = Field(..., min_length=<span class="num">1</span>, pattern=<span class="str">r"^T-\d+$"</span>)
+
+<span class="kw">class</span> <span class="typ">LookupTicketOut</span>(BaseModel):
+    ticket_id: <span class="kw">str</span>
+    status:    <span class="kw">str</span>
+    summary:   <span class="kw">str</span>
+
+<span class="dec">@tool</span>(
+    name=<span class="str">"lookup_ticket"</span>,
+    version=<span class="num">1</span>,
+    description=<span class="str">"Fetch a ticket by id."</span>,
+    opa_path=<span class="str">"eaap/support/lookup"</span>,
+)
+<span class="kw">async def</span> <span class="id">lookup_ticket</span>(p: <span class="typ">LookupTicketIn</span>) -> <span class="typ">LookupTicketOut</span>:
+    <span class="com"># your business logic, full stop.</span>
+    row = <span class="kw">await</span> tickets.fetch(p.ticket_id)
+    <span class="kw">return</span> <span class="typ">LookupTicketOut</span>(**row)</pre>
+
+    <div class="aside tip">
+      <span class="stamp">three rules</span><strong>1.</strong> Tools are <code>async def</code>, never sync. <strong>2.</strong> Single Pydantic positional argument. Pydantic return type. <strong>3.</strong> Module-level functions, not methods or classmethods.
+    </div>
+
+    <div class="aside watch">
+      <span class="stamp">opa path</span>Every tool needs an <code>opa_path</code>. The platform team writes the policy at that path; you decide what scope makes sense. Use namespaces like <code>eaap/&lt;area&gt;/&lt;action&gt;</code>. Pass <code>opa_path=None</code> only for tools so generic they need no policy (and even then, run it past the platform team).
+    </div>
+
+    <h3 style="font-family: 'DM Serif Display', Georgia, serif; font-size: 22px; margin: 28px 0 12px; color: var(--ink); font-weight: 400;">Errors that propagate from tools</h3>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">errors you'll see</span><span>and what they mean</span></span><span class="kw">from</span> <span class="id">ai_core</span> <span class="kw">import</span> (
+    ToolValidationError,    <span class="com"># bad input — pydantic parse failed</span>
+    PolicyDenialError,      <span class="com"># OPA said no</span>
+    ToolExecutionError,     <span class="com"># your handler raised something unexpected</span>
+    SchemaValidationError,  <span class="com"># your output doesn't match the schema</span>
+    BudgetExceededError,    <span class="com"># this tool's LLM call would blow the daily limit</span>
+)</pre>
+
+    <p style="color: var(--ink-2); font-size: 15px; max-width: 70ch;">Catch <strong>specific</strong> exceptions. Don't swallow with <code class="mono" style="color: var(--teal-d)">except Exception</code> — you'll mask budget and policy errors and look like you're handling them when you aren't.</p>
+  </section>
+
+  <!-- ============== CH 04 LLM ============== -->
+  <section id="ch-llm">
+    <div class="ch-head">
+      <span class="ch-num">CH 04</span>
+      <h2>Calling <em>LLMs.</em></h2>
+    </div>
+    <p class="ch-blurb">Inside <code>BaseAgent</code> the LLM is already wired up — you set the system prompt and tool list, the SDK does the rest. When you need to call an LLM <strong>from inside a tool</strong>, do it through the bound <code>ILLMClient</code>.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">tools/summarise.py</span><span>resolve via the container</span></span><span class="kw">from</span> <span class="id">ai_core.di.interfaces</span> <span class="kw">import</span> ILLMClient
+<span class="kw">from</span> <span class="id">ai_core.tools</span> <span class="kw">import</span> tool
+
+<span class="kw">class</span> <span class="typ">SummariseIn</span>(BaseModel):  text: <span class="kw">str</span>; max_tokens: <span class="kw">int</span> = <span class="num">200</span>
+<span class="kw">class</span> <span class="typ">SummariseOut</span>(BaseModel): summary: <span class="kw">str</span>
+
+<span class="dec">@tool</span>(name=<span class="str">"summarise"</span>, version=<span class="num">1</span>)
+<span class="kw">async def</span> <span class="id">summarise</span>(p: <span class="typ">SummariseIn</span>) -> <span class="typ">SummariseOut</span>:
+    llm: ILLMClient = current_container().get(ILLMClient)
+    resp = <span class="kw">await</span> llm.complete(
+        model=<span class="str">"gpt-4o-mini"</span>,
+        messages=[
+            {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"Summarise concisely."</span>},
+            {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: p.text},
+        ],
+        max_tokens=p.max_tokens,
+        tenant_id=current_tenant(),     <span class="com"># required for budget + obs</span>
+        agent_id=current_agent(),       <span class="com"># required for budget + obs</span>
+        temperature=<span class="num">0.0</span>,
+    )
+    <span class="kw">return</span> <span class="typ">SummariseOut</span>(summary=resp.content.strip())</pre>
+
+    <div class="aside watch">
+      <span class="stamp">always pass</span><strong><code>tenant_id</code> and <code>agent_id</code></strong> on every <code>llm.complete()</code> call. Without them, budget enforcement quietly doesn't apply and observability loses its join keys. The first time you find out is on the AWS bill.
+    </div>
+
+    <h3 style="font-family: 'DM Serif Display', Georgia, serif; font-size: 22px; margin: 28px 0 12px; color: var(--ink); font-weight: 400;">Switching models</h3>
+    <p style="color: var(--ink-2); font-size: 15px; max-width: 70ch;">Change <code class="mono" style="color: var(--teal-d)">EAAP_LLM__DEFAULT_MODEL</code> to switch the SDK's default. Override per-call by passing <code class="mono" style="color: var(--teal-d)">model="..."</code>. LiteLLM handles the protocol differences — the same code talks to OpenAI, Anthropic, Vertex, Bedrock, etc.</p>
+
+    <div class="aside tip">
+      <span class="stamp">model picking</span>Start with <code>gpt-4o-mini</code> or <code>claude-haiku</code> for cost. Move to a stronger model only when an eval shows it's needed. <strong>Cost rises faster than capability for most business tasks.</strong>
+    </div>
+  </section>
+
+  <!-- ============== CH 05 MEMORY ============== -->
+  <section id="ch-memory">
+    <div class="ch-head">
+      <span class="ch-num">CH 05</span>
+      <h2>Memory &amp; <em>compaction.</em></h2>
+    </div>
+    <p class="ch-blurb">Long conversations exceed model context. The SDK's <code>MemoryManager</code> compacts history into a summary while preserving Essential Entities. You configure thresholds in env vars; the rest is automatic.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">.env</span><span>configuration only</span></span><span class="com"># Above this many tokens, run compaction</span>
+EAAP_AGENT__MEMORY_COMPACTION_TOKEN_THRESHOLD=<span class="num">12000</span>
+
+<span class="com"># Target post-compaction size — passed into the summariser prompt</span>
+EAAP_AGENT__MEMORY_COMPACTION_TARGET_TOKENS=<span class="num">2000</span>
+
+<span class="com"># Hard ceiling on the summariser LLM call</span>
+EAAP_AGENT__COMPACTION_TIMEOUT_SECONDS=<span class="num">30</span>
+
+<span class="com"># Keys whose values must survive compaction verbatim</span>
+EAAP_AGENT__ESSENTIAL_ENTITY_KEYS=customer_id,ticket_id,policy_number</pre>
+
+    <div class="aside">
+      <span class="stamp">when needed</span>Single-turn agents (lookup-and-respond) don't need compaction — there's nothing to compact. Multi-turn agents (long support sessions, research loops) need it. <strong>Default settings work for most cases</strong>; tune only when an eval surfaces a problem.
+    </div>
+
+    <div class="aside tip">
+      <span class="stamp">essential entities</span>Add anything that should survive compaction — customer ids, ticket numbers, policy references, decision IDs. The summariser receives them as a list and is instructed to preserve them verbatim.
+    </div>
+  </section>
+
+  <!-- ============== CH 06 MCP ============== -->
+  <section id="ch-mcp">
+    <div class="ch-head">
+      <span class="ch-num">CH 06</span>
+      <h2>MCP <em>servers.</em></h2>
+    </div>
+    <p class="ch-blurb">An MCP server is a separately-running process that exposes tools, resources, or prompts via the Model Context Protocol. Use one when you have a substantial body of capability to share across agents — your own KB, a vendor's tools, an existing internal service.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">agents/research_agent.py</span><span>declare, agent picks up tools</span></span><span class="kw">from</span> <span class="id">ai_core.mcp</span> <span class="kw">import</span> MCPServerSpec
+<span class="kw">from</span> <span class="id">ai_core</span> <span class="kw">import</span> BaseAgent
+
+<span class="kw">class</span> <span class="typ">ResearchAgent</span>(BaseAgent):
+    agent_id = <span class="str">"research"</span>
+
+    <span class="kw">def</span> <span class="id">system_prompt</span>(<span class="kw">self</span>) -> <span class="kw">str</span>:
+        <span class="kw">return</span> <span class="str">"You research and cite sources."</span>
+
+    <span class="kw">def</span> <span class="id">mcp_servers</span>(<span class="kw">self</span>):
+        <span class="kw">return</span> [
+            MCPServerSpec(
+                component_id=<span class="str">"web-search"</span>,
+                transport=<span class="str">"http"</span>,
+                url=<span class="str">"http://web-search.internal:8080"</span>,
+            ),
+            MCPServerSpec(
+                component_id=<span class="str">"kb"</span>,
+                transport=<span class="str">"stdio"</span>,
+                command=[<span class="str">"python"</span>, <span class="str">"-m"</span>, <span class="str">"kb_mcp.server"</span>],
+            ),
+        ]</pre>
+
+    <div class="aside">
+      <span class="stamp">tool vs MCP</span>Use <code>@tool</code> for a single function or a small cohesive group. Use an <code>MCPServerSpec</code> when the capability is large enough to deserve its own process — your own knowledge base, a vendor's full toolkit, an existing internal service you're wrapping.
+    </div>
+
+    <div class="aside watch">
+      <span class="stamp">tool name collisions</span>If two MCP servers expose tools with the same name, the SDK raises rather than silently picking one. Either rename upstream or scope through <code>component_id</code>.
+    </div>
+  </section>
+
+  <!-- ============== CH 07 TESTS ============== -->
+  <section id="ch-tests">
+    <div class="ch-head">
+      <span class="ch-num">CH 07</span>
+      <h2>Tests <em>without</em> external services.</h2>
+    </div>
+    <p class="ch-blurb">A unit test of an agent should run in 0.04 seconds and need zero external services. The SDK provides fakes for every interface; you wire them up with <code>Container.override()</code>.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">tests/test_lookup_ticket.py</span><span>fake everything</span></span><span class="kw">from</span> <span class="id">ai_core.di</span> <span class="kw">import</span> Container
+<span class="kw">from</span> <span class="id">ai_core.di.module</span> <span class="kw">import</span> AgentModule
+<span class="kw">from</span> <span class="id">ai_core.testing</span> <span class="kw">import</span> (
+    FakeModule, FakePolicyEvaluator, FakeBudgetService, FakeObservabilityProvider
+)
+<span class="kw">from</span> <span class="id">ai_core.di.interfaces</span> <span class="kw">import</span> IPolicyEvaluator
+<span class="kw">import</span> <span class="id">pytest</span>
+
+<span class="dec">@pytest.fixture</span>
+<span class="kw">def</span> <span class="id">container</span>():
+    c = Container.build([AgentModule(), FakeModule()])
+    c.override(IPolicyEvaluator, FakePolicyEvaluator(default_allow=<span class="kw">True</span>))
+    <span class="kw">return</span> c
+
+<span class="kw">async def</span> <span class="id">test_lookup_ticket_allowed</span>(container):
+    invoker = container.get(ToolInvoker)
+    out = <span class="kw">await</span> invoker.invoke(
+        lookup_ticket,
+        arguments={<span class="str">"ticket_id"</span>: <span class="str">"T-42"</span>},
+        agent_id=<span class="str">"customer-support"</span>,
+        tenant_id=<span class="str">"acme"</span>,
+    )
+    <span class="kw">assert</span> out.status == <span class="str">"open"</span></pre>
+
+    <div class="aside tip">
+      <span class="stamp">the test seam</span><code>Container.override(I, fake)</code> is the only test seam you need. Don't monkey-patch SDK internals — the bindings drift across versions and tests break invisibly. Fakes don't.
+    </div>
+
+    <div class="aside watch">
+      <span class="stamp">contract</span>If a test fails with "PostgreSQL connection refused" or "OPA unreachable", you forgot a fake. Build the container with <code>FakeModule()</code> and assert: this is a unit test, not an integration test.
+    </div>
+  </section>
+
+  <!-- ============== CH 08 EVALS ============== -->
+  <section id="ch-evals">
+    <div class="ch-head">
+      <span class="ch-num">CH 08</span>
+      <h2>Evaluating <em>agents.</em></h2>
+    </div>
+    <p class="ch-blurb">Latency and token count are infrastructure metrics. <strong>Business outcomes are the metrics that matter for an agent.</strong> Resolution rate, escalation rate, cost-per-task, customer satisfaction. If you can't measure it, the agent isn't working — you just don't know yet.</p>
+
+    <h3 style="font-family: 'DM Serif Display', Georgia, serif; font-size: 22px; margin: 24px 0 12px; color: var(--ink); font-weight: 400;">A useful eval has three layers</h3>
+
+    <ol style="margin: 0; padding-left: 0; list-style: none;">
+      <li style="padding: 12px 0 12px 36px; position: relative; border-bottom: 1px solid var(--rule); color: var(--ink-2); font-size: 15.5px; line-height: 1.55;">
+        <span style="position: absolute; left: 0; top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--teal); font-weight: 600; letter-spacing: 0.16em;">L1</span>
+        <strong style="color: var(--ink);">Golden cases.</strong> A handful of hand-curated examples with known correct answers. Run on every PR. Catches obvious regressions.
+      </li>
+      <li style="padding: 12px 0 12px 36px; position: relative; border-bottom: 1px solid var(--rule); color: var(--ink-2); font-size: 15.5px; line-height: 1.55;">
+        <span style="position: absolute; left: 0; top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--teal); font-weight: 600; letter-spacing: 0.16em;">L2</span>
+        <strong style="color: var(--ink);">LLM-as-judge sweep.</strong> Larger set of cases where a strong model rates the agent's output against a rubric. Run nightly. Catches drift.
+      </li>
+      <li style="padding: 12px 0 12px 36px; position: relative; color: var(--ink-2); font-size: 15.5px; line-height: 1.55;">
+        <span style="position: absolute; left: 0; top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--teal); font-weight: 600; letter-spacing: 0.16em;">L3</span>
+        <strong style="color: var(--ink);">Production telemetry.</strong> Aggregate business metrics — resolution rate, deflection rate, escalation rate. Run continuously. Catches everything else.
+      </li>
+    </ol>
+
+    <div class="aside tip">
+      <span class="stamp">eval before improvement</span>If you don't have an eval, you can't tell whether a "better prompt" is actually better. Build the eval first; iterate on the agent second.
+    </div>
+  </section>
+
+  <!-- ============== CH 09 DEPLOY ============== -->
+  <section id="ch-deploy">
+    <div class="ch-head">
+      <span class="ch-num">CH 09</span>
+      <h2>Deploying <em>agents.</em></h2>
+    </div>
+    <p class="ch-blurb">Most production agents go behind FastAPI with JWT + OPA enforcement. The SDK provides <code>OPAAuthorization</code> as a drop-in dependency.</p>
+
+    <pre class="code">
+<span class="head-bar"><span class="filename">api/app.py</span><span>JWT + OPA on every route</span></span><span class="kw">from</span> <span class="id">fastapi</span> <span class="kw">import</span> FastAPI, Depends
+<span class="kw">from</span> <span class="id">ai_core.di</span> <span class="kw">import</span> Container
+<span class="kw">from</span> <span class="id">ai_core.di.module</span> <span class="kw">import</span> AgentModule, ProductionSecurityModule
+<span class="kw">from</span> <span class="id">ai_core.security</span> <span class="kw">import</span> OPAAuthorization, AuthorizedPrincipal
+<span class="kw">from</span> <span class="id">ai_core.observability.logging</span> <span class="kw">import</span> bind_context, reset_context
+
+container = Container.build([AgentModule(), ProductionSecurityModule()])
+authz = OPAAuthorization(container, decision_path=<span class="str">"eaap/api/allow"</span>)
+app = FastAPI()
+
+<span class="dec">@app.post</span>(<span class="str">"/agents/support/run"</span>)
+<span class="kw">async def</span> <span class="id">run_support</span>(
+    req: RunRequest,
+    principal: AuthorizedPrincipal = Depends(
+        authz.requires(action=<span class="str">"agent.run"</span>, resource=<span class="str">"customer-support"</span>)
+    ),
+):
+    tokens = bind_context(
+        tenant_id=principal.claims[<span class="str">"tenant_id"</span>],
+        user_id=principal.subject,
+        request_id=req.request_id,
+    )
+    <span class="kw">try</span>:
+        <span class="kw">return await</span> support_agent.invoke(req.payload)
+    <span class="kw">finally</span>:
+        reset_context(tokens)</pre>
+
+    <div class="aside watch">
+      <span class="stamp">production module</span><code>AgentModule()</code> alone gives you a no-op policy evaluator — fine for dev, <strong>not for prod</strong>. Use <code>AgentModule() + ProductionSecurityModule()</code> for any environment that holds real customer data.
+    </div>
+
+    <div class="aside ask">
+      <span class="stamp">ask the platform team</span>Your team probably has a deploy template (k8s manifests, env-var bundles) — get it on day one rather than rolling your own. The platform team has standardised env vars, health probes, and graceful-shutdown timing.
+    </div>
+  </section>
+
+  <!-- ============== CH 10 COOKBOOK ============== -->
+  <section id="ch-cookbook">
+    <div class="ch-head">
+      <span class="ch-num">CH 10</span>
+      <h2>Cookbook <em>recipes.</em></h2>
+    </div>
+    <p class="ch-blurb">The handful of tasks that come up most weeks. Each is a numbered sequence — copy and adapt.</p>
+
+    <div class="recipe">
+      <h4>Add a tool to an existing <em>agent</em></h4>
+      <ol class="steps">
+        <li>Create <code>tools/your_tool.py</code> with a Pydantic input/output and an <code>async def</code> handler.</li>
+        <li>Decorate with <code>@tool(name=..., version=1, opa_path=...)</code>.</li>
+        <li>Add the import to the agent's <code>tools()</code> return list.</li>
+        <li>Write a unit test using <code>FakeModule</code> + <code>FakePolicyEvaluator(default_allow=True)</code>.</li>
+        <li>Coordinate with the platform team to add the OPA rule under your <code>opa_path</code> in the policy bundle.</li>
+      </ol>
+    </div>
+
+    <div class="recipe">
+      <h4>Switch from GPT-4o-mini to <em>Claude Sonnet</em></h4>
+      <ol class="steps">
+        <li>Update <code>EAAP_LLM__DEFAULT_MODEL=anthropic/claude-sonnet-4-5</code> in your settings.</li>
+        <li>Set the credential (<code>ANTHROPIC_API_KEY</code>) — the platform team handles this in production.</li>
+        <li>Re-run your evals — temperature and max-tokens may need re-tuning.</li>
+        <li>No agent code changes required. LiteLLM normalises the protocol.</li>
+      </ol>
+    </div>
+
+    <div class="recipe">
+      <h4>Add a <em>per-tenant</em> budget override</h4>
+      <ol class="steps">
+        <li>Set <code>EAAP_AGENT__DAILY_USD_LIMIT</code> as the tenant default.</li>
+        <li>Set <code>EAAP_AGENT__BUDGET_OVERRIDES</code> as JSON: <code>{"acme:billing-agent": {"daily_usd_limit": 50.00}}</code>.</li>
+        <li>Restart the app. The override applies on the next <code>BudgetService.check()</code> for that pair.</li>
+        <li>Verify with the audit dashboard — you should see <code>budget.checked</code> events with the new limit applied.</li>
+      </ol>
+    </div>
+
+    <div class="recipe">
+      <h4>Wire an <em>MCP server</em> into an agent</h4>
+      <ol class="steps">
+        <li>Decide on transport: <code>"stdio"</code> for a local subprocess, <code>"http"</code> for a network server.</li>
+        <li>Add an <code>MCPServerSpec</code> to your agent's <code>mcp_servers()</code> with a unique <code>component_id</code>.</li>
+        <li>Run the agent. The SDK pools connections; tools surface to the LLM automatically.</li>
+        <li>If two MCP servers expose tools with the same name, rename upstream — the resolver fails fast on collisions.</li>
+      </ol>
+    </div>
+
+    <div class="recipe">
+      <h4>Write a <em>unit test</em> for an agent</h4>
+      <ol class="steps">
+        <li>In <code>conftest.py</code>, build a container with <code>AgentModule() + FakeModule()</code>.</li>
+        <li>Override <code>ILLMClient</code> with a stub that returns canned <code>LLMResponse</code>s.</li>
+        <li>Override <code>IPolicyEvaluator</code> with <code>FakePolicyEvaluator(default_allow=True)</code>.</li>
+        <li>Construct the agent via <code>container.get(YourAgent)</code> and assert on its behaviour.</li>
+        <li>Run with <code>pytest -q</code>. No Postgres, no OPA, no LLM keys needed.</li>
+      </ol>
+    </div>
+
+    <div class="recipe">
+      <h4>Add a <em>redactor</em> for a new PII pattern</h4>
+      <ol class="steps">
+        <li>This belongs to the platform team — the redactor chain is centrally maintained.</li>
+        <li>Open a ticket describing the pattern (e.g. "passport numbers should be redacted in audit").</li>
+        <li>Provide an example string the redactor should match. They'll add it; you don't need to change anything in your agent.</li>
+        <li>If urgent, ping <code class="mono" style="color: var(--teal-d)">#eaap-platform-office-hours</code>.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============== CH 11 ANTI-PATTERNS ============== -->
+  <section id="ch-anti">
+    <div class="ch-head">
+      <span class="ch-num">CH 11</span>
+      <h2>Anti-<em>patterns.</em></h2>
+    </div>
+    <p class="ch-blurb">Six mistakes that look reasonable in week one and cause pain in week six. Block them in your own code review.</p>
+
+    <div class="anti">
+      <div class="item">
+        <h5>Reading <code>os.environ</code> directly in a tool</h5>
+        <p>Settings are typed and validated. Reading the env directly bypasses validation, breaks dev/prod parity, and makes tests harder.</p>
+        <div class="do">Use <code>AppSettings</code> from the container. Resolve secrets via <code>SecretRef</code>.</div>
+      </div>
+      <div class="item">
+        <h5>Catching <code>Exception</code> around an LLM call</h5>
+        <p>You'll silently swallow <code>BudgetExceededError</code> and <code>PolicyDenialError</code> while looking like you're handling them.</p>
+        <div class="do">Catch the specific SDK exception and return a structured error to the caller.</div>
+      </div>
+      <div class="item">
+        <h5>Skipping <code>tenant_id</code> in <code>llm.complete()</code></h5>
+        <p>Without it, budget enforcement quietly doesn't apply. Hits production. Hits the bill.</p>
+        <div class="do">Pass <code>tenant_id</code> on every call. Use <code>FakeBudgetService</code> in tests.</div>
+      </div>
+      <div class="item">
+        <h5>Shipping a tool with <code>opa_path=None</code></h5>
+        <p>Defensible only for genuinely-no-policy cases. Most "I don't need a policy" claims are wrong on review.</p>
+        <div class="do">Pick an <code>opa_path</code>; ask the platform team if the policy doesn't exist yet.</div>
+      </div>
+      <div class="item">
+        <h5>Logging customer data directly</h5>
+        <p>Audit goes through a redactor chain. <code>log.info(customer)</code> doesn't.</p>
+        <div class="do">Send durable records via <code>AuditRecord</code>; sanitise before any plain log.</div>
+      </div>
+      <div class="item">
+        <h5>Forking the SDK to "customise" something</h5>
+        <p>You'll diverge from upgrades and lose the platform team's support. The DI container exists exactly so you don't have to fork.</p>
+        <div class="do">Override the binding for the specific interface. Or ask the platform team to add the seam you need.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== CH 12 RAMP ============== -->
+  <section id="ch-ramp">
+    <div class="ch-head">
+      <span class="ch-num">CH 12</span>
+      <h2>Your first <em>month.</em></h2>
+    </div>
+    <p class="ch-blurb">A ramp plan. Adjust to your team's actual cadence — these are reasonable defaults, not orders.</p>
+
+    <div class="timeline">
+      <div class="week">
+        <div class="when">Day 1</div>
+        <div>
+          <h4>Hello, agent.</h4>
+          <p>Install, scaffold, run the example agent. Read this guide front-to-back. Skim the engineer's handbook (CH 14).</p>
+        </div>
+      </div>
+      <div class="week">
+        <div class="when">Week 1</div>
+        <div>
+          <h4>Your first tool.</h4>
+          <p>Pick a small, real piece of business logic. Wrap it as a <code>@tool</code>. Add a unit test using fakes. Open a PR. Ask for a review from a senior on the team.</p>
+        </div>
+      </div>
+      <div class="week">
+        <div class="when">Week 2</div>
+        <div>
+          <h4>Your first agent.</h4>
+          <p>Subclass <code>BaseAgent</code> with 2–3 tools and a system prompt. Write a small eval set. Run it locally. Iterate on the prompt.</p>
+        </div>
+      </div>
+      <div class="week">
+        <div class="when">Week 3</div>
+        <div>
+          <h4>Production-shaped.</h4>
+          <p>Wire the agent behind FastAPI with <code>OPAAuthorization</code>. Add OPA policy with the platform team. Configure observability binds. Push to staging.</p>
+        </div>
+      </div>
+      <div class="week">
+        <div class="when">Week 4</div>
+        <div>
+          <h4>Eval &amp; ship.</h4>
+          <p>Run the eval suite against staging. Compare to a baseline. If the numbers move in the right direction, ship a small slice to production. Watch the dashboards.</p>
+        </div>
+      </div>
+      <div class="week">
+        <div class="when">Month 2+</div>
+        <div>
+          <h4>Steady state.</h4>
+          <p>Iterate on prompts and tools, driven by eval results. Bring friction with the SDK to platform-team office hours. <strong>Resist the urge to fork.</strong></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== CH 13 HELP ============== -->
+  <section id="ch-help">
+    <div class="ch-head">
+      <span class="ch-num">CH 13</span>
+      <h2>Asking for <em>help.</em></h2>
+    </div>
+    <p class="ch-blurb">Knowing where to ask saves hours. The platform team wants to hear from you — they hate finding out you struggled silently for a week.</p>
+
+    <div class="help-list">
+      <div class="row">
+        <div class="when">CONFUSION ABOUT API</div>
+        <div class="who"><strong>Read</strong> the engineer's handbook (<code>docs/sdk-engineer-handbook.html</code>) first. If it's not there, post in <code class="mono" style="color: var(--teal-d)">#eaap-platform-office-hours</code>.</div>
+      </div>
+      <div class="row">
+        <div class="when">FEATURE GAP</div>
+        <div class="who">Open a ticket describing the use case. If two teams ask for the same thing, the platform team will build it. <strong>Do not fork the SDK</strong> — it cuts you off from upgrades and from support.</div>
+      </div>
+      <div class="row">
+        <div class="when">PERFORMANCE ISSUE</div>
+        <div class="who">If your agent is slow, first check observability dashboards. <code>tenant_id</code> + <code>agent_id</code> bind on every LLM call gives you a join key. If the SDK itself looks slow, ping platform.</div>
+      </div>
+      <div class="row">
+        <div class="when">POLICY FAILURE</div>
+        <div class="who">Tools failing with <code>PolicyDenialError</code>? You probably need an OPA rule at your <code>opa_path</code>. Bring the path + the desired rule semantics to <code>#eaap-security</code>.</div>
+      </div>
+      <div class="row">
+        <div class="when">PRODUCTION INCIDENT</div>
+        <div class="who">If the issue is in your agent code, you fix it. If it's in the SDK or platform infra, the on-call rotation is <code class="mono" style="color: var(--teal-d)">eaap-platform-oncall</code> on PagerDuty.</div>
+      </div>
+      <div class="row">
+        <div class="when">PROMPT/EVAL DESIGN</div>
+        <div class="who">Senior business AI engineers in your team are the right audience. Prompt engineering is craft — code review your prompts the way you code-review code.</div>
+      </div>
+    </div>
+
+    <div class="aside ask">
+      <span class="stamp">office hours</span>The platform team holds weekly office hours for the business AI team. Bring friction, gaps, and questions. <strong>It is the platform team's job to want to hear from you</strong> — they treat the friction list as input to their next sprint.
+    </div>
+  </section>
+
+  <!-- ============== CH 14 WHERE ============== -->
+  <section id="ch-where">
+    <div class="ch-head">
+      <span class="ch-num">CH 14</span>
+      <h2>Where to <em>look.</em></h2>
+    </div>
+    <p class="ch-blurb">When this guide isn't enough, here are the next places to read.</p>
+
+    <pre class="tree">
+<span class="acc"># SDK reference for engineers building agents</span>
+docs/sdk-engineer-handbook.html        <span class="cmt"># 12 datasheet cards, one per primitive</span>
+docs/settings.md                        <span class="cmt"># every env var, every default</span>
+docs/testing.md                         <span class="cmt"># test markers, fixtures, integration setup</span>
+
+<span class="acc"># The canonical public surface</span>
+src/ai_core/__init__.py                <span class="cmt"># if it's not here, treat it as private</span>
+
+<span class="acc"># Worked examples — runnable, end-to-end</span>
+examples/                               <span class="cmt"># one per major capability</span>
+
+<span class="acc"># Wider context</span>
+docs/sdk-stack-and-lock-in.html        <span class="cmt"># dependency audit, swap costs</span>
+docs/sdk-leadership-slides.html        <span class="cmt"># why the SDK exists in the first place</span></pre>
+  </section>
+
+  <footer class="foot">
+    <span class="doc-id">EAAP / DOC-BAI-001</span>
+    <span>ai-eaap-sdk · business AI engineer survival guide</span>
+    <span>v0.1 · keep open while building</span>
+  </footer>
+
+</div>
+</body>
+</html>

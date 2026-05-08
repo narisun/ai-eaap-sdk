@@ -110,15 +110,23 @@ class _AgentWithMCP(BaseAgent):
 # ---- Helpers --------------------------------------------------------------------
 def _build_agent(agent_cls, factory) -> BaseAgent:
     """Construct an agent with mostly-no-op deps; only mcp_factory matters here."""
+    from ai_core.agents.runtime import AgentRuntime  # noqa: PLC0415
+    from ai_core.agents.tool_errors import DefaultToolErrorRenderer  # noqa: PLC0415
+    from ai_core.tools.registrar import ToolRegistrar  # noqa: PLC0415
+    from ai_core.tools.resolver import DefaultToolResolver  # noqa: PLC0415
     invoker = ToolInvoker(observability=MagicMock())
-    return agent_cls(
-        settings=AppSettings(service_name="test", environment="local"),
+    runtime = AgentRuntime(
+        agent_settings=AppSettings(service_name="test", environment="local").agent,
         llm=MagicMock(),
         memory=MagicMock(),
         observability=MagicMock(),
         tool_invoker=invoker,
         mcp_factory=factory,
+        tool_error_renderer=DefaultToolErrorRenderer(),
+        tool_resolver=DefaultToolResolver(factory, invoker),
+        tool_registrar=ToolRegistrar(invoker),
     )
+    return agent_cls(runtime)
 
 
 # ---- Tests ----------------------------------------------------------------------
@@ -264,8 +272,8 @@ async def test_resolved_mcp_specs_are_registered_with_invoker() -> None:
     agent._mcp_servers = (
         MCPServerSpec(component_id="svc", transport="stdio", target="/bin/true"),
     )
-    register_spy = MagicMock(wraps=agent._tool_invoker.register)
-    agent._tool_invoker.register = register_spy  # type: ignore[method-assign]
+    register_spy = MagicMock(wraps=agent.runtime.tool_invoker.register)
+    agent.runtime.tool_invoker.register = register_spy  # type: ignore[method-assign]
 
     await agent._all_tools()
 

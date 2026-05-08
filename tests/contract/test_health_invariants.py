@@ -39,7 +39,7 @@ def _construct_probe_with_failing_dependency(
         # Point at a host:port nothing's listening on.
         settings = AppSettings()
         settings.security = SecuritySettings(opa_url="http://127.0.0.1:1")
-        return probe_cls(settings)  # type: ignore[call-arg]
+        return probe_cls(settings.security)  # type: ignore[call-arg]
     if name == "DatabaseProbe":
         # Engine that fails on connect.
         engine = create_async_engine(
@@ -49,7 +49,7 @@ def _construct_probe_with_failing_dependency(
     if name == "ModelLookupProbe":
         # Settings with a model that won't resolve.
         settings = AppSettings()
-        return probe_cls(settings)  # type: ignore[call-arg]
+        return probe_cls(settings.llm)  # type: ignore[call-arg]
     pytest.skip(f"No fault-injection harness defined for {name}")
 
 

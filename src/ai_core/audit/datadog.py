@@ -39,7 +39,7 @@ class DatadogAuditSink(IAuditSink):
         api_key: str,
         app_key: str | None = None,
         site: str = "datadoghq.com",
-        source: str = "ai-core-sdk",
+        source: str = "ai-eaap-sdk",
         environment: str | None = None,
     ) -> None:
         try:
@@ -47,7 +47,7 @@ class DatadogAuditSink(IAuditSink):
         except ImportError as exc:
             raise ConfigurationError(
                 "Datadog sink requires the 'datadog' optional dependency. "
-                "Install with: pip install ai-core-sdk[datadog]",
+                "Install with: pip install ai-eaap-sdk[datadog]",
                 error_code=ErrorCode.CONFIG_OPTIONAL_DEP_MISSING,
                 details={"extra": "datadog"},
                 cause=exc,

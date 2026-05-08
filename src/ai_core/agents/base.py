@@ -41,10 +41,9 @@ from langgraph.graph import END, START, StateGraph
 from opentelemetry import baggage
 from opentelemetry import context as otel_context
 
-from ai_core.agents.memory import IMemoryManager, to_openai_messages
+from ai_core.agents.memory import to_openai_messages
+from ai_core.agents.runtime import AgentRuntime
 from ai_core.agents.state import AgentState, new_agent_state
-from ai_core.config.settings import AppSettings
-from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
 from ai_core.exceptions import (
     AgentRecursionLimitError,
     PolicyDenialError,
@@ -53,15 +52,10 @@ from ai_core.exceptions import (
     ToolValidationError,
 )
 from ai_core.mcp.prompts import MCPPrompt, MCPPromptArgument, MCPPromptMessage
-from ai_core.mcp.resolver import (
-    is_method_not_found,
-    resolve_mcp_resources,
-    resolve_mcp_tools,
-)
-from ai_core.mcp.tools import MCPResourceSpec, MCPToolSpec
-from ai_core.mcp.transports import IMCPConnectionFactory, MCPServerSpec  # noqa: TC001
+from ai_core.mcp.resolver import is_method_not_found
+from ai_core.mcp.tools import MCPToolSpec
+from ai_core.mcp.transports import MCPServerSpec  # noqa: TC001
 from ai_core.observability.logging import bind_context, get_logger, unbind_context
-from ai_core.tools.invoker import ToolInvoker
 from ai_core.tools.spec import Tool, ToolSpec
 
 _logger = get_logger(__name__)
@@ -89,13 +83,24 @@ def _parse_tool_call_args(arguments: str | None) -> dict[str, Any]:
 class BaseAgent(ABC):
     """Abstract base class for SDK-built LangGraph agents.
 
+    Subclasses receive a single :class:`AgentRuntime` argument carrying every
+    SDK collaborator (LLM client, memory manager, tool invoker, observability,
+    MCP factory, agent settings). Subclasses that need additional dependencies
+    inject them alongside the runtime::
+
+        class MyAgent(BaseAgent):
+            @inject
+            def __init__(
+                self,
+                runtime: AgentRuntime,
+                repo: MyRepository,
+            ) -> None:
+                super().__init__(runtime)
+                self._repo = repo
+
     Args:
-        settings: Aggregated application settings.
-        llm: LLM client used by the agent node.
-        memory: Memory manager (interface) used by the compaction node.
-        observability: Provider used to wrap top-level invocations in spans.
-        tool_invoker: Invoker used to dispatch SDK tools through the
-            validation → policy → handler pipeline.
+        runtime: Bundle of SDK services. Constructed by the DI container via
+            :func:`AgentModule.provide_agent_runtime`.
     """
 
     #: Logical identifier — override in subclasses (used for budgeting + tracing).
@@ -107,24 +112,16 @@ class BaseAgent(ABC):
     auto_tool_loop: bool = True
 
     @inject
-    def __init__(
-        self,
-        settings: AppSettings,
-        llm: ILLMClient,
-        memory: IMemoryManager,
-        observability: IObservabilityProvider,
-        tool_invoker: ToolInvoker,
-        mcp_factory: IMCPConnectionFactory,
-    ) -> None:
-        self._settings = settings
-        self._llm = llm
-        self._memory = memory
-        self._observability = observability
-        self._tool_invoker = tool_invoker
-        self._mcp_factory = mcp_factory
+    def __init__(self, runtime: AgentRuntime) -> None:
+        self._runtime = runtime
         self._graph: Any | None = None
         self._mcp_resolved: list[MCPToolSpec] | None = None
         self._mcp_resolution_lock: asyncio.Lock = asyncio.Lock()
+
+    @property
+    def runtime(self) -> AgentRuntime:
+        """Return the bundle of SDK services injected at construction time."""
+        return self._runtime
 
     # ------------------------------------------------------------------
     # Subclass API
@@ -169,10 +166,11 @@ class BaseAgent(ABC):
 
         sdk_tools = [t for t in self.tools() if isinstance(t, ToolSpec)]
 
-        # Phase 2: auto-register each ToolSpec with the SchemaRegistry so that
+        # Auto-register each local ToolSpec via the injected registrar so
         # `app.register_tools(*specs)` is optional. Idempotent — re-compile is fine.
-        for spec in sdk_tools:
-            self._tool_invoker.register(spec)
+        # The registrar is the single seam for hosts that want to gate
+        # registration (e.g. by tenant or feature flag).
+        self._runtime.tool_registrar.register_all(sdk_tools)
 
         install_loop = self.auto_tool_loop and (bool(sdk_tools) or bool(list(self.mcp_servers())))
 
@@ -235,7 +233,7 @@ class BaseAgent(ABC):
                 metadata={"agent_id": self.agent_id},
             )
 
-            recursion_limit = self._settings.agent.max_recursion_depth
+            recursion_limit = self._runtime.agent_settings.max_recursion_depth
             config: dict[str, Any] = {"recursion_limit": recursion_limit}
             if thread_id is not None:
                 config["configurable"] = {"thread_id": thread_id}
@@ -247,7 +245,7 @@ class BaseAgent(ABC):
             # cross-tenant aggregation in OTel + LangFuse.
             token = otel_context.attach(self._build_baggage(tenant_id, thread_id, essential))
             try:
-                async with self._observability.start_span("agent.ainvoke", attributes=attributes):
+                async with self._runtime.observability.start_span("agent.ainvoke", attributes=attributes):
                     try:
                         result = await compiled.ainvoke(initial, config=config)
                     except GraphRecursionError as exc:
@@ -286,7 +284,7 @@ class BaseAgent(ABC):
             elif isinstance(t, Mapping):
                 tool_payload.append(t)
 
-        response = await self._llm.complete(
+        response = await self._runtime.llm.complete(
             model=None,
             messages=prompt,
             tools=tool_payload or None,
@@ -314,7 +312,12 @@ class BaseAgent(ABC):
         )
 
     async def _tool_node(self, state: AgentState) -> AgentState:
-        """Dispatch all tool calls on the most recent assistant message."""
+        """Dispatch all tool calls on the most recent assistant message.
+
+        Each tool-call failure is rendered into a ``ToolMessage`` via the
+        injected :class:`IToolErrorRenderer` so the LLM gets feedback on
+        the next turn rather than a short-circuited graph.
+        """
         history = list(state.get("messages") or [])
         last = history[-1] if history else None
         tool_calls = getattr(last, "tool_calls", None) or []
@@ -323,30 +326,29 @@ class BaseAgent(ABC):
         }
         essentials = state.get("essential_entities") or {}
         tenant_id = str(essentials.get("tenant_id") or "") or None
+        renderer = self._runtime.tool_error_renderer
 
         appended: list[Any] = []
         for tc in tool_calls:
             tc_id = tc.get("id") if isinstance(tc, Mapping) else getattr(tc, "id", "")
             name = tc.get("name") if isinstance(tc, Mapping) else getattr(tc, "name", "")
             args = tc.get("args") if isinstance(tc, Mapping) else getattr(tc, "args", {}) or {}
+            tool_call_id = tc_id or ""
             if isinstance(args, Mapping) and "__parse_error__" in args:
-                raw = args["__parse_error__"]
-                appended.append(ToolMessage(
-                    content=f"Tool '{name}' arguments were not valid JSON: {raw!r}",
-                    tool_call_id=tc_id or "",
-                    name=name,
+                appended.append(renderer.render_parse_error(
+                    tool_name=name,
+                    tool_call_id=tool_call_id,
+                    raw=str(args["__parse_error__"]),
                 ))
                 continue
             spec = sdk_tools_by_name.get(name)
             if spec is None:
-                appended.append(ToolMessage(
-                    content=f"Unknown tool '{name}'.",
-                    tool_call_id=tc_id or "",
-                    name=name or "",
+                appended.append(renderer.render_unknown_tool(
+                    tool_name=name, tool_call_id=tool_call_id,
                 ))
                 continue
             try:
-                result = await self._tool_invoker.invoke(
+                result = await self._runtime.tool_invoker.invoke(
                     spec,
                     args if isinstance(args, Mapping) else {},
                     agent_id=self.agent_id,
@@ -354,23 +356,16 @@ class BaseAgent(ABC):
                 )
                 appended.append(ToolMessage(
                     content=json.dumps(result),
-                    tool_call_id=tc_id or "",
+                    tool_call_id=tool_call_id,
                     name=name,
                 ))
             except ToolValidationError as exc:
-                first_err = exc.details.get("errors", [{}])[0] if exc.details.get("errors") else {}
-                msg = first_err.get("msg") if isinstance(first_err, Mapping) else None
-                appended.append(ToolMessage(
-                    content=f"Validation failed for '{name}': {msg or exc.message}",
-                    tool_call_id=tc_id or "",
-                    name=name,
+                appended.append(renderer.render_validation_error(
+                    tool_name=name, tool_call_id=tool_call_id, error=exc,
                 ))
             except PolicyDenialError as exc:
-                reason = exc.details.get("reason") or exc.message
-                appended.append(ToolMessage(
-                    content=f"Tool '{name}' denied by policy: {reason}",
-                    tool_call_id=tc_id or "",
-                    name=name,
+                appended.append(renderer.render_policy_denial(
+                    tool_name=name, tool_call_id=tool_call_id, error=exc,
                 ))
             except ToolExecutionError as exc:
                 _logger.error(
@@ -378,10 +373,8 @@ class BaseAgent(ABC):
                     tool_name=name, agent_id=self.agent_id,
                     exc_info=exc,
                 )
-                appended.append(ToolMessage(
-                    content=f"Tool '{name}' failed: {exc.message}",
-                    tool_call_id=tc_id or "",
-                    name=name,
+                appended.append(renderer.render_execution_error(
+                    tool_name=name, tool_call_id=tool_call_id, error=exc,
                 ))
         return AgentState(messages=appended)
 
@@ -394,7 +387,7 @@ class BaseAgent(ABC):
     async def _compaction_node(self, state: AgentState) -> AgentState:
         """LangGraph node that delegates to :class:`IMemoryManager`."""
         essentials = state.get("essential_entities") or {}
-        return await self._memory.compact(
+        return await self._runtime.memory.compact(
             state,
             tenant_id=str(essentials.get("tenant_id") or "") or None,
             agent_id=self.agent_id,
@@ -403,47 +396,23 @@ class BaseAgent(ABC):
     async def _all_tools(self) -> list[Tool | Mapping[str, Any]]:
         """Return the merged list of local + resolved MCP tools + resources.
 
-        Lazily resolves MCP servers on the first call; caches per-instance.
-        Concurrent first-turn callers serialize on `_mcp_resolution_lock`.
+        Resolution and conflict detection are delegated to the injected
+        :class:`IToolResolver`; the agent only retains the per-instance
+        cache and the local-tools merge.
 
         Raises:
             MCPTransportError: When a declared MCP server is unreachable.
             RegistryError: When MCP names conflict with each other or with
-                local @tool names. Conflicts span tools-vs-tools, tools-vs-resources,
-                and any of those vs local @tools.
+                local @tool names.
         """
         if self._mcp_resolved is None:
             async with self._mcp_resolution_lock:
                 if self._mcp_resolved is None:
-                    servers = list(self.mcp_servers())
-                    if servers:
-                        tools_resolved = await resolve_mcp_tools(servers, self._mcp_factory)
-                        resources_resolved = await resolve_mcp_resources(servers, self._mcp_factory)
-                        resolved: list[MCPToolSpec] = (
-                            list(tools_resolved) + list(resources_resolved)
-                        )
-                    else:
-                        resolved = []
-                    local_names = {
-                        t.name for t in self.tools() if isinstance(t, ToolSpec)
-                    }
-                    mcp_names_seen: set[str] = set()
-                    for mcp_spec in resolved:
-                        if mcp_spec.name in local_names:
-                            kind = "resource" if isinstance(mcp_spec, MCPResourceSpec) else "tool"
-                            raise RegistryError(
-                                f"MCP {kind} name {mcp_spec.name!r} conflicts with a local tool",
-                                details={"tool": mcp_spec.name},
-                            )
-                        if mcp_spec.name in mcp_names_seen:
-                            raise RegistryError(
-                                f"MCP name {mcp_spec.name!r} appears in both tools and resources "
-                                f"on declared servers",
-                                details={"name": mcp_spec.name},
-                            )
-                        mcp_names_seen.add(mcp_spec.name)
-                        self._tool_invoker.register(mcp_spec)
-                    self._mcp_resolved = resolved
+                    resolved = await self._runtime.tool_resolver.resolve(
+                        local_tools=self.tools(),
+                        mcp_servers=self.mcp_servers(),
+                    )
+                    self._mcp_resolved = list(resolved)
         return list(self.tools()) + list(self._mcp_resolved)
 
     async def list_prompts(self) -> list[MCPPrompt]:
@@ -462,7 +431,7 @@ class BaseAgent(ABC):
         out: list[MCPPrompt] = []
         seen_names: set[str] = set()
         for server in self.mcp_servers():
-            async with self._mcp_factory.open(server) as client:
+            async with self._runtime.mcp_factory.open(server) as client:
                 try:
                     prompts = await client.list_prompts()
                 except Exception as exc:  # noqa: BLE001, RUF100 — narrow via predicate
@@ -512,7 +481,7 @@ class BaseAgent(ABC):
         for srv in self.mcp_servers():
             if server is not None and srv.component_id != server:
                 continue
-            async with self._mcp_factory.open(srv) as client:
+            async with self._runtime.mcp_factory.open(srv) as client:
                 try:
                     prompts = await client.list_prompts()
                 except Exception as exc:  # noqa: BLE001, RUF100 — narrow via predicate
@@ -533,7 +502,7 @@ class BaseAgent(ABC):
     # ------------------------------------------------------------------
     def _router_should_compact(self, state: AgentState) -> bool:
         """Conditional edge: True → compact, False → agent."""
-        return self._memory.should_compact(state)
+        return self._runtime.memory.should_compact(state)
 
     # ------------------------------------------------------------------
     # Baggage

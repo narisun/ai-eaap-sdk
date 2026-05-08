@@ -17,9 +17,9 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeVar
 
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
-from ai_core.config.settings import AppSettings, get_settings
+from ai_core.config.settings import AppSettings
 from ai_core.di.container import Container
-from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
+from ai_core.di.interfaces import IObservabilityProvider  # noqa: TC001  # re-exported via get()
 from ai_core.di.module import AgentModule
 from ai_core.health.interface import HealthStatus, IHealthProbe, ProbeResult
 from ai_core.mcp.registry import ComponentRegistry, RegisteredComponent
@@ -87,8 +87,9 @@ class AICoreApp:
     """Lifecycle facade for an SDK consumer.
 
     Args:
-        settings: Optional pre-built :class:`AppSettings`. When omitted, settings
-            are loaded lazily via :func:`ai_core.config.settings.get_settings`.
+        settings: Optional pre-built :class:`AppSettings`. When omitted, a
+            fresh :class:`AppSettings` is constructed on entry (Pydantic
+            Settings reads env / YAML / defaults at construction).
         modules: Extra DI modules layered after :class:`AgentModule`. Useful for
             tests (fake providers) and for production overrides (custom
             ``ISecretManager``, alternative ``IPolicyEvaluator``).
@@ -121,7 +122,7 @@ class AICoreApp:
 
     # ----- Lifecycle ----------------------------------------------------------
     async def __aenter__(self) -> AICoreApp:
-        self._settings = self._user_settings or get_settings()
+        self._settings = self._user_settings or AppSettings()
         self._secret_manager = self._user_secret_manager or EnvSecretManager()
         # Fail fast — collect-all validation surfaces every issue at once.
         self._settings.validate_for_runtime(secret_manager=self._secret_manager)
@@ -156,6 +157,29 @@ class AICoreApp:
     def agent(self, cls: type[A]) -> A:
         """Resolve an agent class. ``ToolInvoker`` is auto-injected."""
         return self._require_container().get(cls)
+
+    def register_agent(self, cls: type[A]) -> None:
+        """Explicitly bind an agent class to the container.
+
+        Call this once per agent class at app boot to surface missing
+        bindings (typos in constructor type hints, etc.) immediately
+        rather than relying on :py:attr:`Container.auto_bind`.
+        """
+        self._require_container().register_agent(cls)
+
+    def add_health_probe(self, probe: IHealthProbe) -> None:
+        """Append an extra health probe to the live container.
+
+        Convenience for hosts that want to register a probe without
+        authoring a small :class:`Module`. The probe is included in
+        every subsequent :py:meth:`health` snapshot.
+
+        Args:
+            probe: An :class:`IHealthProbe` instance with a ``component``
+                identifier.
+        """
+        existing = self._require_container().get(list[IHealthProbe])
+        existing.append(probe)
 
     def register_tools(self, *specs: ToolSpec) -> None:
         """Register one or more :class:`ToolSpec` with the SDK's SchemaRegistry.
@@ -216,6 +240,23 @@ class AICoreApp:
             service_name=self._settings.service_name,
         )
 
+    # ----- Resolution ---------------------------------------------------------
+    def get(self, interface: type[A]) -> A:
+        """Resolve any DI binding through the running container.
+
+        The recommended power-user seam: equivalent to
+        ``app.container.get(IFoo)`` but discoverable on the facade and
+        type-stable across SDK refactors.
+
+        Pre-v1 the facade exposed two ad-hoc properties
+        (``app.policy_evaluator``, ``app.observability``) covering only
+        a slice of the bound interfaces. Those were dropped in v1 in
+        favour of this single accessor — replace
+        ``app.observability`` with ``app.get(IObservabilityProvider)``
+        and ``app.policy_evaluator`` with ``app.get(IPolicyEvaluator)``.
+        """
+        return self._require_container().get(interface)
+
     # ----- Properties ---------------------------------------------------------
     @property
     def settings(self) -> AppSettings:
@@ -225,15 +266,15 @@ class AICoreApp:
 
     @property
     def container(self) -> Container:
+        """Return the underlying DI container.
+
+        Exposed for FastAPI / web-host integrations that need to wire
+        the container into request-scoped dependencies before lifespan
+        startup completes (see :mod:`examples.fastapi_integration`).
+        Most callers should prefer :py:meth:`get` for type-stable
+        resolution.
+        """
         return self._require_container()
-
-    @property
-    def policy_evaluator(self) -> IPolicyEvaluator:
-        return self._require_container().get(IPolicyEvaluator)  # type: ignore[type-abstract]
-
-    @property
-    def observability(self) -> IObservabilityProvider:
-        return self._require_container().get(IObservabilityProvider)  # type: ignore[type-abstract]
 
     # ----- Internal -----------------------------------------------------------
     def _require_container(self) -> Container:

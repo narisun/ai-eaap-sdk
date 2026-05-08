@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
+from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMStreamChunk, LLMUsage
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import AsyncIterator, Mapping, Sequence
 
 
 _DEFAULT_PROMPT_TOKENS = 10
@@ -117,6 +117,47 @@ class ScriptedLLM(ILLMClient):
             f"scripted but call #{len(self.calls)} requested. "
             f"Set repeat_last=True to keep returning the final response."
         )
+
+    async def astream(
+        self,
+        *,
+        model: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+        extra: Mapping[str, Any] | None = None,
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Yield the scripted response as a single terminal chunk.
+
+        Tests that need fragmented streams (multiple deltas before the
+        terminal chunk) can construct chunks directly; this default
+        keeps the common-case test path one-liner short.
+        """
+        response = await self.complete(
+            model=model,
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            extra=extra,
+        )
+
+        async def _gen() -> AsyncIterator[LLMStreamChunk]:
+            yield LLMStreamChunk(
+                model=response.model,
+                delta_content=response.content,
+                delta_tool_calls=list(response.tool_calls),
+                finish_reason=response.finish_reason,
+                usage=response.usage,
+                raw=dict(response.raw),
+            )
+
+        return _gen()
 
 
 __all__ = ["ScriptedLLM", "make_llm_response"]

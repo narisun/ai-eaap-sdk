@@ -22,7 +22,6 @@ backwards-compatible refinements that don't require a new entry.
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import inspect
 from collections.abc import Awaitable, Callable
@@ -60,14 +59,15 @@ class SchemaRecord:
 class SchemaRegistry:
     """In-memory registry of versioned tool/message schemas.
 
-    The registry is safe to share across coroutines: registration is
-    serialised by a lock; lookups and decoration take a snapshot of the
-    underlying mapping and don't acquire the lock.
+    Safe to share across coroutines on a single event loop: ``register``
+    is synchronous with no ``await`` points, so it runs atomically with
+    respect to other coroutines, and lookups are single dict reads.
+    Not safe under concurrent access from multiple OS threads — use a
+    separate registry per thread if that's required.
     """
 
     def __init__(self) -> None:
         self._records: dict[tuple[str, SchemaVersion], SchemaRecord] = {}
-        self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Registration

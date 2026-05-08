@@ -7,7 +7,7 @@ plugin that makes them all available as fixtures.
 ## Install
 
 ```bash
-pip install ai-core-sdk[testing]
+pip install ai-eaap-sdk[testing]
 ```
 
 This pulls in `pytest>=7.0` alongside the SDK. The fakes themselves work

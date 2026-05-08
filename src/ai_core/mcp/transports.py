@@ -21,11 +21,10 @@ Note:
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -64,12 +63,13 @@ class MCPServerSpec:
     opa_decision_path: str | None = None
 
 
-class IMCPConnectionFactory(ABC):
+@runtime_checkable
+class IMCPConnectionFactory(Protocol):
     """Open FastMCP connections from an :class:`MCPServerSpec`."""
 
-    @abstractmethod
     def open(self, spec: MCPServerSpec) -> AbstractAsyncContextManager[Any]:
         """Return an async context manager yielding a connected MCP client."""
+        ...
 
 
 class PoolingMCPConnectionFactory(IMCPConnectionFactory):
@@ -113,7 +113,7 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
             from fastmcp import Client  # local import keeps fastmcp optional at import time
         except ImportError as exc:
             raise MCPTransportError(
-                "FastMCP is not installed; install with `pip install ai-core-sdk[mcp]`",
+                "FastMCP is not installed; install with `pip install ai-eaap-sdk[mcp]`",
                 details=_transport_details,
                 cause=exc,
             ) from exc
@@ -144,7 +144,7 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
             raise MCPTransportError(
                 f"FastMCP transport class for {spec.transport!r} not found "
                 "(version mismatch or partial install); "
-                "upgrade with `pip install -U ai-core-sdk[mcp]`",
+                "upgrade with `pip install -U ai-eaap-sdk[mcp]`",
                 details=_transport_details,
                 cause=exc,
             ) from exc

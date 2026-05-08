@@ -31,7 +31,7 @@ lives in its respective subpackage.
 
 from __future__ import annotations
 
-from ai_core.agents import AgentState, BaseAgent, new_agent_state
+from ai_core.agents import AgentRuntime, AgentState, BaseAgent, new_agent_state
 from ai_core.app import AICoreApp, HealthSnapshot
 from ai_core.audit import AuditEvent, AuditRecord, IAuditSink
 from ai_core.exceptions import (
@@ -54,11 +54,12 @@ from ai_core.exceptions import (
     ToolValidationError,
 )
 from ai_core.health import IHealthProbe, ProbeResult
-from ai_core.tools import Tool, ToolSpec, tool
+from ai_core.tools import Tool, ToolSpec, make_tool, tool
 
 __all__ = [
     "AICoreApp",
     "AgentRecursionLimitError",
+    "AgentRuntime",
     "AgentRuntimeError",
     "AgentState",
     "AuditEvent",
@@ -86,6 +87,7 @@ __all__ = [
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "make_tool",
     "new_agent_state",
     "tool",
 ]

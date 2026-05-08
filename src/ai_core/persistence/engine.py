@@ -15,21 +15,22 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from ai_core.config.settings import AppSettings, DatabaseSettings
+from ai_core.config.settings import DatabaseSettings
 
 
 class EngineFactory:
     """Construct + cache a single :class:`AsyncEngine` from settings.
 
     Args:
-        settings: Aggregated application settings; only the
-            ``database`` group is consumed.
+        settings: The database configuration slice. Pass
+            ``app_settings.database`` when constructing manually; the DI
+            container injects the slice directly.
     """
 
     __slots__ = ("_engine", "_sessionmaker", "_settings")
 
-    def __init__(self, settings: AppSettings) -> None:
-        self._settings: DatabaseSettings = settings.database
+    def __init__(self, settings: DatabaseSettings) -> None:
+        self._settings: DatabaseSettings = settings
         self._engine: AsyncEngine | None = None
         self._sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
@@ -65,11 +66,11 @@ class EngineFactory:
             self._sessionmaker = None
 
 
-def async_engine_provider(settings: AppSettings) -> AsyncEngine:
+def async_engine_provider(settings: DatabaseSettings) -> AsyncEngine:
     """Convenience function used by the DI container to provide ``AsyncEngine``.
 
     Args:
-        settings: Aggregated settings, supplied by the container.
+        settings: The database settings slice, supplied by the container.
 
     Returns:
         A lazily-initialised :class:`AsyncEngine`.

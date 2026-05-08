@@ -18,7 +18,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_opa_probe_never_raises_on_unexpected_error() -> None:
-    probe = OPAReachabilityProbe(AppSettings())
+    probe = OPAReachabilityProbe(AppSettings().security)
     with patch("httpx.AsyncClient", side_effect=RuntimeError("totally unexpected")):
         result = await probe.probe()
     assert result.status == "down"  # not raised
@@ -39,7 +39,7 @@ async def test_database_probe_never_raises_on_unexpected_error() -> None:
 
 @pytest.mark.asyncio
 async def test_model_lookup_probe_never_raises_on_unexpected_error() -> None:
-    probe = ModelLookupProbe(AppSettings())
+    probe = ModelLookupProbe(AppSettings().llm)
     with patch(
         "litellm.utils.get_supported_openai_params",
         side_effect=RuntimeError("library bug"),

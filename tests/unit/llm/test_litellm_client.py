@@ -8,6 +8,7 @@ first N calls and verifying the client retries until success.
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
@@ -159,7 +160,7 @@ def _build_client(
         if isinstance(observability, RecordingObservability)
         else RecordingObservability()
     )
-    client = LiteLLMClient(settings, fake_budget, obs)
+    client = LiteLLMClient(settings.llm, fake_budget, obs)
     return client, fake_budget, obs
 
 
@@ -399,7 +400,7 @@ async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pyt
     monkeypatch.setattr("litellm.acompletion", _always_timeout)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
@@ -430,7 +431,7 @@ async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypat
     monkeypatch.setattr("litellm.acompletion", _always_429)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
@@ -466,7 +467,7 @@ async def test_empty_response_tags_llm_complete_span(
     monkeypatch.setattr("litellm.acompletion", _empty_response)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=fake_budget,
         observability=fake_observability,
     )
@@ -505,7 +506,7 @@ async def test_complete_applies_cache_for_anthropic_above_threshold(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="anthropic/claude-3-5-sonnet",
@@ -550,7 +551,7 @@ async def test_complete_skips_cache_for_openai(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="openai/gpt-4o",
@@ -592,7 +593,7 @@ async def test_complete_skips_cache_when_setting_disabled(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="anthropic/claude-3-5-sonnet",
@@ -607,3 +608,122 @@ async def test_complete_skips_cache_when_setting_disabled(
     sent_messages = captured["messages"]
     for m in sent_messages:
         assert isinstance(m["content"], str)
+
+
+# ---------------------------------------------------------------------------
+# LLM latency SLO (Phase 13)
+# ---------------------------------------------------------------------------
+def _build_client_with_slo(
+    slo_ms: int | None,
+) -> tuple[LiteLLMClient, FakeBudget, RecordingObservability]:
+    """Build a client where LLMSettings.latency_slo_ms is configured."""
+    settings = AppSettings(
+        llm={  # type: ignore[arg-type]
+            "default_model": "fake/model",
+            "max_retries": 0,
+            "retry_initial_backoff_seconds": 0.001,
+            "retry_max_backoff_seconds": 0.002,
+            "latency_slo_ms": slo_ms,
+        },
+    )
+    fake_budget = FakeBudget()
+    obs = RecordingObservability()
+    client = LiteLLMClient(settings.llm, fake_budget, obs)
+    return client, fake_budget, obs
+
+
+async def test_slo_disabled_emits_no_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    """latency_slo_ms=None → no llm.slo_violated event regardless of latency."""
+    client, _, obs = _build_client_with_slo(slo_ms=None)
+    mock_acompletion = AsyncMock(return_value=_fake_response("ok"))
+    monkeypatch.setattr("ai_core.llm.litellm_client.litellm.acompletion", mock_acompletion)
+
+    await client.complete(model=None, messages=[{"role": "user", "content": "hi"}])
+
+    slo_events = [e for e in obs.events if e[0] == "llm.slo_violated"]
+    assert slo_events == []
+
+
+async def test_slo_within_threshold_emits_no_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    """latency_slo_ms set, latency below threshold → no event."""
+    client, _, obs = _build_client_with_slo(slo_ms=5000)
+    mock_acompletion = AsyncMock(return_value=_fake_response("ok"))
+    monkeypatch.setattr("ai_core.llm.litellm_client.litellm.acompletion", mock_acompletion)
+
+    # Real call — latency will be tiny (microseconds for the mock); well under 5s.
+    await client.complete(model=None, messages=[{"role": "user", "content": "hi"}])
+
+    slo_events = [e for e in obs.events if e[0] == "llm.slo_violated"]
+    assert slo_events == []
+
+
+async def test_slo_violated_emits_event_with_attributes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """latency_slo_ms set, latency above threshold → event emitted with required attrs."""
+    client, _, obs = _build_client_with_slo(slo_ms=10)  # 10ms — easy to exceed
+
+    # Mock acompletion to sleep so latency exceeds the threshold deterministically.
+    async def _slow(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        await asyncio.sleep(0.05)  # 50ms — guaranteed > 10ms threshold
+        return _fake_response("slow")
+
+    monkeypatch.setattr("ai_core.llm.litellm_client.litellm.acompletion", _slow)
+
+    await client.complete(
+        model=None,
+        messages=[{"role": "user", "content": "hi"}],
+        tenant_id="acme",
+        agent_id="slow-agent",
+    )
+
+    slo_events = [e for e in obs.events if e[0] == "llm.slo_violated"]
+    assert len(slo_events) == 1
+    name, attributes = slo_events[0]
+    assert name == "llm.slo_violated"
+    assert attributes is not None
+    assert attributes["llm.model"] == "fake/model"
+    assert attributes["llm.tenant_id"] == "acme"
+    assert attributes["llm.agent_id"] == "slow-agent"
+    assert attributes["llm.threshold_ms"] == 10
+    # latency_ms must be a float greater than the threshold
+    assert isinstance(attributes["llm.latency_ms"], float)
+    assert attributes["llm.latency_ms"] > 10
+
+
+async def test_slo_exact_threshold_no_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Strict > comparison: latency exactly equal to threshold does NOT trigger event.
+
+    Verified by the implementation logic (`latency_ms > slo_ms`). Hard to construct
+    an exactly-on-threshold real timing, so this test patches time.monotonic to
+    pin the latency to exactly the threshold value.
+    """
+    client, _, obs = _build_client_with_slo(slo_ms=100)
+    mock_acompletion = AsyncMock(return_value=_fake_response("ok"))
+    monkeypatch.setattr("ai_core.llm.litellm_client.litellm.acompletion", mock_acompletion)
+
+    # Pin time.monotonic so the latency calculation produces exactly 100.0 ms.
+    # litellm_client computes latency_ms = (monotonic_after - monotonic_before) * 1000.
+    # Patching ai_core.llm.litellm_client.time.monotonic also intercepts tenacity's
+    # internal calls (same time module object). With max_retries=0, complete() sees:
+    #   call #1: litellm_client 'started' = 0.0
+    #   calls #2-4: tenacity internals = 0.0 (harmless)
+    #   call #5: litellm_client latency end = 0.1  → (0.1 - 0.0) * 1000 = 100.0 ms
+    # After that, any further calls (pytest teardown etc.) return 0.0 safely.
+    _call_n = [0]
+
+    def _stub_monotonic() -> float:
+        _call_n[0] += 1
+        return 0.1 if _call_n[0] == 5 else 0.0
+
+    monkeypatch.setattr(
+        "ai_core.llm.litellm_client.time.monotonic",
+        _stub_monotonic,
+    )
+
+    await client.complete(model=None, messages=[{"role": "user", "content": "hi"}])
+
+    # Brittleness check: confirm the stub actually produced 100.0ms latency.
+    # If tenacity changes its internal time.monotonic call count, this assertion
+    # fails immediately rather than letting the test silently pass for the wrong reason.
+    assert obs.usage_calls[0]["latency_ms"] == pytest.approx(100.0)
+    slo_events = [e for e in obs.events if e[0] == "llm.slo_violated"]
+    assert slo_events == []  # 100.0 > 100 is False → no event

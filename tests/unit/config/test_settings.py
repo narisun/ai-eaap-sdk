@@ -8,7 +8,6 @@ from ai_core.config.settings import (
     AppSettings,
     Environment,
     LogLevel,
-    get_settings,
 )
 
 pytestmark = pytest.mark.unit
@@ -18,7 +17,7 @@ def test_defaults_are_sensible() -> None:
     settings = AppSettings()
 
     assert settings.environment is Environment.LOCAL
-    assert settings.service_name == "ai-core-sdk"
+    assert settings.service_name == "ai-eaap-sdk"
     assert settings.database.pool_size == 10
     assert settings.llm.max_retries == 3
     assert settings.observability.log_level is LogLevel.INFO
@@ -45,11 +44,18 @@ def test_service_name_must_be_non_empty() -> None:
         AppSettings(service_name="   ")
 
 
-def test_get_settings_is_cached() -> None:
-    get_settings.cache_clear()
-    a = get_settings()
-    b = get_settings()
-    assert a is b
+def test_appsettings_is_freshly_constructed() -> None:
+    """No process-wide cache: each AppSettings() returns a new instance.
+
+    The DI container is the only intended sharing seam (one container =>
+    one bound singleton). This test exists to pin the v1 contract that
+    ``get_settings()`` is gone and direct construction is the path.
+    """
+    a = AppSettings()
+    b = AppSettings()
+    assert a is not b
+    # Equal value (both built from the same env / defaults), but not identity-shared.
+    assert a.model_dump() == b.model_dump()
 
 
 def test_is_production_helper(monkeypatch: pytest.MonkeyPatch) -> None:

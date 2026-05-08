@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import Depends, FastAPI
 from injector import Module, provider, singleton
 
-from ai_core.config.settings import AppSettings, Environment
+from ai_core.config.settings import AppSettings, Environment, SecuritySettings
 from ai_core.di import AgentModule, Container
 from ai_core.di.module import ProductionSecurityModule
 from ai_core.security import AuthorizedPrincipal, OPAAuthorization
@@ -41,16 +41,16 @@ def build_app() -> FastAPI:
     # Demo defaults — AppSettings reads from os.environ. Callers (e.g. the
     # smoke gate or tests) can override these before calling build_app().
     os.environ.setdefault("EAAP_SECURITY__OPA_URL", "http://localhost:8181")
-    os.environ.setdefault("EAAP_SECURITY__JWT_AUDIENCE", "ai-core-sdk-demo")
-    os.environ.setdefault("EAAP_SECURITY__JWT_ISSUER", "ai-core-sdk-demo")
+    os.environ.setdefault("EAAP_SECURITY__JWT_AUDIENCE", "ai-eaap-sdk-demo")
+    os.environ.setdefault("EAAP_SECURITY__JWT_ISSUER", "ai-eaap-sdk-demo")
 
     settings = AppSettings(service_name="fastapi-demo", environment=Environment.LOCAL)
 
     class _DemoSecurityOverrides(Module):
         @singleton
         @provider
-        def provide_jwt_verifier(self, settings_: AppSettings) -> JWTVerifier:
-            return HS256JWTVerifier(jwt_secret, settings_)
+        def provide_jwt_verifier(self, sec: SecuritySettings) -> JWTVerifier:
+            return HS256JWTVerifier(jwt_secret, sec)
 
     container = Container.build(
         [
@@ -61,7 +61,7 @@ def build_app() -> FastAPI:
     )
     authz = OPAAuthorization(container, decision_path="eaap/api/allow")
 
-    app = FastAPI(title="ai-core-sdk FastAPI integration demo")
+    app = FastAPI(title="ai-eaap-sdk FastAPI integration demo")
 
     @app.get("/users/{user_id}/profile")
     async def read_profile(

@@ -60,7 +60,7 @@ def _build_container(
         @singleton
         @provider
         def jwt(self) -> JWTVerifier:
-            return HS256JWTVerifier(secret, settings)
+            return HS256JWTVerifier(secret, settings.security)
 
     return Container.build([AgentModule(settings=settings), _Override()]), policy
 

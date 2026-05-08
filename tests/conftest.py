@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from ai_core.config.settings import AppSettings, get_settings
 from ai_core.testing import (
     FakeAuditSink,
     FakeBudgetService,
@@ -16,24 +15,9 @@ from ai_core.testing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Mapping
+    from collections.abc import Callable, Mapping
 
     from ai_core.di.interfaces import PolicyDecision
-
-
-# ---------------------------------------------------------------------------
-# Settings cache hygiene (existing fixtures — preserved)
-# ---------------------------------------------------------------------------
-@pytest.fixture
-def clear_settings_cache() -> Iterator[None]:
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
-@pytest.fixture
-def fresh_settings() -> AppSettings:
-    return AppSettings()
 
 
 # ---------------------------------------------------------------------------

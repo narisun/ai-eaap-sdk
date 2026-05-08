@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from fastmcp import FastMCP
 
-mcp = FastMCP("ai-core-sdk-mcp-demo")
+mcp = FastMCP("ai-eaap-sdk-mcp-demo")
 
 
 @mcp.tool()

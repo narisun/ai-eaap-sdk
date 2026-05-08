@@ -155,6 +155,6 @@ def test_provide_audit_sink_sentry_without_dsn_raises_configuration_error(
     obs = MagicMock(spec=IObservabilityProvider)
     module = AgentModule()
     with pytest.raises(ConfigurationError) as exc:
-        module.provide_audit_sink(settings, obs)
+        module.provide_audit_sink(settings.audit, obs)
     assert exc.value.error_code == "config.invalid"
     assert "sentry_dsn" in exc.value.message.lower()

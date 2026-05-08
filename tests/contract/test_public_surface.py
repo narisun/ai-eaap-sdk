@@ -15,6 +15,7 @@ pytestmark = pytest.mark.contract
 EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "AICoreApp",
     "AgentRecursionLimitError",
+    "AgentRuntime",
     "AgentRuntimeError",
     "AgentState",
     "AuditEvent",
@@ -41,6 +42,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "make_tool",
     "new_agent_state",
     "tool",
 })

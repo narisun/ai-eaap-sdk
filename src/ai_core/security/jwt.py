@@ -24,7 +24,7 @@ from typing import Any
 import jwt
 from jwt import PyJWTError
 
-from ai_core.config.settings import AppSettings, SecuritySettings
+from ai_core.config.settings import AppSettings, Environment, SecuritySettings
 from ai_core.exceptions import PolicyDenialError
 
 _logger = logging.getLogger(__name__)
@@ -53,14 +53,16 @@ class HS256JWTVerifier(JWTVerifier):
 
     Args:
         secret: HMAC shared secret.
-        settings: Aggregated application settings (for audience/issuer claims).
+        settings: The security configuration slice (for audience/issuer
+            claims). Pass ``app_settings.security`` when constructing
+            manually; the DI container injects the slice directly.
     """
 
-    def __init__(self, secret: str, settings: AppSettings) -> None:
+    def __init__(self, secret: str, settings: SecuritySettings) -> None:
         if not secret:
             raise ValueError("HS256JWTVerifier requires a non-empty secret")
         self._secret = secret
-        self._sec: SecuritySettings = settings.security
+        self._sec: SecuritySettings = settings
 
     def verify(self, token: str) -> dict[str, Any]:
         """See :meth:`JWTVerifier.verify`."""
@@ -97,8 +99,10 @@ class UnverifiedJWTDecoder(JWTVerifier):
     """
 
     def __init__(self, settings: AppSettings) -> None:
+        # Whole AppSettings here because the prod-environment warning needs
+        # both the security slice and the runtime environment classifier.
         self._sec: SecuritySettings = settings.security
-        if not (settings.is_production() is False):
+        if settings.environment is Environment.PROD:
             _logger.warning(
                 "UnverifiedJWTDecoder bound in production environment %r — "
                 "signature verification is OFF",

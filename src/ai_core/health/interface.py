@@ -8,9 +8,8 @@ in parallel.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 HealthStatus = Literal["ok", "degraded", "down"]
 
@@ -32,17 +31,18 @@ class ProbeResult:
     detail: str | None = None
 
 
-class IHealthProbe(ABC):
+@runtime_checkable
+class IHealthProbe(Protocol):
     """One probe runs one component reachability check."""
 
     component: str  # class-level — name used in HealthSnapshot.components
 
-    @abstractmethod
     async def probe(self) -> ProbeResult:
         """Run the probe. Implementations MUST NOT raise — return a
         :class:`ProbeResult` with ``status="down"`` and ``detail`` explaining
         the failure instead.
         """
+        ...
 
 
 __all__ = ["HealthStatus", "IHealthProbe", "ProbeResult"]

@@ -1,0 +1,1436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ai-eaap-sdk · The case for a shared platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:   #f1ebde;
+    --paper-2: #ebe3d1;
+    --ink:     #16130d;
+    --ink-2:   #2a2519;
+    --rule:    #c4b89c;
+    --rule-2:  #8a7e62;
+    --steel:   #29486b;     /* platform team accent */
+    --steel-2: #6991ba;
+    --amber:   #a45a0d;     /* business team accent */
+    --amber-2: #d18a3c;
+    --rust:    #8a3320;     /* risk */
+    --moss:    #3f5a35;     /* benefit */
+    --shadow:  0 1px 0 var(--rule), 0 0 0 1px var(--rule);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 400;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(41,72,107,0.04), transparent 38%),
+      radial-gradient(circle at 88% 92%, rgba(164,90,13,0.04), transparent 42%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 31px,
+        rgba(22,19,13,0.025) 31px,
+        rgba(22,19,13,0.025) 32px
+      );
+  }
+
+  ::selection { background: var(--ink); color: var(--paper); }
+
+  /* ---------- TYPE ---------- */
+  .display {
+    font-family: "Fraunces", "Iowan Old Style", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50, "WONK" 1;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+    font-weight: 600;
+  }
+  .serif {
+    font-family: "Fraunces", "Iowan Old Style", Georgia, serif;
+    font-variation-settings: "opsz" 24, "SOFT" 50;
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-feature-settings: "ss03", "ss05";
+  }
+  .smallcaps {
+    font-family: "IBM Plex Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+
+  /* ---------- LAYOUT ---------- */
+  .frame {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 56px 56px 96px;
+  }
+  @media (max-width: 760px) {
+    .frame { padding: 32px 22px 64px; }
+  }
+
+  /* Marginalia rule */
+  .runline {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    border-top: 1px solid var(--ink);
+    padding-top: 14px;
+    margin-bottom: 8px;
+  }
+  .runline .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--ink);
+  }
+
+  /* ---------- HEADER ---------- */
+  header.hero {
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-top: 28px;
+    padding-bottom: 56px;
+    margin-bottom: 64px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 64px;
+    row-gap: 36px;
+    position: relative;
+  }
+  header.hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 28%;
+    height: 2px;
+    background: var(--steel);
+  }
+  header.hero::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 28%;
+    height: 2px;
+    background: var(--amber);
+  }
+  @media (max-width: 760px) {
+    header.hero { grid-template-columns: 1fr; }
+  }
+
+  .meta-strip {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    grid-column: 1 / -1;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .imprint {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
+  }
+  .imprint .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+  .meta-line {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  h1.headline {
+    grid-column: 1 / -1;
+    font-size: clamp(48px, 7.6vw, 108px);
+    margin: 4px 0 0 0;
+    color: var(--ink);
+  }
+  h1.headline em {
+    font-style: italic;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+    color: var(--steel);
+  }
+  h1.headline .amb {
+    color: var(--amber);
+    font-style: italic;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+
+  .lede {
+    grid-column: 1 / 2;
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 36, "SOFT" 50;
+    font-size: 22px;
+    line-height: 1.42;
+    font-weight: 400;
+    margin: 0;
+    color: var(--ink);
+  }
+  .lede em {
+    font-style: italic;
+    color: var(--ink-2);
+  }
+
+  .standfirst {
+    grid-column: 2 / 3;
+    border-left: 1px solid var(--rule-2);
+    padding-left: 28px;
+    font-size: 15px;
+    line-height: 1.62;
+    color: var(--ink-2);
+  }
+  .standfirst p { margin: 0 0 12px; }
+  .standfirst p:last-child { margin: 0; }
+  @media (max-width: 760px) {
+    .lede, .standfirst { grid-column: 1 / -1; }
+    .standfirst { border-left: none; border-top: 1px solid var(--rule-2); padding: 24px 0 0; }
+  }
+
+  /* ---------- TOC ---------- */
+  nav.toc {
+    margin-bottom: 88px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 56px;
+    row-gap: 6px;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 24px;
+  }
+  nav.toc a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    padding: 6px 0;
+    text-decoration: none;
+    color: var(--ink);
+    font-size: 14px;
+    border-bottom: 1px dotted transparent;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+  nav.toc a:hover { color: var(--steel); border-bottom-color: var(--steel); }
+  nav.toc a .n { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: 0.1em; color: var(--ink-2); }
+  nav.toc a .lbl { flex: 1; }
+  nav.toc a .pg { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-2); }
+  @media (max-width: 760px) {
+    nav.toc { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- SECTION ---------- */
+  section {
+    margin-bottom: 88px;
+    scroll-margin-top: 24px;
+  }
+
+  h2.sechead {
+    font-size: clamp(34px, 4.6vw, 58px);
+    line-height: 1.02;
+    margin: 6px 0 24px;
+    max-width: 22ch;
+    color: var(--ink);
+  }
+  h2.sechead em {
+    font-style: italic;
+    font-variation-settings: "opsz" 96, "SOFT" 100, "WONK" 1;
+  }
+  h2.sechead .steel { color: var(--steel); font-style: italic; }
+  h2.sechead .amber { color: var(--amber); font-style: italic; }
+
+  h3.subhead {
+    font-family: "IBM Plex Sans", sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin: 0 0 14px;
+  }
+
+  p { max-width: 64ch; }
+  p strong { font-weight: 600; color: var(--ink); }
+
+  /* Two-column body */
+  .two-col {
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
+    gap: 64px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    .two-col { grid-template-columns: 1fr; gap: 32px; }
+  }
+
+  /* ---------- TEAM CARDS ---------- */
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 760px) { .team-grid { grid-template-columns: 1fr; } }
+
+  .team {
+    border-top: 2px solid var(--ink);
+    padding: 22px 0 0;
+    position: relative;
+  }
+  .team.tech    { border-top-color: var(--steel); }
+  .team.biz     { border-top-color: var(--amber); }
+  .team .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .team.tech .label { color: var(--steel); }
+  .team.biz  .label { color: var(--amber); }
+  .team h3 {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 48, "SOFT" 50;
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 14px;
+    line-height: 1.06;
+    letter-spacing: -0.01em;
+  }
+  .team .roles {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    margin: 0 0 18px;
+    letter-spacing: 0.02em;
+  }
+  .team .roles span:not(:last-child)::after {
+    content: " · ";
+    color: var(--rule-2);
+  }
+  .team .what { margin: 0; font-size: 15px; }
+
+  /* ---------- LIST OF CONCERNS ---------- */
+  .concerns {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    counter-reset: c;
+    border-top: 1px solid var(--rule);
+  }
+  .concerns li {
+    counter-increment: c;
+    display: grid;
+    grid-template-columns: 56px 1fr 0.95fr;
+    gap: 22px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  @media (max-width: 760px) {
+    .concerns li { grid-template-columns: 36px 1fr; }
+    .concerns li .desc { grid-column: 2 / 3; }
+  }
+  .concerns li::before {
+    content: counter(c, decimal-leading-zero);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--steel);
+  }
+  .concerns li .name {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 24, "SOFT" 50;
+    font-size: 19px;
+    font-weight: 500;
+  }
+  .concerns li .desc {
+    font-size: 14.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .concerns li .desc code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--paper-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* ---------- RISK SCENARIOS ---------- */
+  .scenarios {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+    margin-top: 16px;
+  }
+  @media (max-width: 760px) { .scenarios { grid-template-columns: 1fr; } }
+
+  .scenario {
+    border: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15));
+    padding: 24px 26px;
+    position: relative;
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  }
+  .scenario:hover {
+    transform: translateY(-2px);
+    border-color: var(--ink);
+    box-shadow: 6px 6px 0 -1px var(--rust);
+  }
+  .scenario .clock {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 8px;
+  }
+  .scenario h4 {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 36, "SOFT" 50, "WONK" 1;
+    font-size: 24px;
+    margin: 0 0 12px;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .scenario .without {
+    font-size: 14.5px;
+    margin: 0 0 12px;
+    color: var(--ink-2);
+  }
+  .scenario .with {
+    font-size: 14.5px;
+    margin: 0;
+    padding-top: 12px;
+    border-top: 1px dashed var(--rule-2);
+    color: var(--ink);
+  }
+  .scenario .with::before,
+  .scenario .without::before {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .scenario .without::before { content: "Without SDK"; color: var(--rust); }
+  .scenario .with::before    { content: "With SDK";    color: var(--moss); }
+
+  /* ---------- BIZ STOPS / STARTS ---------- */
+  .ledger {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    margin: 16px 0 32px;
+  }
+  @media (max-width: 760px) { .ledger { grid-template-columns: 1fr; } }
+  .ledger .col {
+    padding: 22px 24px 26px;
+  }
+  .ledger .col + .col {
+    border-left: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) {
+    .ledger .col + .col { border-left: none; border-top: 1px solid var(--rule); }
+  }
+  .ledger h4 {
+    font-family: "IBM Plex Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 11.5px;
+    font-weight: 500;
+    margin: 0 0 14px;
+  }
+  .ledger.stops h4   { color: var(--rust); }
+  .ledger.starts h4 { color: var(--moss); }
+  .ledger ul {
+    margin: 0; padding: 0; list-style: none;
+  }
+  .ledger li {
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .ledger li:last-child { border-bottom: none; }
+  .ledger li::before {
+    flex: 0 0 auto;
+    width: 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .ledger.stops li::before  { content: "✕"; color: var(--rust); }
+  .ledger.starts li::before { content: "→"; color: var(--moss); }
+
+  /* ---------- CODE COMPARE ---------- */
+  .code-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 24px;
+  }
+  @media (max-width: 760px) { .code-compare { grid-template-columns: 1fr; } }
+  .code-block {
+    border: 1px solid var(--rule);
+    background: #1a1610;
+    color: #d6cdb4;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    padding: 0 0 16px;
+    overflow: hidden;
+  }
+  .code-block .head {
+    background: #0f0d09;
+    color: #c9bf9c;
+    padding: 9px 14px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2a2519;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .code-block .head .pill {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border: 1px solid #3a3424;
+    border-radius: 2px;
+    color: #d6cdb4;
+  }
+  .code-block.with .head .pill  { color: #8eb878; border-color: #3f5a35; }
+  .code-block.without .head .pill { color: #d18b6e; border-color: #7a3220; }
+  .code-block pre {
+    margin: 0;
+    padding: 14px 16px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .code-block .kw  { color: #d18a3c; }
+  .code-block .id  { color: #6991ba; }
+  .code-block .str { color: #8eb878; }
+  .code-block .com { color: #6e6650; font-style: italic; }
+  .code-block .dec { color: #d6cdb4; opacity: 0.6; }
+
+  /* ---------- TABLE / RESPONSIBILITY MATRIX ---------- */
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    margin-top: 20px;
+  }
+  .matrix th, .matrix td {
+    text-align: left;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .matrix thead th {
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  .matrix thead th:first-child { width: 22%; }
+  .matrix tbody tr:hover td { background: rgba(22,19,13,0.03); }
+  .matrix .tech-col  { color: var(--ink); }
+  .matrix .biz-col   { color: var(--ink); }
+  .matrix th.tech-col, .matrix th.biz-col { color: var(--ink-2); }
+  .matrix th.tech-col::before {
+    content: "▌";
+    color: var(--steel);
+    margin-right: 6px;
+  }
+  .matrix th.biz-col::before {
+    content: "▌";
+    color: var(--amber);
+    margin-right: 6px;
+  }
+  .matrix .concern {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 24, "SOFT" 50;
+    font-size: 17px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ---------- DIAGRAM HOSTS ---------- */
+  figure.diagram {
+    margin: 24px 0 0;
+    border: 1px solid var(--ink);
+    background: var(--paper-2);
+    background-image:
+      linear-gradient(to right, rgba(22,19,13,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(22,19,13,0.04) 1px, transparent 1px);
+    background-size: 16px 16px;
+    padding: 28px 28px 18px;
+    position: relative;
+  }
+  figure.diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  figure.diagram figcaption {
+    margin-top: 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border-top: 1px solid var(--rule);
+    padding-top: 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  figure.diagram figcaption .fig-id {
+    color: var(--ink);
+  }
+
+  /* ---------- CALLOUT BOX ---------- */
+  .callout {
+    border-left: 3px solid var(--steel);
+    padding: 18px 22px;
+    margin: 22px 0;
+    background: rgba(41,72,107,0.05);
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 28, "SOFT" 50;
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+  .callout.amber { border-left-color: var(--amber); background: rgba(164,90,13,0.05); }
+  .callout em { font-style: italic; color: var(--ink-2); }
+
+  /* ---------- OBJECTIONS ---------- */
+  .objections { margin-top: 12px; }
+  .obj {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 0;
+  }
+  .obj:first-child { border-top: 1px solid var(--rule); }
+  .obj .q {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 32, "SOFT" 100, "WONK" 1;
+    font-style: italic;
+    font-size: 21px;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+  .obj .q::before { content: "“"; color: var(--amber); margin-right: 2px; }
+  .obj .q::after  { content: "”"; color: var(--amber); margin-left: 2px; }
+  .obj .a {
+    font-size: 15px;
+    margin: 0;
+    color: var(--ink-2);
+  }
+  .obj .a strong { color: var(--ink); }
+
+  /* ---------- CLOSING ---------- */
+  .closing {
+    border-top: 2px solid var(--ink);
+    padding-top: 28px;
+    margin-top: 96px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+  }
+  @media (max-width: 760px) { .closing { grid-template-columns: 1fr; } }
+  .closing h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50, "WONK" 1;
+    font-size: clamp(36px, 5vw, 64px);
+    font-weight: 600;
+    line-height: 1.0;
+    margin: 0;
+    letter-spacing: -0.015em;
+  }
+  .closing h2 em {
+    font-style: italic;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+  .closing .ask {
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .closing .ask p { margin: 0 0 12px; }
+  .signoff {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    margin-top: 32px;
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  /* ---------- ENTRY MOTION ---------- */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  header.hero, section, .closing {
+    animation: rise 700ms ease-out both;
+  }
+  section:nth-of-type(1) { animation-delay: 60ms; }
+  section:nth-of-type(2) { animation-delay: 120ms; }
+  section:nth-of-type(3) { animation-delay: 180ms; }
+  section:nth-of-type(4) { animation-delay: 240ms; }
+  section:nth-of-type(5) { animation-delay: 300ms; }
+  section:nth-of-type(6) { animation-delay: 360ms; }
+  @media (prefers-reduced-motion: reduce) {
+    header.hero, section, .closing { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ============ HEADER ============ -->
+  <header class="hero">
+    <div class="meta-strip">
+      <div class="imprint">
+        <span class="dot"></span>
+        <span>EAAP / Platform Engineering</span>
+      </div>
+      <div class="meta-line">Internal · Discussion draft · v0.1</div>
+    </div>
+
+    <h1 class="display headline">
+      Two teams.<br>
+      One <em>platform.</em><br>
+      Zero <span class="amb">drift.</span>
+    </h1>
+
+    <p class="lede">
+      A shared SDK lets the platform team own the hard parts <em>once,</em> so the business AI team can focus on the parts that move the business.
+    </p>
+
+    <div class="standfirst">
+      <p>This document makes the case for adopting <span class="mono">ai-eaap-sdk</span> as the shared substrate for every agent, MCP tool, and RAG service we build.</p>
+      <p>It is written for two audiences whose work meets at the SDK boundary: the <strong>Platform / Tech&nbsp;AI&nbsp;Team</strong> who will maintain it, and the <strong>Business&nbsp;AI&nbsp;Team</strong> who will build on top of it.</p>
+    </div>
+  </header>
+
+  <!-- ============ TOC ============ -->
+  <nav class="toc" aria-label="Contents">
+    <a href="#s01"><span class="n">01</span><span class="lbl">The premise</span><span class="pg">p. 01</span></a>
+    <a href="#s02"><span class="n">02</span><span class="lbl">Two audiences, one contract</span><span class="pg">p. 02</span></a>
+    <a href="#s03"><span class="n">03</span><span class="lbl">For the platform team — what the SDK owns</span><span class="pg">p. 03</span></a>
+    <a href="#s04"><span class="n">04</span><span class="lbl">For the platform team — what happens without it</span><span class="pg">p. 05</span></a>
+    <a href="#s05"><span class="n">05</span><span class="lbl">For the business AI team — what changes for you</span><span class="pg">p. 07</span></a>
+    <a href="#s06"><span class="n">06</span><span class="lbl">Common concerns &amp; answers</span><span class="pg">p. 08</span></a>
+    <a href="#s07"><span class="n">07</span><span class="lbl">Architecture at a glance</span><span class="pg">p. 09</span></a>
+    <a href="#s08"><span class="n">08</span><span class="lbl">Who owns what — responsibility matrix</span><span class="pg">p. 10</span></a>
+    <a href="#s09"><span class="n">09</span><span class="lbl">The bottom line</span><span class="pg">p. 11</span></a>
+    <a href="#s10"><span class="n">10</span><span class="lbl">Adoption path</span><span class="pg">p. 12</span></a>
+  </nav>
+
+  <!-- ============ 01 ============ -->
+  <section id="s01">
+    <div class="runline"><span class="num">§ 01</span><span class="smallcaps">The premise</span></div>
+    <h2 class="sechead">AI agents are easy to demo.<br>The hard part is <em>operating</em> them.</h2>
+    <div class="two-col">
+      <p>
+        A working prototype is one prompt and a few lines of LangGraph. A working <em>fleet</em> is the moment every cross-cutting concern shows up at once: authentication, authorisation, audit, observability, retries, timeouts, schema versioning, secret resolution, MCP connections, token budgets, PII redaction, and a test seam that doesn't require a live database.
+      </p>
+      <p>
+        We can solve those concerns <strong>once</strong>, in a shared SDK, and audit them carefully — or we can solve them <strong>eight times</strong>, in eight different teams, with eight different bugs. This document argues for once.
+      </p>
+    </div>
+
+    <div class="callout">
+      The SDK is not a framework you have to use. It is the agreement between the team who keeps production safe and the team who builds the things production runs.
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="s02">
+    <div class="runline"><span class="num">§ 02</span><span class="smallcaps">Two audiences, one contract</span></div>
+    <h2 class="sechead">Two teams meet at the <span class="steel">SDK</span> boundary.</h2>
+    <p style="max-width: 70ch;">
+      Adopting the SDK requires a clear split of responsibility. We define two groups, and the SDK is the contract between them.
+    </p>
+
+    <div class="team-grid">
+      <div class="team tech">
+        <div class="label">Group A · maintains the SDK</div>
+        <h3>Platform / Tech&nbsp;AI Team</h3>
+        <div class="roles">
+          <span>Architects</span><span>Software Engineers</span><span>DevOps</span><span>Production Support</span>
+        </div>
+        <p class="what">
+          Owns the runtime. Implements the cross-cutting concerns once, with strong tests, clear contracts, and structured error semantics. Provides safe defaults so a careless agent can't ship an unsafe configuration. On call when something at the platform layer breaks.
+        </p>
+      </div>
+      <div class="team biz">
+        <div class="label">Group B · builds on the SDK</div>
+        <h3>Business&nbsp;/ Functional AI Team</h3>
+        <div class="roles">
+          <span>Agent Engineers</span><span>MCP Tool Authors</span><span>RAG Engineers</span><span>Domain Experts</span>
+        </div>
+        <p class="what">
+          Owns the agents. Translates business problems into prompts, tools, schemas, and evaluations. Picks models, tunes them, measures them against business outcomes. Treats the SDK as a stable substrate rather than something to fork or work around.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="s03">
+    <div class="runline"><span class="num">§ 03</span><span class="smallcaps">For the platform team</span></div>
+    <h2 class="sechead">Cross-cutting concerns the SDK owns <em>once,</em> for everyone.</h2>
+    <p style="max-width: 64ch;">
+      Each of these is a non-negotiable for production AI in a regulated environment. The SDK provides them all behind well-defined seams so individual agent code stays small and focused.
+    </p>
+
+    <ol class="concerns">
+      <li>
+        <span class="name">Authentication &amp; Authorisation</span>
+        <span class="desc">Pluggable JWT verification plus an OPA policy evaluator at every tool and HTTP boundary. <code>fail_closed</code> by default. <code>NoOpPolicyEvaluator</code> for local dev only.</span>
+      </li>
+      <li>
+        <span class="name">Audit pipeline</span>
+        <span class="desc">Structured <code>AuditRecord</code> events fan out to file, Sentry, Datadog. Redactor chain runs before any sink. Buffered writes via a single sink contract that never raises.</span>
+      </li>
+      <li>
+        <span class="name">Observability</span>
+        <span class="desc">OpenTelemetry traces + LangFuse generations + structlog with task-isolated <em>baggage</em>. One trace_id correlates spans across agents, tools, and audit events.</span>
+      </li>
+      <li>
+        <span class="name">Budget enforcement</span>
+        <span class="desc"><code>BudgetService</code> with per-tenant and per-(tenant, agent) overrides. Daily reset. Token + USD limits. Latency SLO checks.</span>
+      </li>
+      <li>
+        <span class="name">Retry &amp; timeout</span>
+        <span class="desc">Tenacity-backed policies on every LLM call with consistent jitter, status-aware retry, and timeout-aware cancellation. No team writes their own.</span>
+      </li>
+      <li>
+        <span class="name">Schema versioning</span>
+        <span class="desc">Versioned Pydantic schemas at every tool boundary. Inputs validated on ingress, outputs validated on egress, with a <code>@validate_tool</code> decorator that wraps sync or async handlers.</span>
+      </li>
+      <li>
+        <span class="name">Secret management</span>
+        <span class="desc"><code>ISecretManager</code> abstraction over env, AWS, Vault. Secrets are opaque references; never inlined; never logged. Backends bound by the DI module.</span>
+      </li>
+      <li>
+        <span class="name">MCP integration</span>
+        <span class="desc">Connection pool with idle TTL, health checks, and lifecycle. Late-binding-safe tool resolution. One integration, audited once.</span>
+      </li>
+      <li>
+        <span class="name">Memory &amp; compaction</span>
+        <span class="desc">Token-aware summarisation with a configurable budget. Compaction wrapped in <code>asyncio.wait_for</code> so a slow LLM cannot hang an agent.</span>
+      </li>
+      <li>
+        <span class="name">DI &amp; test seam</span>
+        <span class="desc">A real DI container is the only seam. Fakes provided for every interface — <code>FakePolicyEvaluator</code>, <code>FakeBudgetService</code>, <code>FakeObservabilityProvider</code>. No monkey-patching, no real DB in unit tests.</span>
+      </li>
+    </ol>
+
+    <p style="margin-top: 28px; max-width: 64ch;">
+      Each concern is the product of weeks of design and review. Rebuilding any one of them in a single agent team would absorb a quarter's worth of senior engineering time. Rebuilding all of them, in every team, is roughly how organisations end up with the failure modes in the next section.
+    </p>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="s04">
+    <div class="runline"><span class="num">§ 04</span><span class="smallcaps">For the platform team</span></div>
+    <h2 class="sechead">What happens <em>without</em> a shared SDK.</h2>
+    <p style="max-width: 64ch;">
+      Each of these scenarios has a counterpart we have personally watched in production. They are not hypothetical risk theatre. They are the recurring cost of letting every team solve cross-cutting concerns in isolation.
+    </p>
+
+    <div class="scenarios">
+
+      <div class="scenario">
+        <div class="clock">02:14 — Tuesday</div>
+        <h4>The 2 a.m. incident</h4>
+        <p class="without">Billing-agent latency p99 spikes to 8&nbsp;s. You have logs in three formats from three teams, no shared <span class="mono">trace_id</span>, and no way to follow a request across agents. Mean time to root cause: hours.</p>
+        <p class="with">One <span class="mono">trace_id</span> per request, propagated via OTel baggage and structlog ContextVar. Logs, traces, and audit events all join on it. Mean time to root cause: minutes.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">$34,000 — overnight</div>
+        <h4>The midnight budget burn</h4>
+        <p class="without">A tool retries on every 500 from a flaky vendor. By morning the agent has burned through tens of thousands of dollars of inference credits and your CFO has questions.</p>
+        <p class="with"><span class="mono">BudgetService</span> rejects calls past the daily limit. The agent returns a graceful error, the alert fires at the configured threshold, and you find out at 09:00 — without the bill.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Q3 audit window</div>
+        <h4>The compliance audit</h4>
+        <p class="without">A regulator asks for a complete trail of AI-driven decisions affecting customer data. Each team scrambles to reconstruct logs from three or four sources. Nothing has the same shape. Some events were never written.</p>
+        <p class="with">A single <span class="mono">AuditRecord</span> stream with a stable schema, redactor chain, and fan-out to your SIEM. Query by <span class="mono">tool_name</span>, <span class="mono">tenant_id</span>, <span class="mono">decision_path</span>. Complete, since day one.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Friday afternoon</div>
+        <h4>The leaked PII</h4>
+        <p class="without">A new engineer prints a customer email in a debug log to track down a bug. It ships to production logs verbatim and gets indexed by your log aggregator. Now you have a notification obligation.</p>
+        <p class="with">Audit goes through <span class="mono">BufferedAuditSink</span>; a redactor chain strips PII before any sink writes. Even careless code can't leak through the audit pipeline.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Major version bump</div>
+        <h4>The library upgrade</h4>
+        <p class="without">LangGraph 0.0.x → 0.1 has breaking changes. Every team must migrate independently, on their own schedule, with their own bugs. Migration drags on for two quarters.</p>
+        <p class="with">The SDK absorbs the migration once. Agent code uses <span class="mono">BaseAgent</span> and a few stable hooks. The upgrade ships behind the SDK in days, not months.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Penetration test</div>
+        <h4>The forgotten verify</h4>
+        <p class="without">One team has <span class="mono">verify=False</span> on an httpx client to work around a corporate proxy in dev. It ships to prod. Penetration test catches it. Severity 1.</p>
+        <p class="with">HTTP clients are constructed by the SDK with strict defaults. Local-dev shortcuts are <em>opt-in</em> behind explicit settings, not default behaviour, and are flagged in audit.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Onboarding day</div>
+        <h4>The tester's lament</h4>
+        <p class="without">A new engineer wants to write a unit test for an agent. Doing so requires Postgres, OPA, an LLM key, an OTel collector, and three hours of yak-shaving. Tests are skipped.</p>
+        <p class="with">DI fakes for every dependency. <span class="mono">container.override(FakePolicyEvaluator())</span>. A unit test runs in 0.04 s with no external services. Tests get written.</p>
+      </div>
+
+      <div class="scenario">
+        <div class="clock">Steady state</div>
+        <h4>The drift</h4>
+        <p class="without">Eight teams' agents share five different OPA decision paths, three different log schemas, two different retry libraries, and a folklore about which env vars matter. Onboarding takes weeks. Tribal knowledge wins.</p>
+        <p class="with">One SDK. One settings model. One observability shape. One audit shape. New engineers ship a working agent on day one, and it inherits production-grade behaviour by default.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="s05">
+    <div class="runline"><span class="num">§ 05</span><span class="smallcaps">For the business AI team</span></div>
+    <h2 class="sechead">What changes for <span class="amber">you</span>, in plain terms.</h2>
+    <p style="max-width: 64ch;">
+      Adopting the SDK is not a tax. It is a transfer of work. The platform team takes on the parts that have nothing to do with your business problem; you take on more of the parts that do.
+    </p>
+
+    <h3 class="subhead" style="margin-top: 32px;">Stops &amp; starts</h3>
+    <div class="ledger stops">
+      <div class="col">
+        <h4>You stop doing</h4>
+        <ul>
+          <li>Writing JWT verification by hand</li>
+          <li>Wiring OpenTelemetry spans manually</li>
+          <li>Tracking tokens across LLM calls yourself</li>
+          <li>Maintaining your own MCP connection pool</li>
+          <li>Hand-rolling retry and timeout policies</li>
+          <li>Standing up Postgres + OPA + an LLM mock just to run a unit test</li>
+          <li>Designing your own audit-log schema</li>
+          <li>Writing your own secret resolver</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h4 style="color: var(--moss);">You start doing more of</h4>
+        <ul>
+          <li>Prompt engineering and prompt evaluation</li>
+          <li>Domain modelling — the schemas your tools actually take and return</li>
+          <li>Tool design — what should be a tool, and at what granularity</li>
+          <li>Measuring agents against business outcomes, not infra metrics</li>
+          <li>Picking and tuning models for your use case</li>
+          <li>Iterating on your specific RAG pipeline and retrieval quality</li>
+          <li>Writing tests that actually catch business-logic regressions</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="subhead">Day one, side by side</h3>
+
+    <div class="code-compare">
+      <div class="code-block with">
+        <div class="head">
+          <span>support_agent.py — with SDK</span><span class="pill">~30 lines</span>
+        </div>
+<pre>
+<span class="kw">from</span> <span class="id">ai_core.tools</span> <span class="kw">import</span> tool
+<span class="kw">from</span> <span class="id">ai_core.agents</span> <span class="kw">import</span> BaseAgent
+<span class="kw">from</span> <span class="id">pydantic</span> <span class="kw">import</span> BaseModel
+
+<span class="kw">class</span> <span class="id">LookupTicketIn</span>(BaseModel):
+    ticket_id: <span class="kw">str</span>
+
+<span class="kw">class</span> <span class="id">LookupTicketOut</span>(BaseModel):
+    status: <span class="kw">str</span>
+    summary: <span class="kw">str</span>
+
+<span class="dec">@tool</span>(name=<span class="str">"lookup_ticket"</span>, version=1,
+       opa_path=<span class="str">"eaap/support/lookup"</span>)
+<span class="kw">async def</span> <span class="id">lookup_ticket</span>(p: LookupTicketIn)\
+        -> LookupTicketOut:
+    <span class="com"># your business logic, full stop.</span>
+    <span class="kw">return await</span> tickets.fetch(p.ticket_id)
+
+<span class="kw">class</span> <span class="id">SupportAgent</span>(BaseAgent):
+    name = <span class="str">"customer-support"</span>
+    tools = [lookup_ticket]
+</pre>
+      </div>
+
+      <div class="code-block without">
+        <div class="head">
+          <span>support_agent.py — without SDK</span><span class="pill">~1,500 lines first</span>
+        </div>
+<pre>
+<span class="com"># before you can write a single line of business logic:</span>
+<span class="com"># - JWT verifier with a key-rotation cache</span>
+<span class="com"># - OPA HTTP client with timeouts &amp; fail-closed</span>
+<span class="com"># - OTel tracer + span context propagation</span>
+<span class="com"># - LangFuse generation hooks</span>
+<span class="com"># - Token counter that handles 6 model families</span>
+<span class="com"># - Retry policy w/ jitter, status-aware backoff</span>
+<span class="com"># - Audit record schema + redactor chain</span>
+<span class="com"># - Sink: file + Sentry + Datadog fan-out</span>
+<span class="com"># - Pydantic schema registry w/ versioning</span>
+<span class="com"># - MCP pool: open, idle TTL, health, close</span>
+<span class="com"># - Compaction: summarisation + budget guard</span>
+<span class="com"># - DI seam &amp; fakes for every dep so you can</span>
+<span class="com">#   actually unit-test what you wrote</span>
+<span class="com">#</span>
+<span class="com"># …then, eventually, your agent.</span>
+</pre>
+      </div>
+    </div>
+
+    <p style="max-width: 64ch; margin-top: 18px;">
+      The SDK doesn't <em>remove</em> work; it <em>relocates</em> it to the team that has signed up to do it well. You get to spend your time where it matters — on the parts of the agent that only you can build.
+    </p>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="s06">
+    <div class="runline"><span class="num">§ 06</span><span class="smallcaps">Common concerns</span></div>
+    <h2 class="sechead">Honest answers to the questions <span class="amber">we already heard</span>.</h2>
+    <div class="objections">
+
+      <div class="obj">
+        <p class="q">It's another thing to learn.</p>
+        <p class="a">Yes, but it replaces learning four things — OPA, OTel, LiteLLM, and LangGraph — separately. The SDK is a curated surface over those, not an addition to them. <strong>Net cognitive load: lower.</strong></p>
+      </div>
+
+      <div class="obj">
+        <p class="q">I'll lose flexibility for my edge case.</p>
+        <p class="a">Every concern in the SDK is bound through DI. If your agent needs a different policy evaluator, observability provider, or budget service, override the binding in your module — the rest of the SDK keeps working. <strong>You replace the part you need to, not the whole stack.</strong></p>
+      </div>
+
+      <div class="obj">
+        <p class="q">My use case isn't covered.</p>
+        <p class="a">If a feature is genuinely missing, the platform team's job is to add it once, with tests, behind a stable interface — not to leave you to fork. <strong>Bring the gap to the platform team rather than working around it in your agent.</strong></p>
+      </div>
+
+      <div class="obj">
+        <p class="q">I just want to ship a prototype, not adopt a platform.</p>
+        <p class="a">Local-dev defaults assume you do. <span class="mono">NoOpPolicyEvaluator</span>, <span class="mono">EnvSecretManager</span>, in-memory checkpoints, and stub observability are bound by default in the dev module. <strong>You opt into production-grade bindings when you're ready, not before.</strong></p>
+      </div>
+
+      <div class="obj">
+        <p class="q">The SDK will slow my team down.</p>
+        <p class="a">For the first agent: roughly the same speed as a careful from-scratch build. For the second, third, and fourth agents: dramatically faster, because none of the cross-cutting infrastructure has to be rebuilt. <strong>The compounding goes the right way.</strong></p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="s07">
+    <div class="runline"><span class="num">§ 07</span><span class="smallcaps">Architecture at a glance</span></div>
+    <h2 class="sechead">A layer cake, not a maze.</h2>
+    <p style="max-width: 64ch;">
+      The diagram below shows where each team's code lives, what the SDK provides, and what it talks to externally. Read top-down: business agents call the SDK; the SDK calls the platform; the platform calls the world.
+    </p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 1080 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Layered architecture: business AI agents on top, ai-eaap-sdk in the middle, external systems on the bottom.">
+        <defs>
+          <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#16130d" stroke-width="0.4" opacity="0.18"/>
+          </pattern>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#16130d"/>
+          </marker>
+        </defs>
+
+        <!-- TOP: Business agents -->
+        <g>
+          <rect x="40" y="30" width="1000" height="120" fill="none" stroke="#a45a0d" stroke-width="1.4"/>
+          <text x="56" y="56" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#a45a0d">GROUP B · BUSINESS AI TEAM</text>
+          <text x="56" y="92" font-family="Fraunces" font-size="26" font-weight="600" fill="#16130d">Business AI Agents</text>
+
+          <g font-family="IBM Plex Mono" font-size="12" fill="#2a2519">
+            <rect x="56" y="108" width="170" height="28" fill="none" stroke="#a45a0d" stroke-width="0.8"/>
+            <text x="68" y="126">customer-support</text>
+            <rect x="240" y="108" width="170" height="28" fill="none" stroke="#a45a0d" stroke-width="0.8"/>
+            <text x="252" y="126">triage-agent</text>
+            <rect x="424" y="108" width="170" height="28" fill="none" stroke="#a45a0d" stroke-width="0.8"/>
+            <text x="436" y="126">kb-search-rag</text>
+            <rect x="608" y="108" width="170" height="28" fill="none" stroke="#a45a0d" stroke-width="0.8"/>
+            <text x="620" y="126">approvals-agent</text>
+            <rect x="792" y="108" width="248" height="28" fill="none" stroke="#a45a0d" stroke-width="0.8"/>
+            <text x="804" y="126">…domain-specific agents</text>
+          </g>
+        </g>
+
+        <!-- arrow down: uses -->
+        <line x1="540" y1="156" x2="540" y2="190" stroke="#16130d" stroke-width="1" marker-end="url(#arr)"/>
+        <text x="552" y="178" font-family="IBM Plex Mono" font-size="11" fill="#2a2519" letter-spacing="1.5">uses</text>
+
+        <!-- MIDDLE: SDK -->
+        <g>
+          <rect x="40" y="200" width="1000" height="220" fill="url(#hatch)" stroke="#29486b" stroke-width="1.6"/>
+          <rect x="40" y="200" width="1000" height="220" fill="none" stroke="#29486b" stroke-width="1.6"/>
+          <text x="56" y="226" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#29486b">GROUP A · PLATFORM TEAM</text>
+          <text x="56" y="262" font-family="Fraunces" font-size="26" font-weight="600" fill="#16130d">ai-eaap-sdk</text>
+          <text x="56" y="282" font-family="IBM Plex Mono" font-size="11" fill="#2a2519" letter-spacing="1">DI runtime · async · typed · observable · policy-aware</text>
+
+          <!-- concern tiles -->
+          <g font-family="IBM Plex Mono" font-size="11.5" fill="#16130d">
+            <!-- row 1 -->
+            <rect x="56" y="298" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="64" y="318">AUTH · JWT</text>
+            <text x="64" y="334" fill="#2a2519">+ OPA evaluator</text>
+
+            <rect x="226" y="298" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="234" y="318">AUDIT</text>
+            <text x="234" y="334" fill="#2a2519">redact + fan-out</text>
+
+            <rect x="396" y="298" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="404" y="318">OBSERVABILITY</text>
+            <text x="404" y="334" fill="#2a2519">OTel + LangFuse</text>
+
+            <rect x="566" y="298" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="574" y="318">BUDGET</text>
+            <text x="574" y="334" fill="#2a2519">tenant + agent</text>
+
+            <rect x="736" y="298" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="744" y="318">SCHEMA</text>
+            <text x="744" y="334" fill="#2a2519">versioned I/O</text>
+
+            <rect x="906" y="298" width="118" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="914" y="318">SECRETS</text>
+            <text x="914" y="334" fill="#2a2519">opaque refs</text>
+
+            <!-- row 2 -->
+            <rect x="56" y="356" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="64" y="376">RETRY · TIMEOUT</text>
+            <text x="64" y="392" fill="#2a2519">tenacity + cancel</text>
+
+            <rect x="226" y="356" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="234" y="376">MEMORY</text>
+            <text x="234" y="392" fill="#2a2519">token-budget compact</text>
+
+            <rect x="396" y="356" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="404" y="376">MCP POOL</text>
+            <text x="404" y="392" fill="#2a2519">lifecycle + idle TTL</text>
+
+            <rect x="566" y="356" width="160" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="574" y="376">DI &amp; FAKES</text>
+            <text x="574" y="392" fill="#2a2519">test seam</text>
+
+            <rect x="736" y="356" width="288" height="48" fill="#f1ebde" stroke="#29486b" stroke-width="1"/>
+            <text x="744" y="376">HEALTH · CONFIG · CLI · SCAFFOLDING</text>
+            <text x="744" y="392" fill="#2a2519">probes · settings · eaap-cli</text>
+          </g>
+        </g>
+
+        <!-- arrow down: talks to -->
+        <line x1="540" y1="426" x2="540" y2="460" stroke="#16130d" stroke-width="1" marker-end="url(#arr)"/>
+        <text x="552" y="448" font-family="IBM Plex Mono" font-size="11" fill="#2a2519" letter-spacing="1.5">talks to</text>
+
+        <!-- BOTTOM: External -->
+        <g>
+          <rect x="40" y="470" width="1000" height="120" fill="none" stroke="#16130d" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="56" y="496" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#2a2519">EXTERNAL SYSTEMS</text>
+
+          <g font-family="IBM Plex Mono" font-size="12" fill="#16130d">
+            <rect x="56" y="510" width="140" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="68" y="534">Postgres</text>
+            <text x="68" y="550" font-size="10" fill="#2a2519">checkpoints, vector</text>
+
+            <rect x="210" y="510" width="140" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="222" y="534">OPA</text>
+            <text x="222" y="550" font-size="10" fill="#2a2519">policy decisions</text>
+
+            <rect x="364" y="510" width="160" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="376" y="534">LLM providers</text>
+            <text x="376" y="550" font-size="10" fill="#2a2519">via LiteLLM</text>
+
+            <rect x="538" y="510" width="160" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="550" y="534">MCP servers</text>
+            <text x="550" y="550" font-size="10" fill="#2a2519">tools, resources, prompts</text>
+
+            <rect x="712" y="510" width="160" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="724" y="534">OTel + LangFuse</text>
+            <text x="724" y="550" font-size="10" fill="#2a2519">traces, generations</text>
+
+            <rect x="886" y="510" width="138" height="60" fill="none" stroke="#16130d" stroke-width="0.6"/>
+            <text x="898" y="534">Sentry/Datadog</text>
+            <text x="898" y="550" font-size="10" fill="#2a2519">audit fan-out</text>
+          </g>
+        </g>
+
+        <!-- side annotations -->
+        <text x="1056" y="92" font-family="IBM Plex Mono" font-size="10" fill="#a45a0d" text-anchor="end" letter-spacing="2">YOU WRITE THIS</text>
+        <text x="1056" y="262" font-family="IBM Plex Mono" font-size="10" fill="#29486b" text-anchor="end" letter-spacing="2">PLATFORM TEAM OWNS THIS</text>
+        <text x="1056" y="496" font-family="IBM Plex Mono" font-size="10" fill="#2a2519" text-anchor="end" letter-spacing="2">VENDORS &amp; INFRA</text>
+      </svg>
+      <figcaption>
+        <span class="fig-id">Fig. 01 · The layer cake</span>
+        <span>ai-eaap-sdk · architecture overview</span>
+      </figcaption>
+    </figure>
+
+    <figure class="diagram" style="margin-top: 32px;">
+      <svg viewBox="0 0 1080 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="With SDK vs Without SDK — what each team has to write and maintain.">
+        <defs>
+          <linearGradient id="risk-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#8a3320" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#8a3320" stop-opacity="0.02"/>
+          </linearGradient>
+          <linearGradient id="ok-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3f5a35" stop-opacity="0.16"/>
+            <stop offset="100%" stop-color="#3f5a35" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+
+        <!-- title bar -->
+        <text x="40" y="32" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#2a2519">A SINGLE AGENT TEAM — WHAT THEY OWN, WITH AND WITHOUT THE SDK</text>
+
+        <!-- WITH SDK -->
+        <g transform="translate(40, 60)">
+          <rect x="0" y="0" width="490" height="280" fill="url(#ok-grad)" stroke="#3f5a35" stroke-width="1"/>
+          <text x="14" y="22" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#3f5a35">WITH AI-CORE-SDK</text>
+          <text x="14" y="50" font-family="Fraunces" font-size="22" fill="#16130d" font-weight="600">A team of 4 ships an agent in a sprint.</text>
+
+          <!-- thin "agent code" rectangle -->
+          <rect x="14" y="76" width="462" height="48" fill="#a45a0d" opacity="0.85"/>
+          <text x="24" y="105" font-family="IBM Plex Mono" font-size="13" fill="#f1ebde" letter-spacing="1">agent code · prompts · tools · evals</text>
+
+          <!-- platform code -->
+          <rect x="14" y="128" width="462" height="138" fill="none" stroke="#29486b" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="24" y="148" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#29486b">SDK — MAINTAINED ELSEWHERE</text>
+          <text x="24" y="170" font-family="IBM Plex Mono" font-size="11" fill="#2a2519">auth · audit · observability · budget · retry</text>
+          <text x="24" y="188" font-family="IBM Plex Mono" font-size="11" fill="#2a2519">schema · secrets · MCP · memory · DI · fakes</text>
+          <text x="24" y="210" font-family="Fraunces" font-style="italic" font-size="13" fill="#2a2519">…you don't carry this code.</text>
+        </g>
+
+        <!-- WITHOUT SDK -->
+        <g transform="translate(550, 60)">
+          <rect x="0" y="0" width="490" height="280" fill="url(#risk-grad)" stroke="#8a3320" stroke-width="1"/>
+          <text x="14" y="22" font-family="IBM Plex Mono" font-size="11" letter-spacing="2" fill="#8a3320">WITHOUT THE SDK</text>
+          <text x="14" y="50" font-family="Fraunces" font-size="22" fill="#16130d" font-weight="600">A team of 4 ships an agent in a quarter.</text>
+
+          <rect x="14" y="76" width="462" height="32" fill="#a45a0d" opacity="0.75"/>
+          <text x="24" y="97" font-family="IBM Plex Mono" font-size="12" fill="#f1ebde" letter-spacing="1">agent code (small)</text>
+
+          <!-- everything else, owned by the team -->
+          <rect x="14" y="112" width="462" height="154" fill="#8a3320" opacity="0.7"/>
+          <g font-family="IBM Plex Mono" font-size="11.5" fill="#f1ebde" letter-spacing="0.5">
+            <text x="24" y="132">+ JWT verifier &amp; key rotation</text>
+            <text x="24" y="150">+ OPA HTTP client w/ fail-closed</text>
+            <text x="24" y="168">+ OTel tracer + LangFuse hooks</text>
+            <text x="24" y="186">+ retry / timeout / token counter</text>
+            <text x="24" y="204">+ audit schema + redactor + sinks</text>
+            <text x="24" y="222">+ schema registry · secret resolver</text>
+            <text x="24" y="240">+ MCP pool · compaction · DI · fakes</text>
+          </g>
+        </g>
+
+      </svg>
+      <figcaption>
+        <span class="fig-id">Fig. 02 · The transfer of work</span>
+        <span>same team, same goal, two starting positions</span>
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="s08">
+    <div class="runline"><span class="num">§ 08</span><span class="smallcaps">Responsibility matrix</span></div>
+    <h2 class="sechead">Who owns what.</h2>
+    <p style="max-width: 64ch;">
+      Most adoption friction comes from ambiguous ownership. Use this matrix to settle every "who's responsible for X" question in advance.
+    </p>
+
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Concern</th>
+          <th class="tech-col">Platform Team owns</th>
+          <th class="biz-col">Business AI Team owns</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="concern">Authorisation</td>
+          <td class="tech-col">JWT verifier, OPA evaluator, fail-closed defaults</td>
+          <td class="biz-col">Choosing <code class="mono">opa_path</code> per tool</td>
+        </tr>
+        <tr>
+          <td class="concern">Tools</td>
+          <td class="tech-col"><code class="mono">@tool</code> decorator, schema registry, invoker pipeline</td>
+          <td class="biz-col">Tool inputs/outputs, handler logic</td>
+        </tr>
+        <tr>
+          <td class="concern">Observability</td>
+          <td class="tech-col">OTel + LangFuse wiring, baggage, log shape</td>
+          <td class="biz-col">Calling <code class="mono">bind_context()</code> with relevant ids</td>
+        </tr>
+        <tr>
+          <td class="concern">Audit</td>
+          <td class="tech-col">Pipeline, redactor chain, sinks, schema</td>
+          <td class="biz-col">Letting tools emit audit automatically (default behaviour)</td>
+        </tr>
+        <tr>
+          <td class="concern">Budget</td>
+          <td class="tech-col"><code class="mono">BudgetService</code>, daily reset, alerting</td>
+          <td class="biz-col">Configuring per-(tenant, agent) limits</td>
+        </tr>
+        <tr>
+          <td class="concern">LLM calls</td>
+          <td class="tech-col">LiteLLM client, retry, timeout, token counting</td>
+          <td class="biz-col">Picking the model, writing the prompt</td>
+        </tr>
+        <tr>
+          <td class="concern">Memory</td>
+          <td class="tech-col"><code class="mono">MemoryManager</code>, compaction, token-budget guard</td>
+          <td class="biz-col"><code class="mono">essential_entity_keys</code> for the use case</td>
+        </tr>
+        <tr>
+          <td class="concern">MCP integration</td>
+          <td class="tech-col">Connection pool, lifecycle, health, late-binding-safe resolver</td>
+          <td class="biz-col">Declaring an <code class="mono">MCPServerSpec</code> for your tools</td>
+        </tr>
+        <tr>
+          <td class="concern">Secrets</td>
+          <td class="tech-col"><code class="mono">ISecretManager</code> bindings (env, AWS, Vault)</td>
+          <td class="biz-col">Using <code class="mono">SecretRef</code> instead of plaintext</td>
+        </tr>
+        <tr>
+          <td class="concern">Testing</td>
+          <td class="tech-col">DI fakes for every interface, conftest fixtures</td>
+          <td class="biz-col">Writing tests against fakes, not real services</td>
+        </tr>
+        <tr>
+          <td class="concern">Upgrades</td>
+          <td class="tech-col">LangGraph / LiteLLM / OPA version migrations</td>
+          <td class="biz-col">Following the SDK's <code class="mono">CHANGELOG</code> on minor bumps</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="s09">
+    <div class="runline"><span class="num">§ 09</span><span class="smallcaps">The bottom line</span></div>
+    <h2 class="sechead">The SDK is the <em>contract</em> between two teams who otherwise wouldn't agree.</h2>
+    <div class="two-col">
+      <p>
+        The platform team gets a single place to enforce safety, security, and observability without having to police every agent code review. The business AI team gets to spend their time on the only work that actually moves the business — prompts, tools, evaluation, and domain understanding — without rebuilding infrastructure first.
+      </p>
+      <p>
+        The alternative is not "more flexibility for everyone." The alternative is eight slightly different implementations of the same primitives, with eight slightly different bugs, and a long calendar of incidents waiting for them to surface. We've seen that movie. We don't want to ship it.
+      </p>
+    </div>
+
+    <div class="callout amber">
+      The SDK does not slow agent teams down. <em>Operating production AI without one</em> is what slows everyone down — eventually, painfully, and at the worst possible moment.
+    </div>
+  </section>
+
+  <!-- ============ 10 ============ -->
+  <section id="s10">
+    <div class="runline"><span class="num">§ 10</span><span class="smallcaps">Adoption path</span></div>
+    <h2 class="sechead">A short, low-ceremony rollout.</h2>
+    <ol class="concerns" style="border-top-color: var(--ink);">
+      <li>
+        <span class="name">Week 1 · Pilot agent</span>
+        <span class="desc">Pick one in-flight agent. Move it onto <code>BaseAgent</code> and <code>@tool</code>. Capture friction in a shared doc — that's the first sprint of platform-team work.</span>
+      </li>
+      <li>
+        <span class="name">Week 2–3 · Close gaps</span>
+        <span class="desc">Platform team addresses the friction list. Business AI team writes the second agent on the SDK; this one should be noticeably faster.</span>
+      </li>
+      <li>
+        <span class="name">Week 4 · Production gates</span>
+        <span class="desc">Set the bar: any agent shipping to a regulated environment must run on the SDK. Audit + observability shape becomes the deployment gate.</span>
+      </li>
+      <li>
+        <span class="name">Quarter 2 · Migrate the rest</span>
+        <span class="desc">Existing agents migrate one by one as they touch them. No stop-the-world rewrite. The SDK absorbs library upgrades centrally; teams ride along.</span>
+      </li>
+      <li>
+        <span class="name">Steady state</span>
+        <span class="desc">New agents start on the SDK from day one. New cross-cutting concerns become SDK features, not per-team workarounds. The platform improves where it should — at the platform layer.</span>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============ CLOSING ============ -->
+  <div class="closing">
+    <h2>Build it <em>once.</em><br>Build it <em>well.</em><br>Build it <em>together.</em></h2>
+    <div class="ask">
+      <p><strong>What we're asking for.</strong></p>
+      <p><span class="mono">/</span> The platform team commits to maintaining the SDK as a first-class product — with versioning, a changelog, and a clear support model.</p>
+      <p><span class="mono">/</span> The business AI team commits to building new agents on the SDK rather than around it, and to bringing gaps back to the platform team rather than forking.</p>
+      <p><span class="mono">/</span> Leadership commits to recognising the platform layer as load-bearing engineering work, not invisible plumbing.</p>
+    </div>
+    <div class="signoff">
+      <span>ai-eaap-sdk · adoption brief</span>
+      <span>EAAP / Platform Engineering</span>
+      <span>v0.1 · discussion draft</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

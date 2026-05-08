@@ -51,35 +51,35 @@ def _make_token(
 # ---------------------------------------------------------------------------
 def test_hs256_round_trip_with_aud_and_iss() -> None:
     token = _make_token(secret="topsecret", aud="eaap-app", iss="eaap-idp")
-    verifier = HS256JWTVerifier("topsecret", _settings(audience="eaap-app", issuer="eaap-idp"))
+    verifier = HS256JWTVerifier("topsecret", _settings(audience="eaap-app", issuer="eaap-idp").security)
     claims = verifier.verify(token)
     assert claims["sub"] == "user-1"
 
 
 def test_hs256_rejects_wrong_audience() -> None:
     token = _make_token(secret="topsecret", aud="other", iss="eaap-idp")
-    verifier = HS256JWTVerifier("topsecret", _settings(audience="eaap-app", issuer="eaap-idp"))
+    verifier = HS256JWTVerifier("topsecret", _settings(audience="eaap-app", issuer="eaap-idp").security)
     with pytest.raises(PolicyDenialError):
         verifier.verify(token)
 
 
 def test_hs256_rejects_wrong_secret() -> None:
     token = _make_token(secret="other-secret")
-    verifier = HS256JWTVerifier("topsecret", _settings())
+    verifier = HS256JWTVerifier("topsecret", _settings().security)
     with pytest.raises(PolicyDenialError):
         verifier.verify(token)
 
 
 def test_hs256_rejects_expired_token() -> None:
     token = _make_token(secret="topsecret", exp_offset=-1)
-    verifier = HS256JWTVerifier("topsecret", _settings())
+    verifier = HS256JWTVerifier("topsecret", _settings().security)
     with pytest.raises(PolicyDenialError):
         verifier.verify(token)
 
 
 def test_hs256_requires_non_empty_secret() -> None:
     with pytest.raises(ValueError, match="non-empty"):
-        HS256JWTVerifier("", _settings())
+        HS256JWTVerifier("", _settings().security)
 
 
 # ---------------------------------------------------------------------------

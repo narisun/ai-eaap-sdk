@@ -1,13 +1,13 @@
-# ai-core-sdk
+# ai-eaap-sdk
 
 The foundational SDK for the **Enterprise Agentic AI Platform (EAAP)**.
 
-> **Do NOT run `pip install ai-core-sdk`.** That distribution name on PyPI
-> belongs to SAP's AI Core client SDK — a completely unrelated package. Until
-> this project is published under a non-conflicting name, install **from
-> source** (instructions below). This SDK has not been published to PyPI.
+> **Note on naming.** This project's distribution name is `ai-eaap-sdk`.
+> Do **not** `pip install ai-core-sdk` — that PyPI name belongs to SAP's
+> unrelated AI Core client SDK. `ai-eaap-sdk` is not yet published to PyPI;
+> install **from source** until it ships (instructions below).
 
-`ai-core-sdk` is a typed, async-first Python toolkit for building agentic AI
+`ai-eaap-sdk` is a typed, async-first Python toolkit for building agentic AI
 applications that have to clear an enterprise bar — observable, policy-aware,
 budget-aware, schema-versioned, and testable in isolation. It bundles
 LangGraph orchestration, LiteLLM proxying, FastMCP integration, OpenTelemetry
@@ -98,18 +98,16 @@ src/ai_core/
 ### Install
 
 > **Heads-up — name collision on PyPI.** The PyPI distribution
-> `ai-core-sdk` is currently SAP's AI Core client (it pulls in
-> `ai-api-client-sdk`, `pyhumps`, `aenum`). Running
-> `pip install ai-core-sdk` will install *that* package, not this one,
-> and the `eaap` command will not be on your PATH. Always install from
-> source until this project ships under a non-conflicting distribution
-> name (likely `eaap-core-sdk`).
+> `ai-core-sdk` is SAP's AI Core client (it pulls in `ai-api-client-sdk`,
+> `pyhumps`, `aenum`) — a different package. This project ships under
+> `ai-eaap-sdk` but is not yet published to PyPI. Install from source
+> for now; the `eaap` CLI will land on PATH once installed.
 
 Clone (or otherwise obtain the source), then install in editable mode
 into your project's virtual environment:
 
 ```bash
-# From the directory that contains the ai-core-sdk/ source tree:
+# From the directory that contains the ai-eaap-sdk/ source tree:
 
 # Optional but recommended: a fresh venv (Python 3.11+).
 python3 -m venv .venv
@@ -121,7 +119,7 @@ pip uninstall -y ai-core-sdk ai-api-client-sdk
 
 # Editable install. The `eaap` CLI lands on PATH; source changes are
 # picked up immediately without re-installing.
-pip install -e ai-core-sdk
+pip install -e ai-eaap-sdk
 
 # Verify
 eaap --help
@@ -130,7 +128,7 @@ eaap --help
 For development on the SDK itself (running the test suite, ruff, mypy):
 
 ```bash
-pip install -e "ai-core-sdk[dev]"
+pip install -e "ai-eaap-sdk[dev]"
 pytest -q                     # 148 tests
 ```
 
@@ -142,10 +140,10 @@ cd my-eaap-app
 cp .env.example .env
 docker compose up -d            # Postgres + OPA + OTel collector + Jaeger
 
-# The scaffolded pyproject.toml intentionally omits the ai-core-sdk
-# dependency (PyPI name collision — see above). Install it from source
-# alongside the generated app:
-pip install -e /path/to/ai-core-sdk
+# The scaffolded pyproject.toml intentionally omits the ai-eaap-sdk
+# dependency (not yet on PyPI). Install it from source alongside the
+# generated app:
+pip install -e /path/to/ai-eaap-sdk
 pip install -e ".[dev]"
 
 python -m my_eaap_app.main      # FastAPI app on :8000

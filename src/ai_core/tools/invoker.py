@@ -14,6 +14,7 @@ as a parameter so the same invoker handles every tool in the application.
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
@@ -26,9 +27,10 @@ from ai_core.exceptions import (
     ToolValidationError,
 )
 from ai_core.observability.logging import get_logger
+from ai_core.tools.middleware import ToolCallContext, ToolMiddleware
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
     from ai_core.schema.registry import SchemaRegistry
@@ -63,6 +65,7 @@ class ToolInvoker:
         registry: SchemaRegistry | None = None,
         audit: IAuditSink | None = None,
         redactor: PayloadRedactor | None = None,
+        middlewares: Sequence[ToolMiddleware] = (),
     ) -> None:
         from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
         from ai_core.audit.null import NullAuditSink as _NullAuditSink  # noqa: PLC0415
@@ -74,6 +77,8 @@ class ToolInvoker:
         self._records_audit: bool = not isinstance(self._audit, _NullAuditSink)
         # Phase 6: optional payload redactor; default identity preserves Phase 1-5 behaviour.
         self._redactor: PayloadRedactor = redactor or _identity_redactor
+        # v1: around-advice middleware chain wrapping the built-in pipeline.
+        self._middlewares: tuple[ToolMiddleware, ...] = tuple(middlewares)
 
     def register(self, spec: ToolSpec) -> None:
         """Register a spec with the underlying :class:`SchemaRegistry`. Idempotent.
@@ -107,6 +112,43 @@ class ToolInvoker:
         principal: Mapping[str, Any] | None = None,
         agent_id: str | None = None,
         tenant_id: str | None = None,
+    ) -> Mapping[str, Any]:
+        if not self._middlewares:
+            return await self._invoke_inner(
+                spec, raw_args,
+                principal=principal, agent_id=agent_id, tenant_id=tenant_id,
+            )
+
+        ctx = ToolCallContext(
+            spec=spec,
+            raw_args=raw_args,
+            principal=principal,
+            agent_id=agent_id,
+            tenant_id=tenant_id,
+        )
+
+        async def _innermost() -> Mapping[str, Any]:
+            return await self._invoke_inner(
+                spec, raw_args,
+                principal=principal, agent_id=agent_id, tenant_id=tenant_id,
+            )
+
+        # Build the chain by wrapping innermost with each middleware in
+        # reverse order, so the first registered middleware is the
+        # outermost layer (sees the call first, sees the result last).
+        chain: Callable[[], Awaitable[Mapping[str, Any]]] = _innermost
+        for mw in reversed(self._middlewares):
+            chain = _wrap(mw, ctx, chain)
+        return await chain()
+
+    async def _invoke_inner(
+        self,
+        spec: ToolSpec,
+        raw_args: Mapping[str, Any],
+        *,
+        principal: Mapping[str, Any] | None,
+        agent_id: str | None,
+        tenant_id: str | None,
     ) -> Mapping[str, Any]:
         attrs: dict[str, Any] = {
             "tool.name": spec.name,
@@ -248,6 +290,24 @@ class ToolInvoker:
                     redactor=self._redactor,
                 ))
             raise
+
+
+def _wrap(
+    middleware: ToolMiddleware,
+    ctx: ToolCallContext,
+    inner: Callable[[], Awaitable[Mapping[str, Any]]],
+) -> Callable[[], Awaitable[Mapping[str, Any]]]:
+    """Bind a single middleware around ``inner``.
+
+    Defined at module scope (not inline in :meth:`ToolInvoker.invoke`)
+    so each lambda captures its own ``inner`` reference instead of the
+    rebinding loop variable.
+    """
+
+    async def _bound() -> Mapping[str, Any]:
+        return await middleware(ctx, inner)
+
+    return _bound
 
 
 __all__ = ["ToolInvoker"]
