@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from ai_core.persistence import LangGraphCheckpointSaver
 from ai_core.persistence.models import Base
 
-
 pytestmark = pytest.mark.unit
 
 

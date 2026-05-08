@@ -7,7 +7,6 @@ import pytest
 from ai_core.config.settings import AppSettings, BudgetOverride
 from ai_core.llm.budget import InMemoryBudgetService
 
-
 pytestmark = pytest.mark.unit
 
 

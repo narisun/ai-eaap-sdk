@@ -66,7 +66,7 @@ def _estimate_tokens(messages: Sequence[Mapping[str, Any]], model: str) -> int:
     """Best-effort prompt-token estimate using LiteLLM's tokenizer."""
     try:
         return int(litellm.token_counter(model=model, messages=list(messages)))
-    except Exception:  # noqa: BLE001 — fall back when tokeniser fails
+    except Exception:
         # Heuristic: ~4 chars/token. Good enough for budget pre-check.
         approx = sum(len(str(m.get("content", ""))) for m in messages)
         return max(1, approx // 4)
@@ -95,7 +95,7 @@ class LiteLLMClient(ILLMClient):
         self._budget = budget
         self._observability = observability
 
-    async def complete(  # noqa: PLR0913 — DI-friendly wide signature, mirrors ILLMClient
+    async def complete(
         self,
         *,
         model: str | None,
@@ -230,7 +230,7 @@ class LiteLLMClient(ILLMClient):
         )
         return response
 
-    async def astream(  # noqa: PLR0913 — DI-friendly wide signature, mirrors ILLMClient
+    async def astream(
         self,
         *,
         model: str | None,

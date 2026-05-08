@@ -99,7 +99,7 @@ class MCPResourceSpec(MCPToolSpec):
         }
 
 
-def unwrap_mcp_tool_message(content: str) -> Any:  # noqa: ANN401
+def unwrap_mcp_tool_message(content: str) -> Any:
     """Unwrap MCPToolSpec's {"value": ...} envelope from a ToolMessage.content string.
 
     Returns the inner value when content is a JSON object with exactly one key

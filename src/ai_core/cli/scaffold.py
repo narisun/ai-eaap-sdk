@@ -218,8 +218,8 @@ MCP_TEMPLATES: dict[str, str] = {
 
 
 __all__ = [
-    "INIT_TEMPLATE_PACKAGE",
     "AGENT_TEMPLATES",
+    "INIT_TEMPLATE_PACKAGE",
     "MCP_TEMPLATES",
     "iter_template_files",
     "render_template",

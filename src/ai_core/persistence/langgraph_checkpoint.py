@@ -41,6 +41,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from injector import inject
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
     ChannelVersions,
@@ -87,11 +88,11 @@ class LangGraphCheckpointSaver(BaseCheckpointSaver[str]):
     # ------------------------------------------------------------------
     async def aput(
         self,
-        config: dict[str, Any],
+        config: RunnableConfig,
         checkpoint: Checkpoint,
         metadata: CheckpointMetadata,
         new_versions: ChannelVersions,
-    ) -> dict[str, Any]:
+    ) -> RunnableConfig:
         """Persist a single checkpoint.
 
         Args:
@@ -162,7 +163,7 @@ class LangGraphCheckpointSaver(BaseCheckpointSaver[str]):
     # ------------------------------------------------------------------
     # aget_tuple
     # ------------------------------------------------------------------
-    async def aget_tuple(self, config: dict[str, Any]) -> CheckpointTuple | None:
+    async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         """Return the requested (or latest) checkpoint as a ``CheckpointTuple``.
 
         Args:
@@ -231,10 +232,10 @@ class LangGraphCheckpointSaver(BaseCheckpointSaver[str]):
     # ------------------------------------------------------------------
     async def alist(
         self,
-        config: dict[str, Any] | None,
+        config: RunnableConfig | None,
         *,
-        filter: Mapping[str, Any] | None = None,  # noqa: A002 — name fixed by API
-        before: dict[str, Any] | None = None,
+        filter: Mapping[str, Any] | None = None,
+        before: RunnableConfig | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[CheckpointTuple]:
         """Yield checkpoints for the supplied thread, newest first.
@@ -317,7 +318,7 @@ class LangGraphCheckpointSaver(BaseCheckpointSaver[str]):
     # ------------------------------------------------------------------
     async def aput_writes(
         self,
-        config: dict[str, Any],
+        config: RunnableConfig,
         writes: Sequence[tuple[str, Any]],
         task_id: str,
         task_path: str = "",
@@ -412,14 +413,14 @@ class LangGraphCheckpointSaver(BaseCheckpointSaver[str]):
     ) -> CheckpointTuple:
         checkpoint = self.serde.loads_typed((row.checkpoint_type, row.checkpoint_blob))
         metadata: CheckpointMetadata = dict(row.metadata_blob or {})  # type: ignore[assignment]
-        config: dict[str, Any] = {
+        config: RunnableConfig = {
             "configurable": {
                 "thread_id": row.thread_id,
                 "checkpoint_ns": row.checkpoint_ns,
                 "checkpoint_id": row.checkpoint_id,
             }
         }
-        parent_config: dict[str, Any] | None = None
+        parent_config: RunnableConfig | None = None
         if row.parent_checkpoint_id:
             parent_config = {
                 "configurable": {

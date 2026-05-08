@@ -13,7 +13,6 @@ from ai_core.di.interfaces import PolicyDecision
 from ai_core.exceptions import PolicyDenialError
 from ai_core.security.opa import OPAPolicyEvaluator
 
-
 pytestmark = pytest.mark.unit
 
 

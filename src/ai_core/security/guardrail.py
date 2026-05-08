@@ -189,4 +189,4 @@ def _format_denial_message(decisions: Sequence[GuardrailDecision]) -> str:
     )
 
 
-__all__ = ["GuardrailNode", "GuardrailDecision"]
+__all__ = ["GuardrailDecision", "GuardrailNode"]

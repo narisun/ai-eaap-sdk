@@ -66,7 +66,7 @@ class RaiseOnUseLLMClient(ILLMClient):
             },
         )
 
-    def astream(
+    async def astream(
         self,
         *,
         model: str | None,

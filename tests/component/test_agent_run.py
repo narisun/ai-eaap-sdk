@@ -31,7 +31,6 @@ from ai_core.di import AgentModule, Container
 from ai_core.di.interfaces import ILLMClient  # noqa: TC001
 from ai_core.testing import ScriptedLLM, make_llm_response
 
-
 pytestmark = pytest.mark.component
 
 

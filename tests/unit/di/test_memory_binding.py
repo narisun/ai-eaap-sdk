@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 import pytest
 from injector import Module, provider, singleton
 
@@ -11,7 +9,6 @@ from ai_core.agents import IMemoryManager, MemoryManager
 from ai_core.agents.state import AgentState
 from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
-
 
 pytestmark = pytest.mark.unit
 

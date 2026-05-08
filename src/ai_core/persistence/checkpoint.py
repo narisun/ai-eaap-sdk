@@ -165,7 +165,9 @@ class PostgresCheckpointSaver(ICheckpointSaver):
                 result = await session.execute(
                     delete(CheckpointRecord).where(CheckpointRecord.thread_id == thread_id)
                 )
-                return int(result.rowcount or 0)
+                # SQLAlchemy's typed Result generic doesn't expose rowcount on
+                # the parametrised type (only on CursorResult); cast to widen.
+                return int(getattr(result, "rowcount", 0) or 0)
         except SQLAlchemyError as exc:
             raise CheckpointError(
                 "Failed to delete checkpoints",

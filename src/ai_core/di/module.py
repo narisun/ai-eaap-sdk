@@ -222,7 +222,8 @@ class AgentModule(Module):
         reasoning. Both interfaces are structurally identical, so any
         :class:`ILLMClient` implementation satisfies :class:`ICompactionLLM`.
         """
-        return llm  # type: ignore[return-value]  # ILLMClient structurally satisfies ICompactionLLM
+        # ILLMClient structurally satisfies ICompactionLLM (same Protocol shape).
+        return llm
 
     @singleton
     @provider
@@ -308,7 +309,7 @@ class AgentModule(Module):
         :class:`ProductionSecurityModule` (or a custom module that binds a
         real evaluator) to enable policy enforcement.
         """
-        from ai_core.security.noop_policy import NoOpPolicyEvaluator  # noqa: PLC0415
+        from ai_core.security.noop_policy import NoOpPolicyEvaluator
         return NoOpPolicyEvaluator()
 
     @singleton
@@ -338,9 +339,9 @@ class AgentModule(Module):
         """Return the configured PayloadRedactor; identity for profile='off'."""
         profile = settings.audit.redaction_profile
         if profile == "off":
-            from ai_core.audit.interface import _identity_redactor  # noqa: PLC0415
+            from ai_core.audit.interface import _identity_redactor
             return _identity_redactor
-        from ai_core.audit.redaction import (  # noqa: PLC0415
+        from ai_core.audit.redaction import (
             ChainRedactor,
             KeyNameRedactor,
             PatternKind,
@@ -370,7 +371,7 @@ class AgentModule(Module):
         by calling :func:`ai_core.audit.register_audit_sink` or by
         declaring an ``ai_eaap_sdk.audit_sinks`` entry point.
         """
-        from ai_core.audit.registry import get_audit_sink_factory  # noqa: PLC0415
+        from ai_core.audit.registry import get_audit_sink_factory
         factory = get_audit_sink_factory(audit_settings.sink_type)
         return factory(audit_settings, observability)
 
@@ -403,7 +404,7 @@ class AgentModule(Module):
         For a one-off addition without authoring a Module, use
         :py:meth:`AICoreApp.add_health_probe`.
         """
-        from ai_core.health.probes import (  # noqa: PLC0415
+        from ai_core.health.probes import (
             DatabaseProbe,
             ModelLookupProbe,
             OPAReachabilityProbe,
@@ -542,7 +543,7 @@ class ProductionSecurityModule(Module):
         self, security_settings: SecuritySettings
     ) -> IPolicyEvaluator:
         """Return the OPA-backed policy evaluator. Loaded from `ai_core.security.opa`."""
-        from ai_core.security.opa import OPAPolicyEvaluator  # noqa: PLC0415
+        from ai_core.security.opa import OPAPolicyEvaluator
         return OPAPolicyEvaluator(security_settings)
 
 

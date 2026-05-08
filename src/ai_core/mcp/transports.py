@@ -90,7 +90,7 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
 
     def __init__(self, *, pool_enabled: bool = True,
                  pool_idle_seconds: float = 300.0) -> None:
-        from ai_core.mcp._pool import _MCPConnectionPool  # noqa: PLC0415
+        from ai_core.mcp._pool import _MCPConnectionPool
         self._pool_enabled = pool_enabled
         self._pool: _MCPConnectionPool | None = (
             _MCPConnectionPool(opener=self._open, idle_seconds=pool_idle_seconds)
@@ -119,6 +119,11 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
             ) from exc
 
         try:
+            # `transport` is widened to Any because the three FastMCP transport
+            # classes don't share a common public base in the library's type
+            # surface; mypy would otherwise narrow to StdioTransport on the
+            # first branch and reject SSE/HTTP assignments.
+            transport: Any
             if spec.transport == "stdio":
                 from fastmcp.client.transports import StdioTransport
 
@@ -173,9 +178,9 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
 FastMCPConnectionFactory = PoolingMCPConnectionFactory
 
 __all__ = [
+    "FastMCPConnectionFactory",  # alias
+    "IMCPConnectionFactory",
     "MCPServerSpec",
     "MCPTransport",
-    "IMCPConnectionFactory",
     "PoolingMCPConnectionFactory",
-    "FastMCPConnectionFactory",  # alias
 ]

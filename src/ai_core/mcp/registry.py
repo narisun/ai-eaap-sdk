@@ -148,7 +148,7 @@ class ComponentRegistry:
         async def _check(cid: str, rec: RegisteredComponent) -> tuple[str, bool]:
             try:
                 healthy = bool(await rec.component.health_check())
-            except Exception:  # noqa: BLE001 — registry must not crash on a bad component
+            except Exception:
                 healthy = False
             return cid, healthy
 
@@ -156,4 +156,4 @@ class ComponentRegistry:
         return dict(results)
 
 
-__all__ = ["ComponentRegistry", "RegisteredComponent", "ComponentType"]
+__all__ = ["ComponentRegistry", "ComponentType", "RegisteredComponent"]

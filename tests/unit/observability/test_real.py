@@ -17,7 +17,6 @@ from ai_core.config.settings import AppSettings, ObservabilitySettings
 from ai_core.exceptions import LLMInvocationError
 from ai_core.observability.real import RealObservabilityProvider
 
-
 pytestmark = pytest.mark.unit
 
 

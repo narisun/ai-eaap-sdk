@@ -13,7 +13,6 @@ from ai_core.di import AgentModule, Container
 from ai_core.di.interfaces import ILLMClient, LLMResponse, LLMUsage
 from ai_core.exceptions import AgentRecursionLimitError
 
-
 pytestmark = pytest.mark.unit
 
 

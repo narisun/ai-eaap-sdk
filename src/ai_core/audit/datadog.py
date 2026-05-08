@@ -43,7 +43,7 @@ class DatadogAuditSink(IAuditSink):
         environment: str | None = None,
     ) -> None:
         try:
-            import datadog  # noqa: PLC0415
+            import datadog
         except ImportError as exc:
             raise ConfigurationError(
                 "Datadog sink requires the 'datadog' optional dependency. "
@@ -90,7 +90,7 @@ class DatadogAuditSink(IAuditSink):
                 "latency_ms": record.latency_ms,
             })
 
-            self._datadog.api.Event.create(  # type: ignore[attr-defined,no-untyped-call]
+            self._datadog.api.Event.create(
                 title=f"eaap.audit.{record.event.value}",
                 text=text_payload,
                 tags=tags,

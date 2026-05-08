@@ -40,7 +40,7 @@ def _record(
 
 
 def test_init_calls_sentry_sdk_init_with_dsn(fake_sentry_sdk: MagicMock) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(
         dsn="https://abc@sentry.example.com/42",
         environment="prod",
@@ -60,7 +60,7 @@ def test_init_calls_sentry_sdk_init_with_dsn(fake_sentry_sdk: MagicMock) -> None
 async def test_record_emits_capture_event_with_info_level_for_allowed(
     fake_sentry_sdk: MagicMock,
 ) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     await sink.record(_record(decision_allowed=True))
     fake_sentry_sdk.capture_event.assert_called_once()
@@ -72,7 +72,7 @@ async def test_record_emits_capture_event_with_info_level_for_allowed(
 async def test_record_emits_warning_level_for_decision_denied(
     fake_sentry_sdk: MagicMock,
 ) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     await sink.record(_record(decision_allowed=False))
     event = fake_sentry_sdk.capture_event.call_args.args[0]
@@ -83,7 +83,7 @@ async def test_record_emits_warning_level_for_decision_denied(
 async def test_record_emits_warning_level_for_error_code_set(
     fake_sentry_sdk: MagicMock,
 ) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     await sink.record(_record(error_code="tool.invocation_failed"))
     event = fake_sentry_sdk.capture_event.call_args.args[0]
@@ -92,7 +92,7 @@ async def test_record_emits_warning_level_for_error_code_set(
 
 @pytest.mark.asyncio
 async def test_record_includes_audit_tags(fake_sentry_sdk: MagicMock) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     await sink.record(_record(decision_allowed=True))
     event = fake_sentry_sdk.capture_event.call_args.args[0]
@@ -108,7 +108,7 @@ async def test_record_swallows_exception_from_capture_event(
     fake_sentry_sdk: MagicMock,
 ) -> None:
     fake_sentry_sdk.capture_event.side_effect = RuntimeError("backend down")
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     # Must not raise.
     await sink.record(_record())
@@ -118,7 +118,7 @@ async def test_record_swallows_exception_from_capture_event(
 async def test_flush_calls_sentry_sdk_flush_with_timeout(
     fake_sentry_sdk: MagicMock,
 ) -> None:
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     sink = SentryAuditSink(dsn="https://x@x/1")
     await sink.flush()
     fake_sentry_sdk.flush.assert_called_once_with(timeout=5.0)
@@ -134,7 +134,7 @@ def test_missing_sentry_sdk_raises_configuration_error_with_extra_detail(
     # Reload the sink module to retrigger the import inside __init__.
     if "ai_core.audit.sentry" in sys.modules:
         del sys.modules["ai_core.audit.sentry"]
-    from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
+    from ai_core.audit.sentry import SentryAuditSink
     with pytest.raises(ConfigurationError) as exc:
         SentryAuditSink(dsn="https://x@x/1")
     assert exc.value.error_code == "config.optional_dep_missing"
@@ -144,9 +144,9 @@ def test_missing_sentry_sdk_raises_configuration_error_with_extra_detail(
 def test_provide_audit_sink_sentry_without_dsn_raises_configuration_error(
     fake_sentry_sdk: MagicMock,
 ) -> None:
-    from ai_core.config.settings import AppSettings  # noqa: PLC0415
-    from ai_core.di.interfaces import IObservabilityProvider  # noqa: PLC0415
-    from ai_core.di.module import AgentModule  # noqa: PLC0415
+    from ai_core.config.settings import AppSettings
+    from ai_core.di.interfaces import IObservabilityProvider
+    from ai_core.di.module import AgentModule
 
     settings = AppSettings()
     settings.audit.sink_type = "sentry"  # type: ignore[assignment]

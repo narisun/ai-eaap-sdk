@@ -29,9 +29,9 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     """Lazily resolve LiteLLM-backed names so litellm stays optional."""
     if name == "LiteLLMClient":
-        from ai_core.llm.litellm_client import LiteLLMClient as _LC  # noqa: PLC0415
+        from ai_core.llm.litellm_client import LiteLLMClient as _LC
         return _LC
     if name == "LiteLLMModule":
-        from ai_core.llm.module import LiteLLMModule as _LM  # noqa: PLC0415
+        from ai_core.llm.module import LiteLLMModule as _LM
         return _LM
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

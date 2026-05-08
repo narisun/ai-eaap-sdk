@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, TypeVar
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import AppSettings
 from ai_core.di.container import Container
-from ai_core.di.interfaces import IObservabilityProvider  # noqa: TC001  # re-exported via get()
 from ai_core.di.module import AgentModule
 from ai_core.health.interface import HealthStatus, IHealthProbe, ProbeResult
 from ai_core.mcp.registry import ComponentRegistry, RegisteredComponent

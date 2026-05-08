@@ -32,7 +32,7 @@ import asyncio
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 from injector import inject
 from langchain_core.messages import AIMessage, ToolMessage
@@ -143,7 +143,7 @@ class BaseAgent(ABC):
         """
         return ()
 
-    def extend_graph(self, graph: StateGraph) -> None:
+    def extend_graph(self, graph: StateGraph[AgentState]) -> None:
         """Hook for subclasses to add custom nodes/edges before compile."""
 
     # ------------------------------------------------------------------
@@ -228,7 +228,11 @@ class BaseAgent(ABC):
         try:
             compiled = self.compile()
             initial = new_agent_state(
-                initial_messages=list(messages),
+                # Coerce each message Mapping to a concrete dict so the state
+                # constructor's Iterable[dict] contract is satisfied. The
+                # public ainvoke API accepts Mapping for caller convenience;
+                # the conversion is cheap at the entry boundary.
+                initial_messages=[dict(m) for m in messages],
                 essential={**(essential or {}), "tenant_id": tenant_id or ""},
                 metadata={"agent_id": self.agent_id},
             )
@@ -261,7 +265,11 @@ class BaseAgent(ABC):
                         ) from exc
             finally:
                 otel_context.detach(token)
-            return result
+            # LangGraph's compiled.ainvoke returns the merged state as a
+            # plain mapping. AgentState is a TypedDict, so the runtime value
+            # is structurally compatible; the cast is purely for the return
+            # annotation.
+            return cast("AgentState", result)
         finally:
             unbind_context(log_token)
 
@@ -330,10 +338,15 @@ class BaseAgent(ABC):
 
         appended: list[Any] = []
         for tc in tool_calls:
-            tc_id = tc.get("id") if isinstance(tc, Mapping) else getattr(tc, "id", "")
-            name = tc.get("name") if isinstance(tc, Mapping) else getattr(tc, "name", "")
+            tc_id_raw = tc.get("id") if isinstance(tc, Mapping) else getattr(tc, "id", "")
+            name_raw = tc.get("name") if isinstance(tc, Mapping) else getattr(tc, "name", "")
             args = tc.get("args") if isinstance(tc, Mapping) else getattr(tc, "args", {}) or {}
-            tool_call_id = tc_id or ""
+            # Coerce LLM-supplied (untyped) tool-call fields to str so the
+            # renderer Protocol's str-typed args are satisfied. Empty-string
+            # fallback keeps the LLM-feedback channel open even when the
+            # provider produced a malformed call.
+            tool_call_id: str = str(tc_id_raw or "")
+            name: str = str(name_raw or "")
             if isinstance(args, Mapping) and "__parse_error__" in args:
                 appended.append(renderer.render_parse_error(
                     tool_name=name,
@@ -413,7 +426,12 @@ class BaseAgent(ABC):
                         mcp_servers=self.mcp_servers(),
                     )
                     self._mcp_resolved = list(resolved)
-        return list(self.tools()) + list(self._mcp_resolved)
+        # MCPToolSpec satisfies Tool structurally (has name / version /
+        # openai_schema), but mypy's nominal typing for Protocols against a
+        # concrete-class list cannot prove it; cast at the boundary.
+        merged: list[Tool | Mapping[str, Any]] = list(self.tools())
+        merged.extend(cast("list[Tool]", self._mcp_resolved))
+        return merged
 
     async def list_prompts(self) -> list[MCPPrompt]:
         """List all prompts across declared MCP servers.
@@ -532,7 +550,7 @@ class BaseAgent(ABC):
         return ctx
 
 
-def _to_mcp_prompt(fastmcp_prompt: Any, server: MCPServerSpec) -> MCPPrompt:  # noqa: ANN401
+def _to_mcp_prompt(fastmcp_prompt: Any, server: MCPServerSpec) -> MCPPrompt:
     """Map a FastMCP `Prompt` to our typed MCPPrompt."""
     args = tuple(
         MCPPromptArgument(
@@ -550,7 +568,7 @@ def _to_mcp_prompt(fastmcp_prompt: Any, server: MCPServerSpec) -> MCPPrompt:  # 
     )
 
 
-def _to_mcp_prompt_message(fastmcp_msg: Any) -> MCPPromptMessage:  # noqa: ANN401
+def _to_mcp_prompt_message(fastmcp_msg: Any) -> MCPPromptMessage:
     """Map a FastMCP `PromptMessage` to our typed MCPPromptMessage.
 
     PromptMessage.content is a union of TextContent | ImageContent | … .

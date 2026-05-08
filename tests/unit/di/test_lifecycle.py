@@ -9,7 +9,6 @@ from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
 from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
 
-
 pytestmark = pytest.mark.unit
 
 

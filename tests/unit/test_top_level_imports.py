@@ -7,7 +7,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_canonical_imports_exist() -> None:
-    from ai_core import (  # noqa: PLC0415, F401, I001
+    from ai_core import (  # noqa: F401, I001
         AICoreApp,
         AgentRecursionLimitError,
         AgentRuntimeError,
@@ -56,6 +56,6 @@ def test_canonical_imports_exist() -> None:
 
 
 def test_version_string_is_set() -> None:
-    import ai_core  # noqa: PLC0415
+    import ai_core
     assert isinstance(ai_core.__version__, str)
     assert ai_core.__version__

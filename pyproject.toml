@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-eaap-sdk"
-version = "1.0.0"
+version = "1.0.1"
 description = "Enterprise Agentic AI Platform (EAAP) core SDK — DI-driven, async, observable, policy-aware."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -118,9 +118,10 @@ Issues = "https://github.com/narisun/ai-eaap-sdk/issues"
 # --------------------------------------------------------------------------
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_core"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/ai_core/cli/templates" = "ai_core/cli/templates"
+# CLI scaffold templates live under src/ai_core/cli/templates and are picked
+# up by the package walk above; do not also list them in force-include or the
+# wheel zip ends up with duplicate entries (and the build emits "Duplicate
+# name" warnings for every duplicated path).
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -185,9 +186,17 @@ select = [
     "RUF",               # ruff-specific
 ]
 ignore = [
-    "ANN101", "ANN102",  # self/cls annotations
+    "ANN101", "ANN102",  # self/cls annotations (deprecated in newer ruff)
     "PLR0913",           # too many arguments (DI constructors are wide)
     "S101",              # asserts (used in tests)
+    "PLC0415",           # imports inside functions — deliberate for the
+                         # optional-extra lazy imports (litellm/langfuse/fastmcp)
+                         # and heavy-import deferral. Architectural choice, not a smell.
+    "B008",              # function calls in default args — Pydantic Field(default_factory=...)
+                         # and FastAPI Depends(...) patterns rely on this.
+    "ANN401",            # `Any` annotations — used at boundaries with untyped
+                         # third-party shapes (FastMCP Tool, LiteLLM raw response).
+                         # Tighten case-by-case.
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -203,5 +212,22 @@ disallow_any_generics = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["fastmcp.*", "langfuse.*", "litellm.*", "injector.*", "testcontainers.*"]
+# Optional-extra packages may not be installed in the type-checking
+# environment; injector / testcontainers / sentry_sdk / datadog also ship
+# without stubs.
+module = [
+    "fastmcp.*",
+    "langfuse.*",
+    "litellm.*",
+    "injector.*",
+    "sentry_sdk.*",
+    "datadog.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# testcontainers is only imported from integration tests which mypy doesn't
+# scan via `mypy src`. Kept as a separate override so its unused-section
+# note doesn't appear when running `mypy src` alone.
+module = ["testcontainers.*"]
 ignore_missing_imports = true

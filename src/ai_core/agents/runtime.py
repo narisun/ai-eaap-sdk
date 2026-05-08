@@ -37,18 +37,17 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    # IMemoryManager and IToolErrorRenderer live in sibling modules under
+    # ai_core.agents.* — declared lazily here to avoid the import cycles that
+    # would arise if runtime.py loaded them at module init time.
+    from ai_core.agents.memory import IMemoryManager
+    from ai_core.agents.tool_errors import IToolErrorRenderer
     from ai_core.config.settings import AgentSettings
     from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
     from ai_core.mcp.transports import IMCPConnectionFactory
     from ai_core.tools.invoker import ToolInvoker
     from ai_core.tools.registrar import ToolRegistrar
     from ai_core.tools.resolver import IToolResolver
-
-    # IMemoryManager and IToolErrorRenderer live in sibling modules under
-    # ai_core.agents.* — declared lazily here to avoid the import cycles that
-    # would arise if runtime.py loaded them at module init time.
-    from ai_core.agents.memory import IMemoryManager
-    from ai_core.agents.tool_errors import IToolErrorRenderer
 
 
 @dataclass(frozen=True, slots=True)

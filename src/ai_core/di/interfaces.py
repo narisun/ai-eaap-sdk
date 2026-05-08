@@ -274,7 +274,7 @@ class ILLMClient(Protocol):
         """
         ...
 
-    def astream(
+    async def astream(
         self,
         *,
         model: str | None,
@@ -286,7 +286,15 @@ class ILLMClient(Protocol):
         agent_id: str | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> AsyncIterator[LLMStreamChunk]:
-        """Stream a chat completion as an async iterator of deltas.
+        """Open a streaming chat completion and return an async iterator of deltas.
+
+        Two-phase shape: ``await llm.astream(...)`` performs the budget
+        pre-check, opens the stream (with retries on the open), and
+        returns the iterator. Then::
+
+            stream = await llm.astream(...)
+            async for chunk in stream:
+                ...
 
         The terminal chunk carries the final ``finish_reason`` and, when
         available, the final ``usage``. Non-terminal chunks always have
@@ -425,8 +433,8 @@ __all__ = [
     "BudgetCheck",
     "IBudgetService",
     "ICheckpointSaver",
-    "IComponent",
     "ICompactionLLM",
+    "IComponent",
     "ILLMClient",
     "IObservabilityProvider",
     "IPolicyEvaluator",
