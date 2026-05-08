@@ -8,19 +8,20 @@ version = "0.1.0"
 description = "Generated EAAP application."
 requires-python = ">=3.11"
 
-# IMPORTANT: ai-core-sdk is intentionally NOT listed here.
+# IMPORTANT: ai-eaap-sdk is intentionally NOT listed here.
 #
-# The PyPI name `ai-core-sdk` is currently taken by SAP's AI Core client
-# (a different package). Until this SDK is published under a non-conflicting
-# distribution name, install it from source separately:
+# The SDK is not yet published to PyPI. Install it from source separately:
 #
-#     pip install -e /path/to/ai-core-sdk
+#     pip install -e /path/to/ai-eaap-sdk
 #
-# When the SDK is published (likely as `eaap-core-sdk`), uncomment the line
-# below with the matching version pin.
+# (Context: the PyPI name `ai-core-sdk` is SAP's unrelated AI Core client
+# — do not install that one.)
+#
+# When the SDK is published, uncomment the line below with the matching
+# version pin.
 #
 # dependencies = [
-#     "eaap-core-sdk>=0.1.0",
+#     "ai-eaap-sdk>=0.1.0",
 #     "uvicorn[standard]>=0.29.0",
 # ]
 dependencies = [

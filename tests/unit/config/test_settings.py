@@ -18,7 +18,7 @@ def test_defaults_are_sensible() -> None:
     settings = AppSettings()
 
     assert settings.environment is Environment.LOCAL
-    assert settings.service_name == "ai-core-sdk"
+    assert settings.service_name == "ai-eaap-sdk"
     assert settings.database.pool_size == 10
     assert settings.llm.max_retries == 3
     assert settings.observability.log_level is LogLevel.INFO

@@ -41,8 +41,8 @@ def build_app() -> FastAPI:
     # Demo defaults — AppSettings reads from os.environ. Callers (e.g. the
     # smoke gate or tests) can override these before calling build_app().
     os.environ.setdefault("EAAP_SECURITY__OPA_URL", "http://localhost:8181")
-    os.environ.setdefault("EAAP_SECURITY__JWT_AUDIENCE", "ai-core-sdk-demo")
-    os.environ.setdefault("EAAP_SECURITY__JWT_ISSUER", "ai-core-sdk-demo")
+    os.environ.setdefault("EAAP_SECURITY__JWT_AUDIENCE", "ai-eaap-sdk-demo")
+    os.environ.setdefault("EAAP_SECURITY__JWT_ISSUER", "ai-eaap-sdk-demo")
 
     settings = AppSettings(service_name="fastapi-demo", environment=Environment.LOCAL)
 
@@ -61,7 +61,7 @@ def build_app() -> FastAPI:
     )
     authz = OPAAuthorization(container, decision_path="eaap/api/allow")
 
-    app = FastAPI(title="ai-core-sdk FastAPI integration demo")
+    app = FastAPI(title="ai-eaap-sdk FastAPI integration demo")
 
     @app.get("/users/{user_id}/profile")
     async def read_profile(

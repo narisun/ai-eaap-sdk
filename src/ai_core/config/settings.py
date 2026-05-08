@@ -231,7 +231,7 @@ class ObservabilitySettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    service_name: str = "ai-core-sdk"
+    service_name: str = "ai-eaap-sdk"
     otel_endpoint: AnyHttpUrl | None = Field(
         default=None,
         description="OTLP/gRPC collector endpoint. Disables export when None.",
@@ -367,7 +367,7 @@ class AuditSettings(BaseSettings):
         description="Datadog site (e.g. 'datadoghq.com', 'datadoghq.eu', 'us3.datadoghq.com').",
     )
     datadog_source: str = Field(
-        default="ai-core-sdk",
+        default="ai-eaap-sdk",
         description="Source name attached to Datadog events (free text).",
     )
     datadog_environment: str | None = Field(
@@ -444,7 +444,7 @@ class AppSettings(BaseSettings):
     )
 
     environment: Environment = Environment.LOCAL
-    service_name: str = "ai-core-sdk"
+    service_name: str = "ai-eaap-sdk"
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     vector_db: VectorDBSettings = Field(default_factory=VectorDBSettings)

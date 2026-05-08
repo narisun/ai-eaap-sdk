@@ -55,7 +55,7 @@ In a third terminal:
 ALLOW=$(uv run python -c "
 import jwt, time
 print(jwt.encode(
-  {'sub': 'alice', 'iss': 'ai-core-sdk-demo', 'aud': 'ai-core-sdk-demo',
+  {'sub': 'alice', 'iss': 'ai-eaap-sdk-demo', 'aud': 'ai-eaap-sdk-demo',
    'exp': int(time.time()) + 600},
   'dev-secret-change-me', algorithm='HS256'))")
 

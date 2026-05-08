@@ -3,7 +3,7 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai-core-sdk"
+name = "ai-eaap-sdk"
 version = "0.1.0"
 description = "Enterprise Agentic AI Platform (EAAP) core SDK — DI-driven, async, observable, policy-aware."
 readme = "README.md"
@@ -95,8 +95,8 @@ dev = [
 eaap = "ai_core.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/eaap/ai-core-sdk"
-Issues = "https://github.com/eaap/ai-core-sdk/issues"
+Homepage = "https://github.com/narisun/ai-eaap-sdk"
+Issues = "https://github.com/narisun/ai-eaap-sdk/issues"
 
 # --------------------------------------------------------------------------
 # Build / packaging

@@ -45,7 +45,7 @@ class SentryAuditSink(IAuditSink):
         except ImportError as exc:
             raise ConfigurationError(
                 "Sentry sink requires the 'sentry' optional dependency. "
-                "Install with: pip install ai-core-sdk[sentry]",
+                "Install with: pip install ai-eaap-sdk[sentry]",
                 error_code=ErrorCode.CONFIG_OPTIONAL_DEP_MISSING,
                 details={"extra": "sentry"},
                 cause=exc,

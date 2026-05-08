@@ -113,7 +113,7 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
             from fastmcp import Client  # local import keeps fastmcp optional at import time
         except ImportError as exc:
             raise MCPTransportError(
-                "FastMCP is not installed; install with `pip install ai-core-sdk[mcp]`",
+                "FastMCP is not installed; install with `pip install ai-eaap-sdk[mcp]`",
                 details=_transport_details,
                 cause=exc,
             ) from exc
@@ -144,7 +144,7 @@ class PoolingMCPConnectionFactory(IMCPConnectionFactory):
             raise MCPTransportError(
                 f"FastMCP transport class for {spec.transport!r} not found "
                 "(version mismatch or partial install); "
-                "upgrade with `pip install -U ai-core-sdk[mcp]`",
+                "upgrade with `pip install -U ai-eaap-sdk[mcp]`",
                 details=_transport_details,
                 cause=exc,
             ) from exc

@@ -9,7 +9,7 @@ Environment variable names use the prefix `EAAP_` and `__` as the nested-group d
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
 | `environment` | `Environment` | `'local'` | `EAAP_ENVIRONMENT` |  |
-| `service_name` | `str` | `'ai-core-sdk'` | `EAAP_SERVICE_NAME` |  |
+| `service_name` | `str` | `'ai-eaap-sdk'` | `EAAP_SERVICE_NAME` |  |
 
 ## DatabaseSettings (`AppSettings.database`)
 
@@ -83,7 +83,7 @@ OpenTelemetry + LangFuse observability configuration.
 
 | Field | Type | Default | Env var | Description |
 | --- | --- | --- | --- | --- |
-| `service_name` | `str` | `'ai-core-sdk'` | `EAAP_OBSERVABILITY__SERVICE_NAME` |  |
+| `service_name` | `str` | `'ai-eaap-sdk'` | `EAAP_OBSERVABILITY__SERVICE_NAME` |  |
 | `otel_endpoint` | `UnionType[AnyHttpUrl, None]` | `None` | `EAAP_OBSERVABILITY__OTEL_ENDPOINT` | OTLP/gRPC collector endpoint. Disables export when None. |
 | `otel_insecure` | `bool` | `True` | `EAAP_OBSERVABILITY__OTEL_INSECURE` |  |
 | `console_export_in_dev` | `bool` | `True` | `EAAP_OBSERVABILITY__CONSOLE_EXPORT_IN_DEV` | Install an OTel ConsoleSpanExporter when no collector endpoint is configured AND the environment is local/dev. Gives developers immediate trace visibility without standing up infrastructure. |
@@ -137,7 +137,7 @@ Audit-sink configuration.
 | `datadog_api_key` | `UnionType[SecretStr, None]` | `None` | `EAAP_AUDIT__DATADOG_API_KEY` | Required when sink_type='datadog'. Datadog API key. |
 | `datadog_app_key` | `UnionType[SecretStr, None]` | `None` | `EAAP_AUDIT__DATADOG_APP_KEY` | Optional Datadog application key (some endpoints require it). |
 | `datadog_site` | `str` | `'datadoghq.com'` | `EAAP_AUDIT__DATADOG_SITE` | Datadog site (e.g. 'datadoghq.com', 'datadoghq.eu', 'us3.datadoghq.com'). |
-| `datadog_source` | `str` | `'ai-core-sdk'` | `EAAP_AUDIT__DATADOG_SOURCE` | Source name attached to Datadog events (free text). |
+| `datadog_source` | `str` | `'ai-eaap-sdk'` | `EAAP_AUDIT__DATADOG_SOURCE` | Source name attached to Datadog events (free text). |
 | `datadog_environment` | `UnionType[str, None]` | `None` | `EAAP_AUDIT__DATADOG_ENVIRONMENT` | Optional environment tag (added as 'env:<value>' to every event). |
 
 ## HealthSettings (`AppSettings.health`)

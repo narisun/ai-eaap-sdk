@@ -4,11 +4,11 @@ Generated EAAP application.
 
 ## Quick start
 
-> **Heads-up — name collision on PyPI.** `ai-core-sdk` on PyPI is SAP's
-> AI Core client (a different package). Until this SDK is published
-> under a non-conflicting distribution name, install it from source
-> rather than via `pip install`. The generated `pyproject.toml`
-> intentionally omits the dependency for this reason.
+> **Heads-up — install from source.** `ai-eaap-sdk` is not yet published
+> to PyPI. The generated `pyproject.toml` intentionally omits the
+> dependency for this reason — install it from source alongside this
+> generated app. (Note: `ai-core-sdk` on PyPI is SAP's unrelated client;
+> do not install that one.)
 
 ```bash
 # 1. Bring up local infra (Postgres + OPA + OTel collector + Jaeger)
@@ -17,9 +17,9 @@ docker compose up -d
 # 2. Configure environment
 cp .env.example .env
 
-# 3. Install: ai-core-sdk from source, then this app
-#    Adjust the path to wherever the ai-core-sdk source tree lives.
-pip install -e /path/to/ai-core-sdk
+# 3. Install: ai-eaap-sdk from source, then this app
+#    Adjust the path to wherever the ai-eaap-sdk source tree lives.
+pip install -e /path/to/ai-eaap-sdk
 pip install -e ".[dev]"
 
 # 4. Run
