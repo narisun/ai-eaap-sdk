@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import Depends, FastAPI
 from injector import Module, provider, singleton
 
-from ai_core.config.settings import AppSettings, Environment
+from ai_core.config.settings import AppSettings, Environment, SecuritySettings
 from ai_core.di import AgentModule, Container
 from ai_core.di.module import ProductionSecurityModule
 from ai_core.security import AuthorizedPrincipal, OPAAuthorization
@@ -49,8 +49,8 @@ def build_app() -> FastAPI:
     class _DemoSecurityOverrides(Module):
         @singleton
         @provider
-        def provide_jwt_verifier(self, settings_: AppSettings) -> JWTVerifier:
-            return HS256JWTVerifier(jwt_secret, settings_)
+        def provide_jwt_verifier(self, sec: SecuritySettings) -> JWTVerifier:
+            return HS256JWTVerifier(jwt_secret, sec)
 
     container = Container.build(
         [
