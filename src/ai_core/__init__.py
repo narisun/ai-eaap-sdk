@@ -54,7 +54,7 @@ from ai_core.exceptions import (
     ToolValidationError,
 )
 from ai_core.health import IHealthProbe, ProbeResult
-from ai_core.tools import Tool, ToolSpec, tool
+from ai_core.tools import Tool, ToolSpec, make_tool, tool
 
 __all__ = [
     "AICoreApp",
@@ -87,6 +87,7 @@ __all__ = [
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "make_tool",
     "new_agent_state",
     "tool",
 ]
