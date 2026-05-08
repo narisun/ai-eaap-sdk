@@ -68,11 +68,17 @@ async def test_aenter_runs_validation_and_builds_container(
     fake_observability: FakeObservabilityProvider,
     fake_policy_evaluator_factory: Callable[..., FakePolicyEvaluator],
 ) -> None:
+    from ai_core.di.interfaces import (  # noqa: PLC0415
+        IObservabilityProvider,
+        IPolicyEvaluator,
+    )
     app = AICoreApp(modules=[_override_module(fake_observability, fake_policy_evaluator_factory)])
     async with app:
         assert app.settings is not None
-        assert app.observability is fake_observability
-        assert app.policy_evaluator is not None
+        # v1: the curated facade properties were replaced by a single
+        # app.get(interface) accessor.
+        assert app.get(IObservabilityProvider) is fake_observability  # type: ignore[type-abstract]
+        assert app.get(IPolicyEvaluator) is not None  # type: ignore[type-abstract]
         assert isinstance(app.container.get(ToolInvoker), ToolInvoker)
 
 
