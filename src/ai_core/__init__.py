@@ -92,4 +92,15 @@ __all__ = [
     "tool",
 ]
 
-__version__ = "0.1.0"
+# Derive ``__version__`` from the installed package metadata so the
+# literal in pyproject.toml is the single source of truth. A hardcoded
+# value here drifts every release; importlib.metadata lookup never does.
+# Falls back to "0.0.0+unknown" when running directly from a source
+# checkout that has not been installed (rare; mostly affects ad-hoc
+# `python src/...` invocations during local development).
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("ai-eaap-sdk")
+except PackageNotFoundError:  # pragma: no cover — only hit in uninstalled checkouts
+    __version__ = "0.0.0+unknown"
