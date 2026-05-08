@@ -60,35 +60,35 @@ def _make_settings(threshold: int = _THRESHOLD, target: int = _TARGET) -> AppSet
 # ---------------------------------------------------------------------------
 def test_should_compact_below_threshold() -> None:
     llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD - 1]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, llm, FakeTokenCounter([_THRESHOLD - 1]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is False
 
 
 def test_should_compact_at_threshold_is_false() -> None:
     llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, llm, FakeTokenCounter([_THRESHOLD]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is False
 
 
 def test_should_compact_above_threshold() -> None:
     llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([_THRESHOLD + 1]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, llm, FakeTokenCounter([_THRESHOLD + 1]))
     state = new_agent_state(initial_messages=[{"role": "user", "content": "hi"}])
     assert mgr.should_compact(state) is True
 
 
 def test_should_compact_empty_messages_is_false() -> None:
     llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([1_000_000]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, llm, FakeTokenCounter([1_000_000]))
     state = new_agent_state()
     assert mgr.should_compact(state) is False
 
 
 async def test_compact_returns_state_with_summary_and_essentials_preserved() -> None:
     fake_llm = ScriptedLLM([make_llm_response("condensed conversation")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
 
     state = new_agent_state(
         initial_messages=[
@@ -138,7 +138,7 @@ async def test_compact_returns_state_with_summary_and_essentials_preserved() -> 
 
 async def test_compact_passes_essentials_to_summarisation_prompt() -> None:
     fake_llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
     state = new_agent_state(
         initial_messages=[{"role": "user", "content": "hello"}],
         essential={"user_id": "u-1", "task_id": "TASK-42"},
@@ -157,7 +157,7 @@ async def test_compact_passes_essentials_to_summarisation_prompt() -> None:
 
 async def test_compact_no_messages_returns_state_unchanged() -> None:
     llm = ScriptedLLM([make_llm_response("summary text")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), llm, FakeTokenCounter([0]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, llm, FakeTokenCounter([0]))
     state = new_agent_state(essential={"user_id": "u-1"})
     out = await mgr.compact(state)
     assert out is state  # no-op
@@ -171,7 +171,7 @@ async def test_compact_replaces_history_via_add_messages_reducer() -> None:
     inserts a summary in its place.
     """
     fake_llm = ScriptedLLM([make_llm_response("compressed")], repeat_last=True)
-    mgr = MemoryManager(_make_settings(), fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
+    mgr = MemoryManager((_s := _make_settings()).agent, _s.llm, fake_llm, FakeTokenCounter([2 * _THRESHOLD, _TARGET]))
     existing = [
         {"role": "user", "content": "old-1", "id": "m1"},
         {"role": "assistant", "content": "old-2", "id": "m2"},
@@ -200,8 +200,10 @@ async def test_compact_replaces_history_via_add_messages_reducer() -> None:
 
 
 async def test_compact_increments_count_across_invocations() -> None:
+    _s = _make_settings()
     mgr = MemoryManager(
-        _make_settings(),
+        _s.agent,
+        _s.llm,
         ScriptedLLM([make_llm_response("summary text")], repeat_last=True),
         FakeTokenCounter([2 * _THRESHOLD, _TARGET, 2 * _THRESHOLD, _TARGET]),
     )
@@ -260,7 +262,7 @@ async def test_compact_skips_on_timeout() -> None:
     settings.agent.compaction_timeout_seconds = 0.05  # 50ms cap
     slow_llm = _SlowFakeLLM(sleep_seconds=0.2)  # 200ms hang
     counter = FakeTokenCounter([10_000, 0, 0])
-    mgr = MemoryManager(settings=settings, llm=slow_llm, token_counter=counter)
+    mgr = MemoryManager(agent_settings=settings.agent, llm_settings=settings.llm, llm=slow_llm, token_counter=counter)
 
     state = new_agent_state(
         initial_messages=[{"role": "user", "content": "hi"}],
@@ -281,7 +283,7 @@ async def test_compact_succeeds_within_timeout() -> None:
     settings.agent.compaction_timeout_seconds = 1.0
     fast_llm = ScriptedLLM([make_llm_response("hello world")], repeat_last=True)
     counter = FakeTokenCounter([10_000, 0, 0])
-    mgr = MemoryManager(settings=settings, llm=fast_llm, token_counter=counter)
+    mgr = MemoryManager(agent_settings=settings.agent, llm_settings=settings.llm, llm=fast_llm, token_counter=counter)
 
     state = new_agent_state(
         initial_messages=[{"role": "user", "content": "hi"}],
@@ -320,7 +322,7 @@ async def test_compact_skips_on_llm_timeout_error() -> None:
 
     settings = AppSettings()
     counter = FakeTokenCounter([10_000, 0, 0])
-    mgr = MemoryManager(settings=settings, llm=_RaisingLLM(), token_counter=counter)
+    mgr = MemoryManager(agent_settings=settings.agent, llm_settings=settings.llm, llm=_RaisingLLM(), token_counter=counter)
 
     state = new_agent_state(
         initial_messages=[{"role": "user", "content": "hi"}],

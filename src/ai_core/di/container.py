@@ -58,6 +58,9 @@ class Container:
         # auto_bind=True lets concrete user classes (e.g. host-defined Agent
         # subclasses) resolve without an explicit binding. Abstract interfaces
         # still require a binding, so this does not weaken the contract.
+        # Use :py:meth:`register_agent` for the explicit, fail-fast path —
+        # auto_bind is retained for backwards compatibility and is scheduled
+        # to be removed in v2.0.
         self.injector: Injector = Injector(modules=list(modules), auto_bind=True)
         self._lifecycle_hooks: list[Any] = []
         self._started: bool = False
@@ -83,6 +86,27 @@ class Container:
         if not mods:
             mods = [AgentModule()]
         return cls(mods)
+
+    def register_agent(self, cls: type[T]) -> None:
+        """Bind a concrete agent class explicitly.
+
+        Recommended over :py:attr:`auto_bind` resolution because typos in the
+        argument types of ``cls.__init__`` surface immediately at call time
+        rather than producing a default-constructed object.
+
+        The binding is :class:`injector.NoScope` (one instance per
+        ``container.get(cls)`` call). Use a custom :class:`Module` if you
+        need agent singletons.
+
+        Args:
+            cls: A concrete (non-Protocol, non-ABC) agent class.
+        """
+        # Construct a one-off Module that binds the class to itself.
+        class _AgentModule(Module):
+            def configure(self, binder: Any) -> None:
+                binder.bind(cls, to=cls)
+
+        self.injector.binder.install(_AgentModule())
 
     def override(self, *additional: Module) -> Container:
         """Return a *new* container with extra modules appended.
@@ -118,7 +142,9 @@ class Container:
         """
         try:
             return self.injector.get(interface)
-        except (UnsatisfiedRequirement, CallError) as exc:
+        except (UnsatisfiedRequirement, CallError, TypeError) as exc:
+            # TypeError covers Protocols (auto_bind tries to instantiate) and
+            # any other type that refuses construction.
             raise DependencyResolutionError(
                 f"Cannot resolve binding for {interface!r}",
                 details={"interface": getattr(interface, "__qualname__", str(interface))},
@@ -129,7 +155,7 @@ class Container:
         """Return ``True`` if a binding for ``interface`` is registered."""
         try:
             self.injector.get(interface)
-        except (UnsatisfiedRequirement, CallError):
+        except (UnsatisfiedRequirement, CallError, TypeError):
             return False
         return True
 
@@ -214,7 +240,7 @@ class Container:
         for label, interface, method_names in steps:
             try:
                 target = self.injector.get(interface)
-            except (UnsatisfiedRequirement, CallError):
+            except (UnsatisfiedRequirement, CallError, TypeError):
                 continue
             await self._call_optional_method(target, method_names, swallow=True, label=label)
 

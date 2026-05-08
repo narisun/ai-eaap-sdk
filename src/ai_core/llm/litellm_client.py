@@ -40,7 +40,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import LLMSettings
 from ai_core.di.interfaces import (
     IBudgetService,
     ILLMClient,
@@ -75,7 +75,9 @@ class LiteLLMClient(ILLMClient):
     """Production :class:`ILLMClient` wired with budgeting + retries + tracing.
 
     Args:
-        settings: Aggregated application settings.
+        settings: The LLM configuration slice. Pass ``app_settings.llm`` when
+            constructing manually; the DI container injects the slice
+            automatically.
         budget: :class:`IBudgetService` for pre-call quota check + post-call
             usage recording.
         observability: :class:`IObservabilityProvider` for spans + usage.
@@ -84,11 +86,11 @@ class LiteLLMClient(ILLMClient):
     @inject
     def __init__(
         self,
-        settings: AppSettings,
+        settings: LLMSettings,
         budget: IBudgetService,
         observability: IObservabilityProvider,
     ) -> None:
-        self._settings = settings
+        self._cfg = settings
         self._budget = budget
         self._observability = observability
 
@@ -105,7 +107,7 @@ class LiteLLMClient(ILLMClient):
         extra: Mapping[str, Any] | None = None,
     ) -> LLMResponse:
         """See :meth:`ILLMClient.complete`."""
-        cfg = self._settings.llm
+        cfg = self._cfg
         resolved_model = model or cfg.default_model
 
         # --- 1. Budget pre-check --------------------------------------------------
@@ -131,7 +133,7 @@ class LiteLLMClient(ILLMClient):
 
         # --- 2. Retry-wrapped LLM call -------------------------------------------
         # Phase 4: apply prompt cache control if model supports it
-        cache_cfg = self._settings.llm
+        cache_cfg = self._cfg
         cached_messages, cached_tools = apply_prompt_cache(
             messages,
             tools=tools,
@@ -206,7 +208,7 @@ class LiteLLMClient(ILLMClient):
             attributes=attributes,
         )
         # Phase 13: latency SLO alert-only check.
-        slo_ms = self._settings.llm.latency_slo_ms
+        slo_ms = self._cfg.latency_slo_ms
         if slo_ms is not None and latency_ms > slo_ms:
             await self._observability.record_event(
                 "llm.slo_violated",
@@ -231,7 +233,7 @@ class LiteLLMClient(ILLMClient):
     # Retry helper
     # ------------------------------------------------------------------
     async def _call_with_retry(self, request_kwargs: Mapping[str, Any]) -> Any:
-        cfg = self._settings.llm
+        cfg = self._cfg
         retrying = AsyncRetrying(
             reraise=False,  # Wrap exhausted retries in RetryError so we see attempts info.
             stop=stop_after_attempt(cfg.max_retries + 1),

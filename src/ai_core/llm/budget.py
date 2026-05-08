@@ -15,12 +15,12 @@ Attributes:
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from injector import inject
 
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import BudgetSettings
 from ai_core.di.interfaces import BudgetCheck, IBudgetService
 
 
@@ -52,17 +52,18 @@ class _Key:
 class InMemoryBudgetService(IBudgetService):
     """Process-local quota enforcement.
 
-    The service derives its limits from :class:`AppSettings.budget`.
+    The service derives its limits from :class:`BudgetSettings`.
     Limits are checked against the *projected* spend (current usage +
     estimated tokens for the pending request).
 
     Args:
-        settings: Aggregated application settings.
+        settings: The budget configuration slice. Pass
+            ``app_settings.budget`` when constructing manually.
     """
 
     @inject
-    def __init__(self, settings: AppSettings) -> None:
-        self._settings = settings
+    def __init__(self, settings: BudgetSettings) -> None:
+        self._cfg = settings
         self._counters: dict[tuple[str, str], _Counter] = {}
         self._lock = asyncio.Lock()
 
@@ -74,7 +75,7 @@ class InMemoryBudgetService(IBudgetService):
         estimated_tokens: int,
     ) -> BudgetCheck:
         """See :meth:`IBudgetService.check`."""
-        cfg = self._settings.budget
+        cfg = self._cfg
         if not cfg.enabled:
             return BudgetCheck(
                 allowed=True,
@@ -144,11 +145,11 @@ class InMemoryBudgetService(IBudgetService):
         finds matching override entries and fills in any field still unset.
         Falls back to settings defaults for any field not covered by overrides.
 
-        Resolution iterates ``self._settings.budget.overrides`` in list order;
+        Resolution iterates ``self._cfg.overrides`` in list order;
         first match wins per-field. Operators wanting deterministic precedence
         put more specific entries first.
         """
-        cfg = self._settings.budget
+        cfg = self._cfg
         candidates: list[tuple[str | None, str | None]] = []
         if tenant_id is not None and agent_id is not None:
             candidates.append((tenant_id, agent_id))

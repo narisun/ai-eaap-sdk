@@ -29,7 +29,7 @@ from typing import Any
 import httpx
 from injector import inject
 
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import SecuritySettings
 from ai_core.di.interfaces import IPolicyEvaluator, PolicyDecision
 from ai_core.exceptions import PolicyDenialError
 
@@ -38,7 +38,8 @@ class OPAPolicyEvaluator(IPolicyEvaluator):
     """Concrete :class:`IPolicyEvaluator` backed by the OPA REST API.
 
     Args:
-        settings: Aggregated application settings.
+        settings: The security configuration slice. Pass
+            ``app_settings.security`` when constructing manually.
         client: Optional pre-configured :class:`httpx.AsyncClient`. If
             omitted, a client is constructed lazily on first call using
             ``security.opa_request_timeout_seconds``.
@@ -47,10 +48,10 @@ class OPAPolicyEvaluator(IPolicyEvaluator):
     @inject
     def __init__(
         self,
-        settings: AppSettings,
+        settings: SecuritySettings,
         client: httpx.AsyncClient | None = None,
     ) -> None:
-        self._settings = settings
+        self._cfg = settings
         self._client = client
         self._owns_client = client is None
 
@@ -61,7 +62,7 @@ class OPAPolicyEvaluator(IPolicyEvaluator):
         input: Mapping[str, Any],
     ) -> PolicyDecision:
         """See :meth:`IPolicyEvaluator.evaluate`."""
-        cfg = self._settings.security
+        cfg = self._cfg
         url = f"{str(cfg.opa_url).rstrip('/')}/v1/data/{decision_path.lstrip('/')}"
 
         client = await self._get_client()
@@ -94,7 +95,7 @@ class OPAPolicyEvaluator(IPolicyEvaluator):
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(
-                timeout=self._settings.security.opa_request_timeout_seconds,
+                timeout=self._cfg.opa_request_timeout_seconds,
             )
             self._owns_client = True
         return self._client
@@ -108,7 +109,7 @@ class OPAPolicyEvaluator(IPolicyEvaluator):
         *,
         decision_path: str,
     ) -> PolicyDecision:
-        cfg = self._settings.security
+        cfg = self._cfg
         if cfg.fail_closed:
             raise PolicyDenialError(
                 "OPA evaluation failed (fail_closed=True)",

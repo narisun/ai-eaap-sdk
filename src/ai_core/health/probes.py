@@ -14,7 +14,7 @@ from ai_core.health.interface import IHealthProbe, ProbeResult
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-    from ai_core.config.settings import AppSettings
+    from ai_core.config.settings import LLMSettings, SecuritySettings
 
 _HTTP_ERROR_THRESHOLD = 500
 
@@ -24,13 +24,13 @@ class OPAReachabilityProbe(IHealthProbe):
 
     component = "opa"
 
-    def __init__(self, settings: AppSettings) -> None:
-        base = str(settings.security.opa_url).rstrip("/")
-        path = settings.security.opa_health_path
+    def __init__(self, settings: SecuritySettings) -> None:
+        base = str(settings.opa_url).rstrip("/")
+        path = settings.opa_health_path
         if not path.startswith("/"):
             path = "/" + path
         self._url = base + path
-        self._timeout = settings.security.opa_request_timeout_seconds
+        self._timeout = settings.opa_request_timeout_seconds
 
     async def probe(self) -> ProbeResult:
         try:
@@ -83,8 +83,8 @@ class ModelLookupProbe(IHealthProbe):
 
     component = "model_lookup"
 
-    def __init__(self, settings: AppSettings) -> None:
-        self._model = settings.llm.default_model
+    def __init__(self, settings: LLMSettings) -> None:
+        self._model = settings.default_model
 
     async def probe(self) -> ProbeResult:
         try:

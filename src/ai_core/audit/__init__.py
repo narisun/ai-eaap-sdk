@@ -16,10 +16,17 @@ from ai_core.audit.redaction import (
     KeyNameRedactor,
     RegexRedactor,
 )
+from ai_core.audit.registry import (
+    AuditSinkFactory,
+    get_audit_sink_factory,
+    known_audit_sink_names,
+    register_audit_sink,
+)
 
 __all__ = [
     "AuditEvent",
     "AuditRecord",
+    "AuditSinkFactory",
     "ChainRedactor",
     "IAuditSink",
     "JsonlFileAuditSink",
@@ -28,4 +35,7 @@ __all__ = [
     "OTelEventAuditSink",
     "PayloadRedactor",
     "RegexRedactor",
+    "get_audit_sink_factory",
+    "known_audit_sink_names",
+    "register_audit_sink",
 ]
