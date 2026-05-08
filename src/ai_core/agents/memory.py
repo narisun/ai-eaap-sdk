@@ -43,7 +43,7 @@ from langchain_core.messages import BaseMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from ai_core.agents.state import AgentState
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import AgentSettings, LLMSettings
 from ai_core.di.interfaces import ILLMClient
 from ai_core.exceptions import LLMTimeoutError
 from ai_core.observability.logging import get_logger
@@ -140,7 +140,10 @@ class MemoryManager(IMemoryManager):
     """Default :class:`IMemoryManager` — summarisation-chain based.
 
     Args:
-        settings: Aggregated application settings (``agent`` group consumed).
+        agent_settings: Agent runtime configuration (compaction thresholds,
+            target tokens, timeout, essential entity keys).
+        llm_settings: LLM configuration — only ``default_model`` is consumed
+            so token counting and compaction can default consistently.
         llm: LLM client used by the summarization chain.
         token_counter: Token counter used by :meth:`should_compact`.
     """
@@ -148,11 +151,13 @@ class MemoryManager(IMemoryManager):
     @inject
     def __init__(
         self,
-        settings: AppSettings,
+        agent_settings: AgentSettings,
+        llm_settings: LLMSettings,
         llm: ILLMClient,
         token_counter: TokenCounter,
     ) -> None:
-        self._settings = settings
+        self._agent_cfg = agent_settings
+        self._llm_cfg = llm_settings
         self._llm = llm
         self._counter = token_counter
 
@@ -161,11 +166,11 @@ class MemoryManager(IMemoryManager):
     # ------------------------------------------------------------------
     def should_compact(self, state: AgentState, *, model: str | None = None) -> bool:
         """Return ``True`` when current message tokens exceed the configured threshold."""
-        threshold = self._settings.agent.memory_compaction_token_threshold
+        threshold = self._agent_cfg.memory_compaction_token_threshold
         messages = state.get("messages") or []
         if not messages:
             return False
-        used = self._counter.count(messages, model=model or self._settings.llm.default_model)
+        used = self._counter.count(messages, model=model or self._llm_cfg.default_model)
         return used > threshold
 
     # ------------------------------------------------------------------
@@ -187,7 +192,7 @@ class MemoryManager(IMemoryManager):
         continues. The state may exceed the threshold next turn; the
         next-turn ``should_compact`` check will retry.
         """
-        timeout = self._settings.agent.compaction_timeout_seconds
+        timeout = self._agent_cfg.compaction_timeout_seconds
         try:
             return await asyncio.wait_for(
                 self._do_compact(
@@ -231,7 +236,7 @@ class MemoryManager(IMemoryManager):
         if not messages:
             return state
 
-        cfg = self._settings.agent
+        cfg = self._agent_cfg
         essentials = self._collect_essentials(state)
 
         target = cfg.memory_compaction_target_tokens
@@ -269,7 +274,7 @@ class MemoryManager(IMemoryManager):
             essential_entities=dict(essentials),
             token_count=self._counter.count(
                 replacement[1:],  # token count for the actual content, excludes the marker
-                model=model or self._settings.llm.default_model,
+                model=model or self._llm_cfg.default_model,
             ),
             compaction_count=int(state.get("compaction_count", 0)) + 1,
             summary=summary_text,
@@ -283,7 +288,7 @@ class MemoryManager(IMemoryManager):
         """Merge configured essential keys with any already in state."""
         essentials: dict[str, Any] = {}
         existing = state.get("essential_entities") or {}
-        for key in self._settings.agent.essential_entity_keys:
+        for key in self._agent_cfg.essential_entity_keys:
             if key in existing:
                 essentials[key] = existing[key]
         for key, value in existing.items():

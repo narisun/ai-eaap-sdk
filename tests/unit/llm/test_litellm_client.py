@@ -160,7 +160,7 @@ def _build_client(
         if isinstance(observability, RecordingObservability)
         else RecordingObservability()
     )
-    client = LiteLLMClient(settings, fake_budget, obs)
+    client = LiteLLMClient(settings.llm, fake_budget, obs)
     return client, fake_budget, obs
 
 
@@ -400,7 +400,7 @@ async def test_retry_exhausted_timeout_raises_llm_timeout_error(monkeypatch: pyt
     monkeypatch.setattr("litellm.acompletion", _always_timeout)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
@@ -431,7 +431,7 @@ async def test_retry_exhausted_non_timeout_raises_llm_invocation_error(monkeypat
     monkeypatch.setattr("litellm.acompletion", _always_429)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=FakeBudgetService(),
         observability=_NoOpObservability(),
     )
@@ -467,7 +467,7 @@ async def test_empty_response_tags_llm_complete_span(
     monkeypatch.setattr("litellm.acompletion", _empty_response)
 
     client = LiteLLMClient(
-        settings=settings,
+        settings=settings.llm,
         budget=fake_budget,
         observability=fake_observability,
     )
@@ -506,7 +506,7 @@ async def test_complete_applies_cache_for_anthropic_above_threshold(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="anthropic/claude-3-5-sonnet",
@@ -551,7 +551,7 @@ async def test_complete_skips_cache_for_openai(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="openai/gpt-4o",
@@ -593,7 +593,7 @@ async def test_complete_skips_cache_when_setting_disabled(
     monkeypatch.setattr("litellm.acompletion", _capture_call)
 
     client = LiteLLMClient(
-        settings=settings, budget=fake_budget, observability=fake_observability,
+        settings=settings.llm, budget=fake_budget, observability=fake_observability,
     )
     await client.complete(
         model="anthropic/claude-3-5-sonnet",
@@ -628,7 +628,7 @@ def _build_client_with_slo(
     )
     fake_budget = FakeBudget()
     obs = RecordingObservability()
-    client = LiteLLMClient(settings, fake_budget, obs)
+    client = LiteLLMClient(settings.llm, fake_budget, obs)
     return client, fake_budget, obs
 
 

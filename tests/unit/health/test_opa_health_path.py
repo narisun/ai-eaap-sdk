@@ -16,7 +16,7 @@ async def test_opa_probe_uses_configured_health_path() -> None:
     """OPAReachabilityProbe constructs URL from settings.security.opa_health_path."""
     settings = AppSettings()
     settings.security = SecuritySettings(opa_health_path="/opa/health")
-    probe = OPAReachabilityProbe(settings)
+    probe = OPAReachabilityProbe(settings.security)
 
     fake_response = MagicMock(status_code=200)
     fake_client = AsyncMock()
@@ -36,7 +36,7 @@ async def test_opa_probe_uses_configured_health_path() -> None:
 async def test_opa_probe_default_path_is_health() -> None:
     """When opa_health_path is unset, default is /health."""
     settings = AppSettings()
-    probe = OPAReachabilityProbe(settings)
+    probe = OPAReachabilityProbe(settings.security)
 
     fake_response = MagicMock(status_code=200)
     fake_client = AsyncMock()
@@ -54,7 +54,7 @@ async def test_opa_probe_path_without_leading_slash_normalised() -> None:
     """opa_health_path='health' (no leading slash) is normalised to '/health'."""
     settings = AppSettings()
     settings.security = SecuritySettings(opa_health_path="health")
-    probe = OPAReachabilityProbe(settings)
+    probe = OPAReachabilityProbe(settings.security)
 
     fake_response = MagicMock(status_code=200)
     fake_client = AsyncMock()

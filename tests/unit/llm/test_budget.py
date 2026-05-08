@@ -22,14 +22,14 @@ def _settings(*, enabled: bool = True, tokens: int = 100, usd: float = 1.0) -> A
 
 
 async def test_disabled_budget_always_allows() -> None:
-    svc = InMemoryBudgetService(_settings(enabled=False))
+    svc = InMemoryBudgetService(_settings(enabled=False).budget)
     result = await svc.check(tenant_id=None, agent_id=None, estimated_tokens=10_000_000)
     assert result.allowed is True
     assert result.reason == "budget enforcement disabled"
 
 
 async def test_within_limits_allows_and_records() -> None:
-    svc = InMemoryBudgetService(_settings(tokens=1000))
+    svc = InMemoryBudgetService(_settings(tokens=1000).budget)
     first = await svc.check(tenant_id="t", agent_id="a", estimated_tokens=100)
     assert first.allowed is True
     await svc.record_usage(
@@ -41,7 +41,7 @@ async def test_within_limits_allows_and_records() -> None:
 
 
 async def test_token_limit_denies() -> None:
-    svc = InMemoryBudgetService(_settings(tokens=50))
+    svc = InMemoryBudgetService(_settings(tokens=50).budget)
     await svc.record_usage(
         tenant_id="t", agent_id="a", prompt_tokens=40, completion_tokens=0, cost_usd=0.0
     )
@@ -51,7 +51,7 @@ async def test_token_limit_denies() -> None:
 
 
 async def test_usd_limit_denies() -> None:
-    svc = InMemoryBudgetService(_settings(tokens=10_000, usd=0.10))
+    svc = InMemoryBudgetService(_settings(tokens=10_000, usd=0.10).budget)
     await svc.record_usage(
         tenant_id="t", agent_id="a", prompt_tokens=10, completion_tokens=10, cost_usd=0.20
     )
@@ -61,7 +61,7 @@ async def test_usd_limit_denies() -> None:
 
 
 async def test_per_key_isolation() -> None:
-    svc = InMemoryBudgetService(_settings(tokens=100))
+    svc = InMemoryBudgetService(_settings(tokens=100).budget)
     await svc.record_usage(
         tenant_id="t1", agent_id="a", prompt_tokens=90, completion_tokens=0, cost_usd=0.0
     )
@@ -101,7 +101,7 @@ async def test_override_exact_tenant_agent_match() -> None:
             daily_usd_limit=10.0,
         ),
     ]
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides).budget)
 
     # Matching key — uses override (5000 >= 1000 estimated, allowed)
     matched = await svc.check(
@@ -120,7 +120,7 @@ async def test_override_tenant_only_match() -> None:
     overrides = [
         BudgetOverride(tenant_id="acme", agent_id=None, daily_token_limit=2000),
     ]
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides).budget)
 
     # Any agent under tenant "acme" gets 2000-token limit
     a = await svc.check(tenant_id="acme", agent_id="agent-x", estimated_tokens=500)
@@ -136,7 +136,7 @@ async def test_override_agent_only_match() -> None:
     overrides = [
         BudgetOverride(tenant_id=None, agent_id="reporting", daily_token_limit=3000),
     ]
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides).budget)
 
     a = await svc.check(tenant_id="t1", agent_id="reporting", estimated_tokens=500)
     b = await svc.check(tenant_id="t2", agent_id="reporting", estimated_tokens=500)
@@ -155,7 +155,7 @@ async def test_override_most_specific_wins_when_both_match() -> None:
             tenant_id="acme", agent_id="customer-support", daily_token_limit=5000,
         ),
     ]
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides).budget)
 
     # The (acme, customer-support) candidate is checked first → wins with 5000.
     result = await svc.check(
@@ -172,7 +172,7 @@ async def test_partial_override_composes_with_defaults() -> None:
         # daily_usd_limit is None → not overridden
     ]
     svc = InMemoryBudgetService(
-        _settings_with_overrides(tokens=100, usd=5.0, overrides=overrides),
+        _settings_with_overrides(tokens=100, usd=5.0, overrides=overrides).budget,
     )
 
     # Token side uses override (10_000), USD side uses default (5.0).
@@ -189,7 +189,7 @@ async def test_partial_override_composes_with_defaults() -> None:
 
 async def test_no_override_uses_global_defaults() -> None:
     """Empty overrides list = current behavior; falls through to default_daily_*."""
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=500, usd=1.0, overrides=[]))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=500, usd=1.0, overrides=[]).budget)
 
     result = await svc.check(tenant_id="t", agent_id="a", estimated_tokens=100)
     assert result.allowed is True
@@ -207,7 +207,7 @@ async def test_first_matching_override_wins_for_duplicates() -> None:
             tenant_id="acme", agent_id="x", daily_token_limit=99999,
         ),
     ]
-    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides))
+    svc = InMemoryBudgetService(_settings_with_overrides(tokens=100, overrides=overrides).budget)
 
     result = await svc.check(tenant_id="acme", agent_id="x", estimated_tokens=500)
     # First override wins: limit is 1000, projected is 500 → allowed.

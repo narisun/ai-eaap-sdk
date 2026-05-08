@@ -31,7 +31,18 @@ from ai_core.agents.memory import (
 )
 from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
-from ai_core.config.settings import AppSettings
+from ai_core.config.settings import (
+    AgentSettings,
+    AppSettings,
+    AuditSettings,
+    BudgetSettings,
+    DatabaseSettings,
+    HealthSettings,
+    LLMSettings,
+    MCPSettings,
+    ObservabilitySettings,
+    SecuritySettings,
+)
 from ai_core.di.interfaces import (
     IBudgetService,
     ICheckpointSaver,
@@ -88,6 +99,55 @@ class AgentModule(Module):
 
         return get_settings()
 
+    # Per-subsystem settings slices — bind each nested settings group as its
+    # own singleton so concrete services can inject only the slice they need.
+    # This keeps unit tests honest: a fake LLM client does not need to fabricate
+    # a full :class:`AppSettings` just to satisfy DI.
+    @singleton
+    @provider
+    def provide_llm_settings(self, settings: AppSettings) -> LLMSettings:
+        return settings.llm
+
+    @singleton
+    @provider
+    def provide_agent_settings(self, settings: AppSettings) -> AgentSettings:
+        return settings.agent
+
+    @singleton
+    @provider
+    def provide_database_settings(self, settings: AppSettings) -> DatabaseSettings:
+        return settings.database
+
+    @singleton
+    @provider
+    def provide_observability_settings(self, settings: AppSettings) -> ObservabilitySettings:
+        return settings.observability
+
+    @singleton
+    @provider
+    def provide_security_settings(self, settings: AppSettings) -> SecuritySettings:
+        return settings.security
+
+    @singleton
+    @provider
+    def provide_audit_settings(self, settings: AppSettings) -> AuditSettings:
+        return settings.audit
+
+    @singleton
+    @provider
+    def provide_budget_settings(self, settings: AppSettings) -> BudgetSettings:
+        return settings.budget
+
+    @singleton
+    @provider
+    def provide_mcp_settings(self, settings: AppSettings) -> MCPSettings:
+        return settings.mcp
+
+    @singleton
+    @provider
+    def provide_health_settings(self, settings: AppSettings) -> HealthSettings:
+        return settings.health
+
     # ----- Secret manager ---------------------------------------------------
     @singleton
     @provider
@@ -112,21 +172,21 @@ class AgentModule(Module):
     # ----- Budget -----------------------------------------------------------
     @singleton
     @provider
-    def provide_budget(self, settings: AppSettings) -> IBudgetService:
+    def provide_budget(self, budget_settings: BudgetSettings) -> IBudgetService:
         """Return the in-memory budget service singleton."""
-        return InMemoryBudgetService(settings)
+        return InMemoryBudgetService(budget_settings)
 
     # ----- LLM client -------------------------------------------------------
     @singleton
     @provider
     def provide_llm_client(
         self,
-        settings: AppSettings,
+        llm_settings: LLMSettings,
         budget: IBudgetService,
         observability: IObservabilityProvider,
     ) -> ILLMClient:
         """Return the LiteLLM-backed client singleton."""
-        return LiteLLMClient(settings, budget, observability)
+        return LiteLLMClient(llm_settings, budget, observability)
 
     # ----- Token counter + memory manager -----------------------------------
     @singleton
@@ -139,12 +199,13 @@ class AgentModule(Module):
     @provider
     def provide_memory_manager(
         self,
-        settings: AppSettings,
+        agent_settings: AgentSettings,
+        llm_settings: LLMSettings,
         llm: ILLMClient,
         counter: TokenCounter,
     ) -> MemoryManager:
         """Return the concrete :class:`MemoryManager` singleton."""
-        return MemoryManager(settings, llm, counter)
+        return MemoryManager(agent_settings, llm_settings, llm, counter)
 
     @singleton
     @provider
@@ -161,9 +222,9 @@ class AgentModule(Module):
     # ----- Persistence ------------------------------------------------------
     @singleton
     @provider
-    def provide_engine_factory(self, settings: AppSettings) -> EngineFactory:
+    def provide_engine_factory(self, db_settings: DatabaseSettings) -> EngineFactory:
         """Return the engine factory singleton (lazy connection)."""
-        return EngineFactory(settings)
+        return EngineFactory(db_settings)
 
     @singleton
     @provider
@@ -201,11 +262,11 @@ class AgentModule(Module):
 
     @singleton
     @provider
-    def provide_mcp_connection_factory(self, settings: AppSettings) -> IMCPConnectionFactory:
+    def provide_mcp_connection_factory(self, mcp_settings: MCPSettings) -> IMCPConnectionFactory:
         """Return the pooling MCP connection factory."""
         return PoolingMCPConnectionFactory(
-            pool_enabled=settings.mcp.pool_enabled,
-            pool_idle_seconds=settings.mcp.pool_idle_seconds,
+            pool_enabled=mcp_settings.pool_enabled,
+            pool_idle_seconds=mcp_settings.pool_idle_seconds,
         )
 
     # ----- Security ---------------------------------------------------------
@@ -329,7 +390,8 @@ class AgentModule(Module):
     @multiprovider
     def provide_health_probes(
         self,
-        settings: AppSettings,
+        security_settings: SecuritySettings,
+        llm_settings: LLMSettings,
         engine: AsyncEngine,
     ) -> list[IHealthProbe]:
         """Default health-probe set. Override in a custom module to add probes."""
@@ -339,9 +401,9 @@ class AgentModule(Module):
             OPAReachabilityProbe,
         )
         return [
-            OPAReachabilityProbe(settings),
+            OPAReachabilityProbe(security_settings),
             DatabaseProbe(engine),
-            ModelLookupProbe(settings),
+            ModelLookupProbe(llm_settings),
         ]
 
     # ----- Tool invoker -----------------------------------------------------
@@ -381,10 +443,12 @@ class ProductionSecurityModule(Module):
 
     @singleton
     @provider
-    def provide_policy_evaluator(self, settings: AppSettings) -> IPolicyEvaluator:
+    def provide_policy_evaluator(
+        self, security_settings: SecuritySettings
+    ) -> IPolicyEvaluator:
         """Return the OPA-backed policy evaluator. Loaded from `ai_core.security.opa`."""
         from ai_core.security.opa import OPAPolicyEvaluator  # noqa: PLC0415
-        return OPAPolicyEvaluator(settings)
+        return OPAPolicyEvaluator(security_settings)
 
 
 __all__ = ["AgentModule", "ProductionSecurityModule"]

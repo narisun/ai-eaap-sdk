@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 @pytest.mark.asyncio
 async def test_opa_probe_ok_on_2xx() -> None:
-    probe = OPAReachabilityProbe(AppSettings())
+    probe = OPAReachabilityProbe(AppSettings().security)
     fake_response = MagicMock(status_code=200)
     fake_client = AsyncMock()
     fake_client.__aenter__.return_value = fake_client
@@ -33,7 +33,7 @@ async def test_opa_probe_ok_on_2xx() -> None:
 
 @pytest.mark.asyncio
 async def test_opa_probe_degraded_on_5xx() -> None:
-    probe = OPAReachabilityProbe(AppSettings())
+    probe = OPAReachabilityProbe(AppSettings().security)
     fake_response = MagicMock(status_code=503)
     fake_client = AsyncMock()
     fake_client.__aenter__.return_value = fake_client
@@ -45,7 +45,7 @@ async def test_opa_probe_degraded_on_5xx() -> None:
 
 @pytest.mark.asyncio
 async def test_opa_probe_down_on_connect_error() -> None:
-    probe = OPAReachabilityProbe(AppSettings())
+    probe = OPAReachabilityProbe(AppSettings().security)
     fake_client = AsyncMock()
     fake_client.__aenter__.return_value = fake_client
     fake_client.get.side_effect = httpx.ConnectError("refused")
@@ -57,7 +57,7 @@ async def test_opa_probe_down_on_connect_error() -> None:
 @pytest.mark.asyncio
 async def test_opa_probe_never_raises_on_unexpected_error() -> None:
     """Even on a non-httpx exception, the probe returns down rather than raising."""
-    probe = OPAReachabilityProbe(AppSettings())
+    probe = OPAReachabilityProbe(AppSettings().security)
     fake_client = AsyncMock()
     fake_client.__aenter__.return_value = fake_client
     fake_client.get.side_effect = RuntimeError("unexpected")
@@ -101,7 +101,7 @@ async def test_model_lookup_probe_ok_for_known_model() -> None:
     """litellm.utils.get_supported_openai_params returns a list for known models."""
     settings = AppSettings()
     settings.llm.default_model = "gpt-4o-mini"
-    probe = ModelLookupProbe(settings)
+    probe = ModelLookupProbe(settings.llm)
     with patch(
         "litellm.utils.get_supported_openai_params",
         return_value=["max_tokens", "temperature"],
@@ -113,7 +113,7 @@ async def test_model_lookup_probe_ok_for_known_model() -> None:
 @pytest.mark.asyncio
 async def test_model_lookup_probe_degraded_when_unknown() -> None:
     settings = AppSettings()
-    probe = ModelLookupProbe(settings)
+    probe = ModelLookupProbe(settings.llm)
     with patch("litellm.utils.get_supported_openai_params", return_value=None):
         result = await probe.probe()
     assert result.status == "degraded"
@@ -122,7 +122,7 @@ async def test_model_lookup_probe_degraded_when_unknown() -> None:
 @pytest.mark.asyncio
 async def test_model_lookup_probe_down_on_lookup_error() -> None:
     settings = AppSettings()
-    probe = ModelLookupProbe(settings)
+    probe = ModelLookupProbe(settings.llm)
     with patch(
         "litellm.utils.get_supported_openai_params",
         side_effect=RuntimeError("bad model"),
