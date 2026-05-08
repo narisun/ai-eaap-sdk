@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-eaap-sdk"
-version = "0.1.0"
+version = "1.0.0"
 description = "Enterprise Agentic AI Platform (EAAP) core SDK — DI-driven, async, observable, policy-aware."
 readme = "README.md"
 license = { file = "LICENSE" }

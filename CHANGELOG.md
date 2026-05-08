@@ -1,0 +1,125 @@
+# Changelog
+
+All notable changes to `ai-eaap-sdk` are documented here. The format
+roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versioning follows [Semantic Versioning](https://semver.org/).
+
+## [1.0.0] — 2026-05-08
+
+First production-ready release. Bundles Phase 13 cost/latency hardening
+with a senior-architect-level v1 cleanup pass: 17 of 18 reviewed items
+landed across six stacked PRs (#1–#6, plus the integration PR #7).
+
+### Breaking
+
+- **`BaseAgent` constructor**: replaced the six-argument `@inject`
+  constructor with a single `runtime: AgentRuntime` parameter.
+  Subclasses that explicitly listed all six args must switch to
+  `(runtime: AgentRuntime)` and call `super().__init__(runtime)`.
+  Subclasses that inherited the implicit ctor and only override
+  `system_prompt` / `tools` / `mcp_servers` / `extend_graph` need no
+  code changes.
+- **`get_settings()` removed**: the `lru_cached` process-wide
+  `AppSettings` accessor in `ai_core.config.settings` is gone.
+  Construct `AppSettings()` directly (Pydantic Settings reads env /
+  YAML / defaults at construction) or pass an instance to `AICoreApp`
+  / `AgentModule`. The DI container is the only intended sharing
+  seam.
+- **Heavyweight provider adapters demoted to optional extras**:
+  `litellm`, `langfuse`, and `fastmcp` are no longer installed by
+  `pip install ai-eaap-sdk`. Add `[litellm]`, `[langfuse]`, `[mcp]`,
+  or `[all]`:
+
+      pip install ai-eaap-sdk[litellm,langfuse,mcp]
+
+  The default `ILLMClient` binding is now `RaiseOnUseLLMClient`,
+  which raises `ConfigurationError` with an install hint on first
+  call. Hosts compose `LiteLLMModule()` alongside `AgentModule` to
+  enable the LiteLLM-backed adapter, or bind their own
+  `ILLMClient`.
+- **`AICoreApp` facade**: dropped `app.policy_evaluator` and
+  `app.observability` properties (they covered only a slice of bound
+  interfaces). Use `app.get(IPolicyEvaluator)` /
+  `app.get(IObservabilityProvider)` — the new `app.get(interface)`
+  accessor is the curated seam.
+- **Distribution rename**: package name is `ai-eaap-sdk`. Imports
+  remain `import ai_core`.
+
+### Added
+
+- `AgentRuntime` (frozen dataclass) — bundle of SDK collaborators
+  (settings, llm, memory, observability, tool invoker, mcp factory,
+  tool error renderer, tool resolver, tool registrar) injected as a
+  single argument to `BaseAgent`.
+- `ICompactionLLM` — distinct Protocol so memory compaction can
+  route to a cheaper model than agent reasoning. Default-aliased
+  to the request `ILLMClient`.
+- `Container.register_agent(cls)` and
+  `AICoreApp.register_agent(cls)` for fail-fast agent binding
+  (auto-bind retained for back-compat; scheduled for v2 removal).
+- `AICoreApp.add_health_probe(probe)` convenience for one-off
+  registration; documented multibind extension via
+  `@multiprovider`.
+- `ai_core.audit` registry pattern: `register_audit_sink(name, factory)`
+  + `ai_eaap_sdk.audit_sinks` setuptools entry-point group for
+  third-party sink discovery.
+- `IToolErrorRenderer` — pluggable rendering of tool-dispatch
+  failures into `ToolMessage` instances. `DefaultToolErrorRenderer`
+  preserves pre-v1 English text.
+- `ILLMClient.astream(...)` — streaming completion on the Protocol;
+  real implementation in `LiteLLMClient` with the same budget /
+  retry / observability / SLO semantics as `complete()`.
+  `ScriptedLLM` supports it for tests.
+- `make_tool(...)` — DI-aware tool factory accepting bound methods,
+  closures, partials, lambdas. Complements `@tool` (which by design
+  rejects methods).
+- `IToolResolver` + `ToolRegistrar` — extracted from `BaseAgent` so
+  `compile()` is pure graph construction. Hosts override resolution
+  for cross-agent caching / tenant filtering / MCP stubbing.
+- `ToolMiddleware` — around-advice chain wrapping the
+  `ToolInvoker` pipeline. Hosts add cross-cutting concerns
+  (rate-limit, sandbox, PII scrub, structured-output repair) via
+  DI multibind.
+- Typed exception details: nine stable-schema exception classes
+  expose a frozen `@dataclass` payload via
+  `exc.as_typed_details()`. Heterogeneous classes
+  (`PolicyDenialError`, `ConfigurationError`, `RegistryError`,
+  `LLMInvocationError`) keep raw-dict details for now.
+- Lazy-import contract test (`tests/contract/test_lazy_imports.py`)
+  runs in a subprocess and asserts `import ai_core` pulls zero
+  modules from `{litellm, langfuse, fastmcp}` into `sys.modules`.
+- Per-tenant / per-agent budget overrides
+  (`AppSettings.budget.overrides`) with most-specific-wins
+  resolution and per-axis (token / USD) override composition.
+- Latency SLO observability: `LLMSettings.latency_slo_ms` triggers
+  an `llm.slo_violated` event when an LLM call exceeds the
+  threshold (alert-only; distinct from `request_timeout_seconds`).
+
+### Changed
+
+- Per-subsystem settings injection: every concrete service now
+  injects only its slice (`LLMSettings`, `BudgetSettings`,
+  `SecuritySettings`, `AgentSettings`, `DatabaseSettings`, …)
+  instead of the whole `AppSettings`.
+- `I*` interfaces converted from ABC to `@runtime_checkable
+  Protocol` for structural typing. ABCs retained where shared
+  default-method logic exists (`ISecretManager`, `JWTVerifier`,
+  `BaseAgent`).
+
+### Deferred
+
+- Splitting `BaseAgent` into a pluggable-orchestrator shape so
+  `langgraph` and `langchain-core` can also become optional
+  extras. Tracked as future work; current `BaseAgent` imports
+  `StateGraph` / `AIMessage` / `ToolMessage` at module load.
+
+### Tests
+
+611 passed, 6 Docker-skipped at the v1.0 commit. Net new since
+0.x: +34 unit tests across `tests/unit/tools/test_factory.py`,
+`tests/unit/tools/test_middleware.py`,
+`tests/unit/exceptions/test_typed_details.py`,
+`tests/unit/testing/test_scripted_llm.py`, and
+`tests/contract/test_lazy_imports.py`.
+
+[1.0.0]: https://github.com/narisun/ai-eaap-sdk/releases/tag/v1.0.0
