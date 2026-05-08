@@ -157,6 +157,15 @@ class AICoreApp:
         """Resolve an agent class. ``ToolInvoker`` is auto-injected."""
         return self._require_container().get(cls)
 
+    def register_agent(self, cls: type[A]) -> None:
+        """Explicitly bind an agent class to the container.
+
+        Call this once per agent class at app boot to surface missing
+        bindings (typos in constructor type hints, etc.) immediately
+        rather than relying on :py:attr:`Container.auto_bind`.
+        """
+        self._require_container().register_agent(cls)
+
     def register_tools(self, *specs: ToolSpec) -> None:
         """Register one or more :class:`ToolSpec` with the SDK's SchemaRegistry.
 
