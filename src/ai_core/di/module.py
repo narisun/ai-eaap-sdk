@@ -93,12 +93,17 @@ class AgentModule(Module):
     @singleton
     @provider
     def provide_settings(self) -> AppSettings:
-        """Return the bound :class:`AppSettings` singleton."""
+        """Return the bound :class:`AppSettings` singleton.
+
+        When the host did not pass an explicit ``settings`` to the module,
+        a fresh :class:`AppSettings` is constructed here. Pydantic Settings
+        sources (env, ``.env``, YAML) are evaluated at construction time;
+        the container caches the result as a singleton, so subsequent
+        injections see the same instance without a process-global cache.
+        """
         if self._settings is not None:
             return self._settings
-        from ai_core.config.settings import get_settings
-
-        return get_settings()
+        return AppSettings()
 
     # Per-subsystem settings slices — bind each nested settings group as its
     # own singleton so concrete services can inject only the slice they need.
