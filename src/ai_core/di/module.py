@@ -29,6 +29,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
+from ai_core.agents.runtime import AgentRuntime
 from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import (
@@ -415,6 +416,34 @@ class AgentModule(Module):
             registry=registry,
             audit=audit,
             redactor=redactor,
+        )
+
+    # ----- Agent runtime ----------------------------------------------------
+    @singleton
+    @provider
+    def provide_agent_runtime(
+        self,
+        agent_settings: AgentSettings,
+        llm: ILLMClient,
+        memory: IMemoryManager,
+        observability: IObservabilityProvider,
+        tool_invoker: ToolInvoker,
+        mcp_factory: IMCPConnectionFactory,
+    ) -> AgentRuntime:
+        """Return the bundle of SDK services injected into :class:`BaseAgent`.
+
+        Centralising these collaborators in :class:`AgentRuntime` lets
+        :class:`BaseAgent` subclasses receive a single argument and add
+        their own DI-resolved dependencies without mirroring the SDK's
+        internal service surface.
+        """
+        return AgentRuntime(
+            agent_settings=agent_settings,
+            llm=llm,
+            memory=memory,
+            observability=observability,
+            tool_invoker=tool_invoker,
+            mcp_factory=mcp_factory,
         )
 
 
