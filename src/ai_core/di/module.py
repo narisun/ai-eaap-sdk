@@ -51,7 +51,6 @@ from ai_core.di.interfaces import (
     IObservabilityProvider,
     IPolicyEvaluator,
 )
-from ai_core.exceptions import ConfigurationError, ErrorCode
 from ai_core.health import IHealthProbe  # noqa: TC001
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.llm.litellm_client import LiteLLMClient
@@ -343,60 +342,20 @@ class AgentModule(Module):
     @provider
     def provide_audit_sink(
         self,
-        settings: AppSettings,
+        audit_settings: AuditSettings,
         observability: IObservabilityProvider,
     ) -> IAuditSink:
-        """Default audit sink — switchable via settings.audit.sink_type."""
-        sink_type = settings.audit.sink_type
-        if sink_type == "null":
-            from ai_core.audit.null import NullAuditSink  # noqa: PLC0415
-            return NullAuditSink()
-        if sink_type == "otel_event":
-            from ai_core.audit.otel_event import OTelEventAuditSink  # noqa: PLC0415
-            return OTelEventAuditSink(observability)
-        if sink_type == "jsonl":
-            from ai_core.audit.jsonl import JsonlFileAuditSink  # noqa: PLC0415
-            if settings.audit.jsonl_path is None:
-                raise ConfigurationError(
-                    "audit.sink_type='jsonl' requires audit.jsonl_path to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return JsonlFileAuditSink(settings.audit.jsonl_path)
-        if sink_type == "sentry":
-            from ai_core.audit.sentry import SentryAuditSink  # noqa: PLC0415
-            if settings.audit.sentry_dsn is None:
-                raise ConfigurationError(
-                    "audit.sink_type='sentry' requires audit.sentry_dsn to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return SentryAuditSink(
-                dsn=settings.audit.sentry_dsn.get_secret_value(),
-                environment=settings.audit.sentry_environment,
-                release=settings.audit.sentry_release,
-                sample_rate=settings.audit.sentry_sample_rate,
-            )
-        if sink_type == "datadog":
-            from ai_core.audit.datadog import DatadogAuditSink  # noqa: PLC0415
-            if settings.audit.datadog_api_key is None:
-                raise ConfigurationError(
-                    "audit.sink_type='datadog' requires audit.datadog_api_key to be set",
-                    error_code=ErrorCode.CONFIG_INVALID,
-                )
-            return DatadogAuditSink(
-                api_key=settings.audit.datadog_api_key.get_secret_value(),
-                app_key=(
-                    settings.audit.datadog_app_key.get_secret_value()
-                    if settings.audit.datadog_app_key
-                    else None
-                ),
-                site=settings.audit.datadog_site,
-                source=settings.audit.datadog_source,
-                environment=settings.audit.datadog_environment,
-            )
-        raise ConfigurationError(
-            f"Unknown audit.sink_type: {sink_type!r}",
-            error_code=ErrorCode.CONFIG_INVALID,
-        )
+        """Resolve an :class:`IAuditSink` via the pluggable registry.
+
+        Built-in sinks (``null``, ``otel_event``, ``jsonl``, ``sentry``,
+        ``datadog``) register themselves in
+        :mod:`ai_core.audit.registry`. Third-party sinks register either
+        by calling :func:`ai_core.audit.register_audit_sink` or by
+        declaring an ``ai_eaap_sdk.audit_sinks`` entry point.
+        """
+        from ai_core.audit.registry import get_audit_sink_factory  # noqa: PLC0415
+        factory = get_audit_sink_factory(audit_settings.sink_type)
+        return factory(audit_settings, observability)
 
     # ----- Health probes ----------------------------------------------------
     @singleton
