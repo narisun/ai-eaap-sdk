@@ -30,6 +30,7 @@ from ai_core.agents.memory import (
     TokenCounter,
 )
 from ai_core.agents.runtime import AgentRuntime
+from ai_core.agents.tool_errors import DefaultToolErrorRenderer, IToolErrorRenderer
 from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import (
@@ -423,6 +424,18 @@ class AgentModule(Module):
             redactor=redactor,
         )
 
+    # ----- Tool error renderer ---------------------------------------------
+    @singleton
+    @provider
+    def provide_tool_error_renderer(self) -> IToolErrorRenderer:
+        """Default :class:`IToolErrorRenderer` — preserves pre-v1 English text.
+
+        Override this binding to enforce strict failure (raise instead
+        of returning a recovery message), localize text, or redact error
+        details before they flow back to the LLM.
+        """
+        return DefaultToolErrorRenderer()
+
     # ----- Agent runtime ----------------------------------------------------
     @singleton
     @provider
@@ -434,6 +447,7 @@ class AgentModule(Module):
         observability: IObservabilityProvider,
         tool_invoker: ToolInvoker,
         mcp_factory: IMCPConnectionFactory,
+        tool_error_renderer: IToolErrorRenderer,
     ) -> AgentRuntime:
         """Return the bundle of SDK services injected into :class:`BaseAgent`.
 
@@ -449,6 +463,7 @@ class AgentModule(Module):
             observability=observability,
             tool_invoker=tool_invoker,
             mcp_factory=mcp_factory,
+            tool_error_renderer=tool_error_renderer,
         )
 
 
