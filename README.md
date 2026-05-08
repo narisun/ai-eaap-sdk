@@ -4,8 +4,17 @@ The foundational SDK for the **Enterprise Agentic AI Platform (EAAP)**.
 
 > **Note on naming.** This project's distribution name is `ai-eaap-sdk`.
 > Do **not** `pip install ai-core-sdk` — that PyPI name belongs to SAP's
-> unrelated AI Core client SDK. `ai-eaap-sdk` is not yet published to PyPI;
-> install **from source** until it ships (instructions below).
+> unrelated AI Core client SDK. `ai-eaap-sdk` is intentionally **not on
+> public PyPI**; tagged release wheels live on the
+> [GitHub releases page](https://github.com/narisun/ai-eaap-sdk/releases)
+> and editable installs from source are the dev path (instructions below).
+
+> **v1.0** shipped 2026-05-08. Highlights: `AgentRuntime` composition
+> over the legacy six-arg `@inject` constructor, `litellm` / `langfuse`
+> / `fastmcp` demoted to optional extras, typed exception details,
+> `ToolMiddleware` / `IToolErrorRenderer` / `IToolResolver` extension
+> points, streaming `ILLMClient.astream`. Three breaking changes
+> documented in [`CHANGELOG.md`](CHANGELOG.md#100--2026-05-08).
 
 `ai-eaap-sdk` is a typed, async-first Python toolkit for building agentic AI
 applications that have to clear an enterprise bar — observable, policy-aware,
@@ -15,8 +24,11 @@ LangGraph orchestration, LiteLLM proxying, FastMCP integration, OpenTelemetry
 project scaffolding under a single dependency-injection seam.
 
 The SDK is opinionated: all of these concerns are first-class and wired by
-default, but every concrete implementation is bound to an ABC and trivially
-overridable through DI.
+default, but every concrete implementation is bound to a Protocol or ABC
+and trivially overridable through DI. Most cross-process seams are
+`@runtime_checkable Protocol` (v1.0); only `ISecretManager`, `JWTVerifier`,
+and `BaseAgent` keep ABC inheritance because they ship default-method
+logic worth sharing.
 
 ---
 
@@ -24,9 +36,9 @@ overridable through DI.
 
 | Idea | What it means in this codebase |
 |---|---|
-| **The DI container is the only seam** | Concrete classes are bound to interfaces inside `AgentModule`. Application code depends on the ABCs (`ILLMClient`, `IStorageProvider`, `IPolicyEvaluator`, …) and resolves them through `Container.get(...)`. There are no module-level singletons and no `os.environ` reads scattered through the code. |
+| **The DI container is the only seam** | Concrete classes are bound to interfaces inside `AgentModule`. Application code depends on the Protocols / ABCs (`ILLMClient`, `IStorageProvider`, `IPolicyEvaluator`, …) and resolves them through `Container.get(...)`. There are no module-level singletons and no `os.environ` reads scattered through the code. |
 | **Async-first** | Every I/O surface — DB, LLM, OPA, MCP, observability — is `async`. Sync paths are explicit and rare; the LangGraph adapter, for example, deliberately leaves sync methods unimplemented and documents it. |
-| **Interfaces over implementations** | Every external integration sits behind a small ABC defined in `ai_core.di.interfaces`. Hosts can swap an implementation (real S3 → in-memory fake, OPA → JSON-file evaluator) without touching calling code. |
+| **Interfaces over implementations** | Every external integration sits behind a small Protocol (or ABC where shared default-method logic exists) defined in `ai_core.di.interfaces`. Hosts can swap an implementation (real S3 → in-memory fake, OPA → JSON-file evaluator) without touching calling code. |
 | **Settings are typed and centralised** | One `AppSettings` Pydantic model aggregates nested groups (`database`, `llm`, `budget`, `observability`, `security`, `agent`, …) populated from `EAAP_*` environment variables with `__` as the nested delimiter. Secrets are resolved through `ISecretManager`, never read directly from `os.environ`. |
 | **Observability is non-optional** | Every LLM call records prompt/completion tokens, latency, and cost; every agent invocation opens an OTel span and a LangFuse trace. The default provider degrades gracefully when no collector or LangFuse keys are configured, so the SDK is safe to import in tests and local dev. |
 | **Fail-closed security defaults** | OPA evaluator defaults to `fail_closed=True` (network or HTTP errors → deny). The agent guardrail blocks all tool calls on policy-evaluator errors and emits a self-explanatory denial message the agent can re-plan from. |
@@ -59,8 +71,9 @@ the SDK:
    Returns / Raises. Comments inside method bodies are reserved for *why*,
    never *what*.
 7. **Concrete bindings live in `AgentModule`.** Adding a new external
-   integration means: define its ABC in `di/interfaces.py`, write the concrete,
-   bind it in `module.py`. No exceptions.
+   integration means: define its Protocol (or ABC if shared logic justifies it)
+   in `di/interfaces.py`, write the concrete, bind it in `module.py`. No
+   exceptions.
 8. **Tests can swap any binding.** `Container.override(*modules)` returns a
    *new* container with extra bindings layered on top — the original is
    untouched. Last binding wins.
@@ -100,11 +113,22 @@ src/ai_core/
 > **Heads-up — name collision on PyPI.** The PyPI distribution
 > `ai-core-sdk` is SAP's AI Core client (it pulls in `ai-api-client-sdk`,
 > `pyhumps`, `aenum`) — a different package. This project ships under
-> `ai-eaap-sdk` but is not yet published to PyPI. Install from source
-> for now; the `eaap` CLI will land on PATH once installed.
+> `ai-eaap-sdk` and is **not** on public PyPI by design. Use either the
+> tagged-release wheel or an editable install from source.
 
-Clone (or otherwise obtain the source), then install in editable mode
-into your project's virtual environment:
+**Install a tagged release wheel from the GitHub releases page:**
+
+```bash
+# Production install — pin to a specific tag
+pip install \
+  https://github.com/narisun/ai-eaap-sdk/releases/download/v1.0.1/ai_eaap_sdk-1.0.1-py3-none-any.whl
+
+# With the heavyweight provider adapters (LiteLLM / LangFuse / FastMCP):
+pip install \
+  "ai-eaap-sdk[litellm,langfuse,mcp] @ https://github.com/narisun/ai-eaap-sdk/releases/download/v1.0.1/ai_eaap_sdk-1.0.1-py3-none-any.whl"
+```
+
+**Editable install for SDK development:**
 
 ```bash
 # From the directory that contains the ai-eaap-sdk/ source tree:
@@ -117,20 +141,32 @@ source .venv/bin/activate
 # remove it first so the editable install can take its place cleanly:
 pip uninstall -y ai-core-sdk ai-api-client-sdk
 
-# Editable install. The `eaap` CLI lands on PATH; source changes are
-# picked up immediately without re-installing.
-pip install -e ai-eaap-sdk
-
-# Verify
-eaap --help
-```
-
-For development on the SDK itself (running the test suite, ruff, mypy):
-
-```bash
+# Editable install with full dev tooling. The `eaap` CLI lands on PATH;
+# source changes are picked up immediately without re-installing. The
+# [dev] extra installs litellm / langfuse / fastmcp + pytest / mypy / ruff
+# so the full test suite can run.
 pip install -e "ai-eaap-sdk[dev]"
-pytest -q                     # 148 tests
+pytest -q                     # 611 passed, 6 Docker-skipped
 ```
+
+### Optional extras
+
+The default install is **lightweight** — `litellm`, `langfuse`, and
+`fastmcp` are demoted to optional extras (v1.0). Hosts supplying their
+own LLM / observability / MCP backends pay only for what they use:
+
+| Extra | Pulls in | Activates |
+|---|---|---|
+| `[litellm]` | `litellm` | `LiteLLMModule()` for `LiteLLMClient` |
+| `[langfuse]` | `langfuse` | `RealObservabilityProvider` LangFuse export |
+| `[mcp]` | `fastmcp` | `PoolingMCPConnectionFactory` (lazy on first call) |
+| `[all]` | All three | — |
+
+Without the `[litellm]` extra, the default `ILLMClient` binding raises
+`ConfigurationError` on first call with an install hint. The
+contract test `tests/contract/test_lazy_imports.py` pins the rule:
+`import ai_core` must not pull any optional-extra package into
+`sys.modules`.
 
 ### Scaffold a project
 
@@ -252,10 +288,26 @@ container = Container.build([AgentModule()])
 agent = container.get(SupportTriageAgent)         # all deps auto-wired
 ```
 
-`SupportTriageAgent`'s constructor receives `AppSettings`, `ILLMClient`,
-`MemoryManager`, and `IObservabilityProvider` automatically because each one
-is bound in `AgentModule` and the subclass inherits `@inject` from
-`BaseAgent`.
+`SupportTriageAgent` inherits `BaseAgent`'s `@inject __init__(self, runtime:
+AgentRuntime)`. The single `AgentRuntime` argument bundles every SDK
+collaborator (settings, llm, memory, observability, tool invoker, MCP
+factory, tool error renderer, tool resolver, tool registrar) so subclasses
+that need their own dependencies just add them alongside the runtime:
+
+```python
+from injector import inject
+from ai_core.agents import AgentRuntime, BaseAgent
+
+class SupportTriageAgent(BaseAgent):
+    @inject
+    def __init__(self, runtime: AgentRuntime, repo: TicketRepository) -> None:
+        super().__init__(runtime)
+        self._repo = repo
+```
+
+Subclasses that don't add their own dependencies don't need to override
+`__init__` at all — the inherited single-arg constructor handles every-
+thing the base class needs.
 
 ### 4. Invoke
 
@@ -466,8 +518,11 @@ agent     = container.get(MyAgent)         # uses FakeLLM, real everything else
 ```
 
 Containers are independent — singletons are scoped to a container, never
-to the process. The provided test suite (126 tests) exercises every module
-through this pattern; concrete examples live under `tests/unit/`.
+to the process. The provided test suite (**611 passed, 6 Docker-skipped**)
+exercises every module through this pattern; concrete examples live under
+`tests/unit/`. The contract test `tests/contract/test_lazy_imports.py`
+runs in a subprocess and pins the v1.0 promise that `import ai_core` does
+not pull `litellm` / `langfuse` / `fastmcp` into `sys.modules`.
 
 ---
 
@@ -491,7 +546,9 @@ Run `eaap --help` for the full surface.
   `vector_db`, `storage`, `llm`, `budget`, `observability`, `security`, `agent`.
 - **DI** → `ai_core.di.Container.build([AgentModule()])`. Override with
   `container.override(*modules)`.
-- **LLM** → `ai_core.llm.LiteLLMClient` (LiteLLM + Tenacity + budget + observability).
+- **LLM** → `ai_core.llm.LiteLLMClient` (LiteLLM + Tenacity + budget + observability;
+  enable via `LiteLLMModule()` and the `[litellm]` extra). The default
+  binding is `RaiseOnUseLLMClient` so the base install stays lightweight.
 - **Memory** → `ai_core.agents.MemoryManager` with `TokenCounter` Protocol.
 - **Persistence** → `ai_core.persistence.PostgresCheckpointSaver` (SDK-level)
   + `ai_core.persistence.LangGraphCheckpointSaver` (LangGraph-native).
