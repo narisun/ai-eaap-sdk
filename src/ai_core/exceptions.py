@@ -13,15 +13,138 @@ Each subclass declares a ``DEFAULT_CODE`` class attribute (Phase 2) used
 to auto-populate ``error_code`` when callers don't pass one explicitly.
 The code lands in ``details["error_code"]`` and as the OTel span
 attribute ``error.code`` so dashboards can aggregate uniformly.
+
+Typed details (v1)
+==================
+Subclasses with a stable ``details`` schema expose a typed
+``@dataclass`` payload reachable via ``exc.as_typed_details()``. The
+raw dict still works (back-compat); the typed accessor is the
+recommended path for SREs / consumers who route or alert on errors::
+
+    try:
+        await invoker.invoke(spec, args)
+    except ToolValidationError as exc:
+        info = exc.as_typed_details()
+        logger.warning("tool %s failed validation on %s side", info.tool, info.side)
+        emit_metric("tool.validation_failed", tags={"tool": info.tool})
+
+Heterogeneous classes (``PolicyDenialError``, ``ConfigurationError``,
+``RegistryError``, ``LLMInvocationError``) keep raw-dict ``details``
+because their keys vary too much to type usefully. Future PRs may
+introduce per-call-site sub-classes if any of those settle on a stable
+shape.
 """
 
 from __future__ import annotations
 
 import enum
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+
+# ---------------------------------------------------------------------------
+# Typed details payloads
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class ToolValidationDetails:
+    """Typed payload for :class:`ToolValidationError.details`.
+
+    Attributes:
+        tool: Logical tool name.
+        version: Registered :class:`ToolSpec` version.
+        side: Either ``"input"`` (raw args failed validation) or
+            ``"output"`` (handler return value failed validation).
+        errors: Pydantic ``ValidationError.errors()`` list.
+    """
+
+    tool: str
+    version: int
+    side: str
+    errors: tuple[Mapping[str, Any], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolExecutionDetails:
+    """Typed payload for :class:`ToolExecutionError.details`.
+
+    The original handler exception is preserved on ``__cause__``; this
+    payload only carries identity.
+    """
+
+    tool: str
+    version: int
+    agent_id: str | None
+    tenant_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetExceededDetails:
+    """Typed payload for :class:`BudgetExceededError.details`.
+
+    All fields are optional individually because the budget service may
+    deny on either the token or the USD axis without recording the
+    other; ``reason`` carries the human-readable trigger.
+    """
+
+    tenant_id: str | None
+    agent_id: str | None
+    model: str | None
+    estimated_tokens: int | None
+    remaining_tokens: int | None
+    remaining_usd: float | None
+    reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class LLMTimeoutDetails:
+    """Typed payload for :class:`LLMTimeoutError.details`."""
+
+    model: str
+    attempts: int
+
+
+@dataclass(frozen=True, slots=True)
+class MCPTransportDetails:
+    """Typed payload for :class:`MCPTransportError.details`."""
+
+    component_id: str
+    transport: str
+
+
+@dataclass(frozen=True, slots=True)
+class AgentRecursionDetails:
+    """Typed payload for :class:`AgentRecursionLimitError.details`."""
+
+    agent_id: str | None
+    tenant_id: str | None
+    thread_id: str | None
+    limit: int
+
+
+@dataclass(frozen=True, slots=True)
+class SecretResolutionDetails:
+    """Typed payload for :class:`SecretResolutionError.details`."""
+
+    backend: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyResolutionDetails:
+    """Typed payload for :class:`DependencyResolutionError.details`."""
+
+    interface: str
+
+
+@dataclass(frozen=True, slots=True)
+class CheckpointDetails:
+    """Typed payload for :class:`CheckpointError.details`."""
+
+    thread_id: str
+    checkpoint_id: str | None
 
 
 class ErrorCode(enum.StrEnum):
@@ -141,6 +264,13 @@ class SecretResolutionError(ConfigurationError):
 
     DEFAULT_CODE = ErrorCode.CONFIG_SECRET_NOT_RESOLVED
 
+    def as_typed_details(self) -> SecretResolutionDetails:
+        """Return ``self.details`` as a :class:`SecretResolutionDetails`."""
+        return SecretResolutionDetails(
+            backend=str(self.details.get("backend", "")),
+            name=str(self.details.get("name", "")),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Dependency injection
@@ -149,6 +279,12 @@ class DependencyResolutionError(EAAPBaseException):
     """Raised when the DI container cannot satisfy a binding."""
 
     DEFAULT_CODE = ErrorCode.DI_RESOLUTION_FAILED
+
+    def as_typed_details(self) -> DependencyResolutionDetails:
+        """Return ``self.details`` as a :class:`DependencyResolutionDetails`."""
+        return DependencyResolutionDetails(
+            interface=str(self.details.get("interface", "")),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +300,14 @@ class CheckpointError(StorageError):
     """Raised when reading or writing a LangGraph checkpoint fails."""
 
     DEFAULT_CODE = ErrorCode.STORAGE_CHECKPOINT_FAILED
+
+    def as_typed_details(self) -> CheckpointDetails:
+        """Return ``self.details`` as a :class:`CheckpointDetails`."""
+        ck = self.details.get("checkpoint_id")
+        return CheckpointDetails(
+            thread_id=str(self.details.get("thread_id", "")),
+            checkpoint_id=str(ck) if ck is not None else None,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -189,11 +333,34 @@ class LLMTimeoutError(LLMInvocationError):
 
     DEFAULT_CODE = ErrorCode.LLM_TIMEOUT
 
+    def as_typed_details(self) -> LLMTimeoutDetails:
+        """Return ``self.details`` as a :class:`LLMTimeoutDetails`."""
+        return LLMTimeoutDetails(
+            model=str(self.details.get("model", "")),
+            attempts=int(self.details.get("attempts", 0)),
+        )
+
 
 class BudgetExceededError(LLMInvocationError):
     """Raised when an agent or tenant has consumed its allocated quota."""
 
     DEFAULT_CODE = ErrorCode.LLM_BUDGET_EXCEEDED
+
+    def as_typed_details(self) -> BudgetExceededDetails:
+        """Return ``self.details`` as a :class:`BudgetExceededDetails`."""
+        d = self.details
+        rt = d.get("remaining_tokens")
+        ru = d.get("remaining_usd")
+        et = d.get("estimated_tokens")
+        return BudgetExceededDetails(
+            tenant_id=d.get("tenant_id"),
+            agent_id=d.get("agent_id"),
+            model=d.get("model"),
+            estimated_tokens=int(et) if et is not None else None,
+            remaining_tokens=int(rt) if rt is not None else None,
+            remaining_usd=float(ru) if ru is not None else None,
+            reason=d.get("reason"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +385,16 @@ class ToolValidationError(SchemaValidationError):
 
     DEFAULT_CODE = ErrorCode.TOOL_VALIDATION_FAILED
 
+    def as_typed_details(self) -> ToolValidationDetails:
+        """Return ``self.details`` as a :class:`ToolValidationDetails`."""
+        errs = self.details.get("errors") or ()
+        return ToolValidationDetails(
+            tool=str(self.details.get("tool", "")),
+            version=int(self.details.get("version", 0)),
+            side=str(self.details.get("side", "")),
+            errors=tuple(errs),
+        )
+
 
 class ToolExecutionError(EAAPBaseException):
     """A tool handler raised. The original exception is preserved via ``__cause__``.
@@ -228,6 +405,15 @@ class ToolExecutionError(EAAPBaseException):
     """
 
     DEFAULT_CODE = ErrorCode.TOOL_EXECUTION_FAILED
+
+    def as_typed_details(self) -> ToolExecutionDetails:
+        """Return ``self.details`` as a :class:`ToolExecutionDetails`."""
+        return ToolExecutionDetails(
+            tool=str(self.details.get("tool", "")),
+            version=int(self.details.get("version", 0)),
+            agent_id=self.details.get("agent_id"),
+            tenant_id=self.details.get("tenant_id"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +435,15 @@ class AgentRecursionLimitError(AgentRuntimeError):
 
     DEFAULT_CODE = ErrorCode.AGENT_RECURSION_LIMIT
 
+    def as_typed_details(self) -> AgentRecursionDetails:
+        """Return ``self.details`` as a :class:`AgentRecursionDetails`."""
+        return AgentRecursionDetails(
+            agent_id=self.details.get("agent_id"),
+            tenant_id=self.details.get("tenant_id"),
+            thread_id=self.details.get("thread_id"),
+            limit=int(self.details.get("limit", 0)),
+        )
+
 
 # ---------------------------------------------------------------------------
 # MCP / registry
@@ -268,24 +463,40 @@ class MCPTransportError(EAAPBaseException):
 
     DEFAULT_CODE = ErrorCode.MCP_TRANSPORT_FAILED
 
+    def as_typed_details(self) -> MCPTransportDetails:
+        """Return ``self.details`` as a :class:`MCPTransportDetails`."""
+        return MCPTransportDetails(
+            component_id=str(self.details.get("component_id", "")),
+            transport=str(self.details.get("transport", "")),
+        )
+
 
 __all__ = [
+    "AgentRecursionDetails",
     "AgentRecursionLimitError",
     "AgentRuntimeError",
+    "BudgetExceededDetails",
     "BudgetExceededError",
+    "CheckpointDetails",
     "CheckpointError",
     "ConfigurationError",
+    "DependencyResolutionDetails",
     "DependencyResolutionError",
     "EAAPBaseException",
     "ErrorCode",
     "LLMInvocationError",
+    "LLMTimeoutDetails",
     "LLMTimeoutError",
+    "MCPTransportDetails",
     "MCPTransportError",
     "PolicyDenialError",
     "RegistryError",
     "SchemaValidationError",
+    "SecretResolutionDetails",
     "SecretResolutionError",
     "StorageError",
+    "ToolExecutionDetails",
     "ToolExecutionError",
+    "ToolValidationDetails",
     "ToolValidationError",
 ]
