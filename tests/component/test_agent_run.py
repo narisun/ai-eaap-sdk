@@ -28,7 +28,7 @@ from ai_core.agents import BaseAgent, TokenCounter
 from ai_core.agents.memory import to_openai_message
 from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
-from ai_core.di.interfaces import ILLMClient  # noqa: TC001
+from ai_core.di.interfaces import ILLMClient
 from ai_core.testing import ScriptedLLM, make_llm_response
 
 pytestmark = pytest.mark.component

@@ -209,8 +209,13 @@ class ErrorCode(enum.StrEnum):
     MCP_TRANSPORT_FAILED = "mcp.transport_failed"
 
 
-class EAAPBaseException(Exception):
+class EAAPBaseException(Exception):  # noqa: N818
     """Base class for all SDK-raised exceptions.
+
+    The "Exception" suffix instead of "Error" is a deliberate, stable name
+    choice — it's part of the v1.0 public API. Renaming is a breaking
+    change and is not on the roadmap.
+
 
     Attributes:
         message: Human-readable description of the error.

@@ -54,7 +54,7 @@ from ai_core.exceptions import (
 from ai_core.mcp.prompts import MCPPrompt, MCPPromptArgument, MCPPromptMessage
 from ai_core.mcp.resolver import is_method_not_found
 from ai_core.mcp.tools import MCPToolSpec
-from ai_core.mcp.transports import MCPServerSpec  # noqa: TC001
+from ai_core.mcp.transports import MCPServerSpec
 from ai_core.observability.logging import bind_context, get_logger, unbind_context
 from ai_core.tools.spec import Tool, ToolSpec
 
@@ -143,8 +143,13 @@ class BaseAgent(ABC):
         """
         return ()
 
-    def extend_graph(self, graph: StateGraph[AgentState]) -> None:
-        """Hook for subclasses to add custom nodes/edges before compile."""
+    def extend_graph(self, graph: StateGraph[AgentState]) -> None:  # noqa: B027
+        """Extension hook — subclasses may add custom nodes/edges before compile.
+
+        Intentionally an empty default; not marked ``@abstractmethod`` because
+        most subclasses don't need it. ``# noqa: B027`` silences the
+        bugbear "empty method on ABC without abstract decorator" warning.
+        """
 
     # ------------------------------------------------------------------
     # Public API

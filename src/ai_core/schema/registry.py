@@ -187,8 +187,12 @@ class SchemaRegistry:
         """
         return [self._records[k] for k in sorted(self._records.keys())]
 
+    #: Records are keyed by ``(name, version)``; the membership check
+    #: rejects any other tuple shape early.
+    _KEY_ARITY = 2
+
     def __contains__(self, key: object) -> bool:
-        if isinstance(key, tuple) and len(key) == 2:
+        if isinstance(key, tuple) and len(key) == self._KEY_ARITY:
             return cast("tuple[str, SchemaVersion]", key) in self._records
         return False
 

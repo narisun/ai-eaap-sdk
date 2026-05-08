@@ -19,7 +19,7 @@ from ai_core.mcp.tools import (
     _MCPPassthroughInput,
     _MCPPassthroughOutput,
 )
-from ai_core.mcp.transports import MCPServerSpec  # noqa: TC001 — runtime import for closure
+from ai_core.mcp.transports import MCPServerSpec
 from ai_core.observability.logging import get_logger
 
 if TYPE_CHECKING:

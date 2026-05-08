@@ -453,10 +453,7 @@ def _metadata_matches(
     """Return ``True`` if every (k, v) in ``filter_`` matches ``metadata``."""
     if not metadata:
         return False
-    for k, v in filter_.items():
-        if metadata.get(k) != v:
-            return False
-    return True
+    return all(metadata.get(k) == v for k, v in filter_.items())
 
 
 __all__ = ["LangGraphCheckpointSaver"]

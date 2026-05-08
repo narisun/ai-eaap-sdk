@@ -180,7 +180,7 @@ def test_console_exporter_installed_in_local_when_no_endpoint() -> None:
     assert _has_console_processor(provider)
 
 
-def test_console_exporter_NOT_installed_in_prod() -> None:
+def test_console_exporter_not_installed_in_prod() -> None:
     settings = AppSettings(
         environment="prod",
         observability={"service_name": "prod-test"},  # type: ignore[arg-type]

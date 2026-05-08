@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from ai_core.app import AICoreApp, HealthSnapshot
 from ai_core.config.settings import AgentSettings, AppSettings, LLMSettings
-from ai_core.di.interfaces import (  # noqa: TC001
+from ai_core.di.interfaces import (
     ILLMClient,
     IObservabilityProvider,
     IPolicyEvaluator,

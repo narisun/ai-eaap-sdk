@@ -31,7 +31,7 @@ from ai_core.agents.memory import (
 )
 from ai_core.agents.runtime import AgentRuntime
 from ai_core.agents.tool_errors import DefaultToolErrorRenderer, IToolErrorRenderer
-from ai_core.audit import IAuditSink, PayloadRedactor  # noqa: TC001
+from ai_core.audit import IAuditSink, PayloadRedactor
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
 from ai_core.config.settings import (
     AgentSettings,
@@ -53,7 +53,7 @@ from ai_core.di.interfaces import (
     IObservabilityProvider,
     IPolicyEvaluator,
 )
-from ai_core.health import IHealthProbe  # noqa: TC001
+from ai_core.health import IHealthProbe
 from ai_core.llm._raise import RaiseOnUseLLMClient
 from ai_core.llm.budget import InMemoryBudgetService
 from ai_core.mcp.registry import ComponentRegistry
@@ -65,7 +65,7 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.tools.invoker import ToolInvoker
-from ai_core.tools.middleware import ToolMiddleware  # noqa: TC001
+from ai_core.tools.middleware import ToolMiddleware
 from ai_core.tools.registrar import ToolRegistrar
 from ai_core.tools.resolver import DefaultToolResolver, IToolResolver
 

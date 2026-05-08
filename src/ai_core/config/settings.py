@@ -68,7 +68,7 @@ def _resolve_config_path() -> Path | None:
 PortInt = Annotated[int, Field(ge=1, le=65_535)]
 
 
-class LogLevel(str, enum.Enum):
+class LogLevel(enum.StrEnum):
     """Standard syslog-style log levels accepted by the SDK."""
 
     DEBUG = "DEBUG"
@@ -78,7 +78,7 @@ class LogLevel(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
-class Environment(str, enum.Enum):
+class Environment(enum.StrEnum):
     """Deployment environment classifier — drives default behaviors."""
 
     LOCAL = "local"
