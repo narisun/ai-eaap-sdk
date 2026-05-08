@@ -65,6 +65,8 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.tools.invoker import ToolInvoker
+from ai_core.tools.registrar import ToolRegistrar
+from ai_core.tools.resolver import DefaultToolResolver, IToolResolver
 
 
 class AgentModule(Module):
@@ -436,6 +438,32 @@ class AgentModule(Module):
         """
         return DefaultToolErrorRenderer()
 
+    # ----- Tool resolver + registrar ---------------------------------------
+    @singleton
+    @provider
+    def provide_tool_resolver(
+        self,
+        mcp_factory: IMCPConnectionFactory,
+        tool_invoker: ToolInvoker,
+    ) -> IToolResolver:
+        """Default :class:`IToolResolver` — pre-v1 MCP-merge behaviour.
+
+        Hosts override this binding to cache MCP resolutions across
+        agents, redact tools by tenant, or stub the MCP backend in
+        tests.
+        """
+        return DefaultToolResolver(mcp_factory, tool_invoker)
+
+    @singleton
+    @provider
+    def provide_tool_registrar(self, tool_invoker: ToolInvoker) -> ToolRegistrar:
+        """Default :class:`ToolRegistrar` — bulk register on the invoker.
+
+        Override the binding to gate registration (e.g. by tenant or
+        feature flag) without touching :meth:`BaseAgent.compile`.
+        """
+        return ToolRegistrar(tool_invoker)
+
     # ----- Agent runtime ----------------------------------------------------
     @singleton
     @provider
@@ -448,6 +476,8 @@ class AgentModule(Module):
         tool_invoker: ToolInvoker,
         mcp_factory: IMCPConnectionFactory,
         tool_error_renderer: IToolErrorRenderer,
+        tool_resolver: IToolResolver,
+        tool_registrar: ToolRegistrar,
     ) -> AgentRuntime:
         """Return the bundle of SDK services injected into :class:`BaseAgent`.
 
@@ -464,6 +494,8 @@ class AgentModule(Module):
             tool_invoker=tool_invoker,
             mcp_factory=mcp_factory,
             tool_error_renderer=tool_error_renderer,
+            tool_resolver=tool_resolver,
+            tool_registrar=tool_registrar,
         )
 
 

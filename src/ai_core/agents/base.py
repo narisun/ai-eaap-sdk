@@ -52,12 +52,8 @@ from ai_core.exceptions import (
     ToolValidationError,
 )
 from ai_core.mcp.prompts import MCPPrompt, MCPPromptArgument, MCPPromptMessage
-from ai_core.mcp.resolver import (
-    is_method_not_found,
-    resolve_mcp_resources,
-    resolve_mcp_tools,
-)
-from ai_core.mcp.tools import MCPResourceSpec, MCPToolSpec
+from ai_core.mcp.resolver import is_method_not_found
+from ai_core.mcp.tools import MCPToolSpec
 from ai_core.mcp.transports import MCPServerSpec  # noqa: TC001
 from ai_core.observability.logging import bind_context, get_logger, unbind_context
 from ai_core.tools.spec import Tool, ToolSpec
@@ -170,10 +166,11 @@ class BaseAgent(ABC):
 
         sdk_tools = [t for t in self.tools() if isinstance(t, ToolSpec)]
 
-        # Phase 2: auto-register each ToolSpec with the SchemaRegistry so that
+        # Auto-register each local ToolSpec via the injected registrar so
         # `app.register_tools(*specs)` is optional. Idempotent — re-compile is fine.
-        for spec in sdk_tools:
-            self._runtime.tool_invoker.register(spec)
+        # The registrar is the single seam for hosts that want to gate
+        # registration (e.g. by tenant or feature flag).
+        self._runtime.tool_registrar.register_all(sdk_tools)
 
         install_loop = self.auto_tool_loop and (bool(sdk_tools) or bool(list(self.mcp_servers())))
 
@@ -399,47 +396,23 @@ class BaseAgent(ABC):
     async def _all_tools(self) -> list[Tool | Mapping[str, Any]]:
         """Return the merged list of local + resolved MCP tools + resources.
 
-        Lazily resolves MCP servers on the first call; caches per-instance.
-        Concurrent first-turn callers serialize on `_mcp_resolution_lock`.
+        Resolution and conflict detection are delegated to the injected
+        :class:`IToolResolver`; the agent only retains the per-instance
+        cache and the local-tools merge.
 
         Raises:
             MCPTransportError: When a declared MCP server is unreachable.
             RegistryError: When MCP names conflict with each other or with
-                local @tool names. Conflicts span tools-vs-tools, tools-vs-resources,
-                and any of those vs local @tools.
+                local @tool names.
         """
         if self._mcp_resolved is None:
             async with self._mcp_resolution_lock:
                 if self._mcp_resolved is None:
-                    servers = list(self.mcp_servers())
-                    if servers:
-                        tools_resolved = await resolve_mcp_tools(servers, self._runtime.mcp_factory)
-                        resources_resolved = await resolve_mcp_resources(servers, self._runtime.mcp_factory)
-                        resolved: list[MCPToolSpec] = (
-                            list(tools_resolved) + list(resources_resolved)
-                        )
-                    else:
-                        resolved = []
-                    local_names = {
-                        t.name for t in self.tools() if isinstance(t, ToolSpec)
-                    }
-                    mcp_names_seen: set[str] = set()
-                    for mcp_spec in resolved:
-                        if mcp_spec.name in local_names:
-                            kind = "resource" if isinstance(mcp_spec, MCPResourceSpec) else "tool"
-                            raise RegistryError(
-                                f"MCP {kind} name {mcp_spec.name!r} conflicts with a local tool",
-                                details={"tool": mcp_spec.name},
-                            )
-                        if mcp_spec.name in mcp_names_seen:
-                            raise RegistryError(
-                                f"MCP name {mcp_spec.name!r} appears in both tools and resources "
-                                f"on declared servers",
-                                details={"name": mcp_spec.name},
-                            )
-                        mcp_names_seen.add(mcp_spec.name)
-                        self._runtime.tool_invoker.register(mcp_spec)
-                    self._mcp_resolved = resolved
+                    resolved = await self._runtime.tool_resolver.resolve(
+                        local_tools=self.tools(),
+                        mcp_servers=self.mcp_servers(),
+                    )
+                    self._mcp_resolved = list(resolved)
         return list(self.tools()) + list(self._mcp_resolved)
 
     async def list_prompts(self) -> list[MCPPrompt]:

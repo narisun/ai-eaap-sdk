@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
     from ai_core.mcp.transports import IMCPConnectionFactory
     from ai_core.tools.invoker import ToolInvoker
+    from ai_core.tools.registrar import ToolRegistrar
+    from ai_core.tools.resolver import IToolResolver
 
     # IMemoryManager and IToolErrorRenderer live in sibling modules under
     # ai_core.agents.* — declared lazily here to avoid the import cycles that
@@ -64,6 +66,12 @@ class AgentRuntime:
         tool_error_renderer: Strategy that turns tool-dispatch failures
             into ``ToolMessage`` instances for the next LLM turn. Override
             via DI for strict-failure semantics or localized text.
+        tool_resolver: Strategy for resolving an agent's local tools and
+            declared MCP servers into a single dispatchable list. Default
+            implementation reproduces pre-v1 behaviour.
+        tool_registrar: Strategy for registering local :class:`ToolSpec`
+            instances with the invoker at compile time. Extracted from
+            :meth:`BaseAgent.compile` so graph construction stays pure.
     """
 
     agent_settings: AgentSettings
@@ -73,6 +81,8 @@ class AgentRuntime:
     tool_invoker: ToolInvoker
     mcp_factory: IMCPConnectionFactory
     tool_error_renderer: IToolErrorRenderer
+    tool_resolver: IToolResolver
+    tool_registrar: ToolRegistrar
 
 
 __all__ = ["AgentRuntime"]
