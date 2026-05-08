@@ -17,7 +17,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeVar
 
 from ai_core.config.secrets import EnvSecretManager, ISecretManager
-from ai_core.config.settings import AppSettings, get_settings
+from ai_core.config.settings import AppSettings
 from ai_core.di.container import Container
 from ai_core.di.interfaces import IObservabilityProvider, IPolicyEvaluator
 from ai_core.di.module import AgentModule
@@ -87,8 +87,9 @@ class AICoreApp:
     """Lifecycle facade for an SDK consumer.
 
     Args:
-        settings: Optional pre-built :class:`AppSettings`. When omitted, settings
-            are loaded lazily via :func:`ai_core.config.settings.get_settings`.
+        settings: Optional pre-built :class:`AppSettings`. When omitted, a
+            fresh :class:`AppSettings` is constructed on entry (Pydantic
+            Settings reads env / YAML / defaults at construction).
         modules: Extra DI modules layered after :class:`AgentModule`. Useful for
             tests (fake providers) and for production overrides (custom
             ``ISecretManager``, alternative ``IPolicyEvaluator``).
@@ -121,7 +122,7 @@ class AICoreApp:
 
     # ----- Lifecycle ----------------------------------------------------------
     async def __aenter__(self) -> AICoreApp:
-        self._settings = self._user_settings or get_settings()
+        self._settings = self._user_settings or AppSettings()
         self._secret_manager = self._user_secret_manager or EnvSecretManager()
         # Fail fast — collect-all validation surfaces every issue at once.
         self._settings.validate_for_runtime(secret_manager=self._secret_manager)

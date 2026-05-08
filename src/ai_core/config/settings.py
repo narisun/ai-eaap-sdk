@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import enum
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -612,19 +611,10 @@ class AppSettings(BaseSettings):
         )
 
 
-# ---------------------------------------------------------------------------
-# Accessor — used by the DI container only; never read directly elsewhere.
-# ---------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def get_settings() -> AppSettings:
-    """Return a process-wide cached :class:`AppSettings` instance.
-
-    The cache is populated on first access and is intentionally process-scoped;
-    tests should call :func:`get_settings.cache_clear` between cases or — better —
-    inject an ``AppSettings`` override through the DI container instead of
-    relying on this accessor.
-
-    Returns:
-        A validated :class:`AppSettings` populated from the environment.
-    """
-    return AppSettings()
+# Note: there is intentionally no module-level ``get_settings()`` accessor.
+# Hosts construct :class:`AppSettings` directly (it reads env / YAML / defaults
+# via Pydantic Settings) or pass a pre-built instance to
+# :class:`ai_core.app.AICoreApp` / :class:`ai_core.di.AgentModule`. A process-
+# wide ``lru_cache`` global was removed in v1 so tests no longer have to call
+# ``cache_clear()`` between cases — the DI container is the only intended
+# sharing seam.
