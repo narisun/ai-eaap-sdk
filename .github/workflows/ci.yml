@@ -1,0 +1,140 @@
+name: CI
+
+# Gate every PR and push-to-main on the same quality bars we shipped v1.0.1
+# under: pytest (matrix), ruff, mypy strict, and a wheel-build smoke test
+# that pins the lazy-import contract from tests/contract/test_lazy_imports.py.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs when new commits land on the same PR / branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        # Skip the integration tests by default; they require Docker
+        # (Postgres / OPA testcontainers) which the CI runner doesn't expose.
+        run: pytest -q --no-header -m "not integration"
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install ruff
+        # Pin to the same minimum the project declares so this job mirrors
+        # what local dev sees with `pip install -e .[dev]`.
+        run: pip install "ruff>=0.4.0"
+
+      - name: Ruff check
+        run: ruff check src tests
+
+  typecheck:
+    name: mypy strict
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        # mypy needs the full dependency graph to resolve types from extras
+        # and pyproject.mypy.overrides; install with [dev] so behaviour
+        # matches local `mypy src` runs.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Mypy
+        run: mypy src
+
+  build:
+    name: build + lazy-import smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install build frontend
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      - name: Smoke-test wheel in a clean venv (no extras)
+        # Pins the v1.0 promise: a base install must succeed without
+        # litellm / langfuse / fastmcp, and `import ai_core` must not pull
+        # any of them into sys.modules.
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet dist/ai_eaap_sdk-*.whl
+          /tmp/smoke/bin/python - <<'PY'
+          import sys
+          import ai_core
+          for extra in ("litellm", "langfuse", "fastmcp"):
+              assert extra not in sys.modules, (
+                  f"`import ai_core` pulled in {extra!r} — "
+                  "lazy-import contract violated"
+              )
+          print(f"OK: ai_core {ai_core.__version__} loaded without extras")
+          PY
+
+      - name: Upload dist artifacts
+        # Makes the wheel + sdist downloadable from every CI run, useful
+        # for verifying release candidates before tagging.
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          retention-days: 14
