@@ -33,7 +33,6 @@ history and compaction would grow tokens instead of compressing them.
 from __future__ import annotations
 
 import asyncio
-from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
@@ -107,8 +106,9 @@ def _format_essential_entities(entities: Mapping[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 # IMemoryManager
 # ---------------------------------------------------------------------------
-class IMemoryManager(ABC):
-    """Abstract contract for agent memory management.
+@runtime_checkable
+class IMemoryManager(Protocol):
+    """Structural contract for agent memory management.
 
     Implementations decide *when* to compact (`should_compact`) and
     *how* (`compact`). The default :class:`MemoryManager` runs a
@@ -117,11 +117,10 @@ class IMemoryManager(ABC):
     binding in the host's DI module.
     """
 
-    @abstractmethod
     def should_compact(self, state: AgentState, *, model: str | None = None) -> bool:
         """Return ``True`` when the state should be compacted before the next turn."""
+        ...
 
-    @abstractmethod
     async def compact(
         self,
         state: AgentState,
@@ -131,12 +130,13 @@ class IMemoryManager(ABC):
         agent_id: str | None = None,
     ) -> AgentState:
         """Return a new state with compressed history and Essential Entities preserved."""
+        ...
 
 
 # ---------------------------------------------------------------------------
 # MemoryManager
 # ---------------------------------------------------------------------------
-class MemoryManager(IMemoryManager):
+class MemoryManager:  # implements IMemoryManager Protocol structurally
     """Default :class:`IMemoryManager` — summarisation-chain based.
 
     Args:

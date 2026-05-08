@@ -12,7 +12,7 @@ its failure must not block the calling pipeline.
 from __future__ import annotations
 
 import enum
-from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -87,7 +87,8 @@ class AuditRecord:
         )
 
 
-class IAuditSink(ABC):
+@runtime_checkable
+class IAuditSink(Protocol):
     """Durable record of policy and tool events.
 
     Implementations MUST:
@@ -97,13 +98,13 @@ class IAuditSink(ABC):
     * make :meth:`flush` idempotent (called by Container.stop at shutdown).
     """
 
-    @abstractmethod
     async def record(self, record: AuditRecord) -> None:
         """Persist a single audit record. Best-effort; never raises."""
+        ...
 
-    @abstractmethod
     async def flush(self) -> None:
         """Flush any buffered records. Idempotent."""
+        ...
 
 
 __all__ = [

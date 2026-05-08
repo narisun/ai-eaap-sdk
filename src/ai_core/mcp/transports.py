@@ -21,11 +21,10 @@ Note:
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -64,12 +63,13 @@ class MCPServerSpec:
     opa_decision_path: str | None = None
 
 
-class IMCPConnectionFactory(ABC):
+@runtime_checkable
+class IMCPConnectionFactory(Protocol):
     """Open FastMCP connections from an :class:`MCPServerSpec`."""
 
-    @abstractmethod
     def open(self, spec: MCPServerSpec) -> AbstractAsyncContextManager[Any]:
         """Return an async context manager yielding a connected MCP client."""
+        ...
 
 
 class PoolingMCPConnectionFactory(IMCPConnectionFactory):

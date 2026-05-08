@@ -118,7 +118,9 @@ class Container:
         """
         try:
             return self.injector.get(interface)
-        except (UnsatisfiedRequirement, CallError) as exc:
+        except (UnsatisfiedRequirement, CallError, TypeError) as exc:
+            # TypeError covers Protocols (auto_bind tries to instantiate) and
+            # any other type that refuses construction.
             raise DependencyResolutionError(
                 f"Cannot resolve binding for {interface!r}",
                 details={"interface": getattr(interface, "__qualname__", str(interface))},
@@ -129,7 +131,7 @@ class Container:
         """Return ``True`` if a binding for ``interface`` is registered."""
         try:
             self.injector.get(interface)
-        except (UnsatisfiedRequirement, CallError):
+        except (UnsatisfiedRequirement, CallError, TypeError):
             return False
         return True
 
@@ -214,7 +216,7 @@ class Container:
         for label, interface, method_names in steps:
             try:
                 target = self.injector.get(interface)
-            except (UnsatisfiedRequirement, CallError):
+            except (UnsatisfiedRequirement, CallError, TypeError):
                 continue
             await self._call_optional_method(target, method_names, swallow=True, label=label)
 

@@ -12,24 +12,23 @@ written in a few lines.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, runtime_checkable
 
 
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
-class IStorageProvider(ABC):
+@runtime_checkable
+class IStorageProvider(Protocol):
     """Object-storage abstraction (S3, GCS, Azure Blob, local FS).
 
     Implementations are expected to be safe for concurrent use across
     coroutines and to perform their own connection pooling.
     """
 
-    @abstractmethod
     async def put_object(
         self,
         key: str,
@@ -49,22 +48,23 @@ class IStorageProvider(ABC):
         Returns:
             A backend-specific object identifier (e.g. ``s3://bucket/key``).
         """
+        ...
 
-    @abstractmethod
     async def get_object(self, key: str) -> bytes:
         """Return the raw bytes stored under ``key``.
 
         Raises:
             ai_core.exceptions.StorageError: If the object cannot be read.
         """
+        ...
 
-    @abstractmethod
     async def delete_object(self, key: str) -> None:
         """Remove the object stored under ``key``. Idempotent."""
+        ...
 
-    @abstractmethod
     async def list_objects(self, prefix: str) -> AsyncIterator[str]:
         """Yield object keys whose name starts with ``prefix``."""
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -85,14 +85,14 @@ class SpanContext:
     backend_handles: Mapping[str, Any]
 
 
-class IObservabilityProvider(ABC):
+@runtime_checkable
+class IObservabilityProvider(Protocol):
     """Span + trace + LLM-usage logging abstraction.
 
     A single provider fans out to OpenTelemetry **and** LangFuse so that
     instrumentation code stays vendor-agnostic.
     """
 
-    @abstractmethod
     def start_span(
         self,
         name: str,
@@ -108,8 +108,8 @@ class IObservabilityProvider(ABC):
         Returns:
             An async context manager yielding a :class:`SpanContext`.
         """
+        ...
 
-    @abstractmethod
     async def record_llm_usage(
         self,
         *,
@@ -121,8 +121,8 @@ class IObservabilityProvider(ABC):
         attributes: Mapping[str, Any] | None = None,
     ) -> None:
         """Emit a usage metric covering one LLM invocation."""
+        ...
 
-    @abstractmethod
     async def record_event(
         self,
         name: str,
@@ -130,10 +130,11 @@ class IObservabilityProvider(ABC):
         attributes: Mapping[str, Any] | None = None,
     ) -> None:
         """Emit an arbitrary structured event (audit, business signal)."""
+        ...
 
-    @abstractmethod
     async def shutdown(self) -> None:
         """Flush exporters and release resources."""
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +166,8 @@ class LLMResponse:
     ) = None  # None means upstream didn't report
 
 
-class ILLMClient(ABC):
+@runtime_checkable
+class ILLMClient(Protocol):
     """LiteLLM-backed completion client with budgeting + retries.
 
     Note:
@@ -174,7 +176,6 @@ class ILLMClient(ABC):
         :class:`IBudgetService` precheck.
     """
 
-    @abstractmethod
     async def complete(
         self,
         *,
@@ -206,6 +207,7 @@ class ILLMClient(ABC):
             ai_core.exceptions.BudgetExceededError: If the budget precheck fails.
             ai_core.exceptions.LLMInvocationError: On retry exhaustion.
         """
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -221,10 +223,10 @@ class BudgetCheck:
     reason: str | None = None
 
 
-class IBudgetService(ABC):
+@runtime_checkable
+class IBudgetService(Protocol):
     """Per-tenant / per-agent quota enforcement."""
 
-    @abstractmethod
     async def check(
         self,
         *,
@@ -233,8 +235,8 @@ class IBudgetService(ABC):
         estimated_tokens: int,
     ) -> BudgetCheck:
         """Return whether the projected request fits within remaining quota."""
+        ...
 
-    @abstractmethod
     async def record_usage(
         self,
         *,
@@ -245,6 +247,7 @@ class IBudgetService(ABC):
         cost_usd: float,
     ) -> None:
         """Persist actual usage after a successful LLM call."""
+        ...
 
 
 # ---------------------------------------------------------------------------
@@ -259,10 +262,10 @@ class PolicyDecision:
     reason: str | None = None
 
 
-class IPolicyEvaluator(ABC):
+@runtime_checkable
+class IPolicyEvaluator(Protocol):
     """OPA-backed authorisation evaluator."""
 
-    @abstractmethod
     async def evaluate(
         self,
         *,
@@ -270,15 +273,16 @@ class IPolicyEvaluator(ABC):
         input: Mapping[str, Any],
     ) -> PolicyDecision:
         """Submit ``input`` to OPA and return the decision document."""
+        ...
 
 
 # ---------------------------------------------------------------------------
 # LangGraph checkpointing
 # ---------------------------------------------------------------------------
-class ICheckpointSaver(ABC):
+@runtime_checkable
+class ICheckpointSaver(Protocol):
     """Persist + restore LangGraph state across runs."""
 
-    @abstractmethod
     async def save(
         self,
         *,
@@ -287,8 +291,8 @@ class ICheckpointSaver(ABC):
         payload: Mapping[str, Any],
     ) -> None:
         """Persist a serialised LangGraph checkpoint."""
+        ...
 
-    @abstractmethod
     async def load(
         self,
         *,
@@ -296,10 +300,11 @@ class ICheckpointSaver(ABC):
         checkpoint_id: str | None = None,
     ) -> Mapping[str, Any] | None:
         """Return the latest (or named) checkpoint, or ``None`` if absent."""
+        ...
 
-    @abstractmethod
     async def list(self, *, thread_id: str, limit: int = 10) -> Sequence[str]:
         """Return up to ``limit`` checkpoint ids for ``thread_id`` (newest first)."""
+        ...
 
 
 # ---------------------------------------------------------------------------
