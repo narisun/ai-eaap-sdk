@@ -166,6 +166,44 @@ class LLMResponse:
     ) = None  # None means upstream didn't report
 
 
+@dataclass(frozen=True, slots=True)
+class LLMStreamChunk:
+    """Incremental delta produced by :meth:`ILLMClient.astream`.
+
+    A streaming response is a sequence of :class:`LLMStreamChunk` objects
+    followed by a terminal chunk whose ``finish_reason`` is non-``None``.
+    The terminal chunk also carries final ``usage`` if the upstream
+    provider reports it; otherwise ``usage`` is ``None`` on every chunk
+    and host code derives it from running totals.
+
+    Attributes:
+        model: Resolved model identifier (matches :attr:`LLMResponse.model`).
+        delta_content: Text fragment to append to the running assistant
+            message. Empty string is valid (e.g. tool-call-only chunk).
+        delta_tool_calls: Partial tool-call records — providers stream
+            these as fragmentary JSON; merging is the caller's
+            responsibility (see ``ai_core.llm._stream_merge`` for a
+            reference implementation).
+        finish_reason: ``None`` until the terminal chunk; matches the
+            same shape as :attr:`LLMResponse.finish_reason`.
+        usage: Final usage tally on the terminal chunk only; ``None``
+            on every other chunk.
+        raw: Provider-native chunk payload, retained for callers that
+            need fields the SDK does not normalise yet.
+    """
+
+    model: str
+    delta_content: str
+    delta_tool_calls: Sequence[Mapping[str, Any]]
+    finish_reason: (
+        Literal["stop", "length", "tool_calls", "content_filter", "function_call"]
+        | str
+        | None
+    ) = None
+    usage: LLMUsage | None = None
+    raw: Mapping[str, Any] | None = None
+
+
 @runtime_checkable
 class ICompactionLLM(Protocol):
     """Distinct LLM client used by :class:`MemoryManager` for summarisation.
@@ -233,6 +271,42 @@ class ILLMClient(Protocol):
         Raises:
             ai_core.exceptions.BudgetExceededError: If the budget precheck fails.
             ai_core.exceptions.LLMInvocationError: On retry exhaustion.
+        """
+        ...
+
+    def astream(
+        self,
+        *,
+        model: str | None,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+        extra: Mapping[str, Any] | None = None,
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Stream a chat completion as an async iterator of deltas.
+
+        The terminal chunk carries the final ``finish_reason`` and, when
+        available, the final ``usage``. Non-terminal chunks always have
+        ``finish_reason=None`` and ``usage=None``.
+
+        Default implementations should still:
+
+        * run the same budget pre-check as :meth:`complete` (and raise
+          :class:`ai_core.exceptions.BudgetExceededError` before opening
+          the stream),
+        * record usage + cost when the terminal chunk arrives, and
+        * surface the same retry / timeout / API-error semantics as
+          :meth:`complete`.
+
+        Hosts that don't need streaming can leave this method
+        un-implemented; the SDK's default agent loop uses
+        :meth:`complete`.
+
+        Returns:
+            An async iterator of :class:`LLMStreamChunk` objects.
         """
         ...
 
@@ -358,6 +432,7 @@ __all__ = [
     "IPolicyEvaluator",
     "IStorageProvider",
     "LLMResponse",
+    "LLMStreamChunk",
     "LLMUsage",
     "PolicyDecision",
     "SpanContext",
