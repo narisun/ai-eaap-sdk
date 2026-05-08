@@ -65,6 +65,7 @@ from ai_core.persistence.langgraph_checkpoint import LangGraphCheckpointSaver
 from ai_core.schema.registry import SchemaRegistry
 from ai_core.security.jwt import JWTVerifier, UnverifiedJWTDecoder
 from ai_core.tools.invoker import ToolInvoker
+from ai_core.tools.middleware import ToolMiddleware  # noqa: TC001
 from ai_core.tools.registrar import ToolRegistrar
 from ai_core.tools.resolver import DefaultToolResolver, IToolResolver
 
@@ -408,6 +409,19 @@ class AgentModule(Module):
 
     # ----- Tool invoker -----------------------------------------------------
     @singleton
+    @multiprovider
+    def provide_tool_middlewares(self) -> list[ToolMiddleware]:
+        """Default contribution to the :class:`ToolMiddleware` multibind.
+
+        Returns an empty list so the default :class:`ToolInvoker`
+        pipeline runs unwrapped — byte-identical to pre-v1 behaviour.
+        Hosts add their own middlewares by including a :class:`Module`
+        whose ``@multiprovider`` returns a non-empty list; injector
+        concatenates the lists in module-registration order.
+        """
+        return []
+
+    @singleton
     @provider
     def provide_tool_invoker(
         self,
@@ -416,6 +430,7 @@ class AgentModule(Module):
         registry: SchemaRegistry,
         audit: IAuditSink,
         redactor: PayloadRedactor,
+        middlewares: list[ToolMiddleware],
     ) -> ToolInvoker:
         """Return the singleton :class:`ToolInvoker` wired to the SDK's services."""
         return ToolInvoker(
@@ -424,6 +439,7 @@ class AgentModule(Module):
             registry=registry,
             audit=audit,
             redactor=redactor,
+            middlewares=middlewares,
         )
 
     # ----- Tool error renderer ---------------------------------------------
