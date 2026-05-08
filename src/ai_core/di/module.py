@@ -407,7 +407,26 @@ class AgentModule(Module):
         llm_settings: LLMSettings,
         engine: AsyncEngine,
     ) -> list[IHealthProbe]:
-        """Default health-probe set. Override in a custom module to add probes."""
+        """Default health-probe set.
+
+        :class:`injector.Module` ``@multiprovider`` semantics allow hosts to
+        **add** probes by including an extra :class:`Module` that also
+        contributes a ``list[IHealthProbe]``. The lists are concatenated;
+        no override of this provider is required.
+
+        Example — register an extra probe alongside the defaults::
+
+            class ExtraProbes(Module):
+                @multiprovider
+                def provide_extra(self) -> list[IHealthProbe]:
+                    return [VectorDBProbe(), KafkaProbe()]
+
+            async with AICoreApp(modules=[ExtraProbes()]) as app:
+                ...
+
+        For a one-off addition without authoring a Module, use
+        :py:meth:`AICoreApp.add_health_probe`.
+        """
         from ai_core.health.probes import (  # noqa: PLC0415
             DatabaseProbe,
             ModelLookupProbe,

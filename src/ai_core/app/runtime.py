@@ -166,6 +166,20 @@ class AICoreApp:
         """
         self._require_container().register_agent(cls)
 
+    def add_health_probe(self, probe: IHealthProbe) -> None:
+        """Append an extra health probe to the live container.
+
+        Convenience for hosts that want to register a probe without
+        authoring a small :class:`Module`. The probe is included in
+        every subsequent :py:meth:`health` snapshot.
+
+        Args:
+            probe: An :class:`IHealthProbe` instance with a ``component``
+                identifier.
+        """
+        existing = self._require_container().get(list[IHealthProbe])
+        existing.append(probe)
+
     def register_tools(self, *specs: ToolSpec) -> None:
         """Register one or more :class:`ToolSpec` with the SDK's SchemaRegistry.
 
