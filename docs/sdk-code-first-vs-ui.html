@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ai-core-sdk · How Business AI teams ship agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..125,300..800&family=Fraunces:opsz,wght,SOFT,WONK@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800,0,1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --paper:    #f4ede0;
+    --paper-2:  #ece3cf;
+    --ink:      #16130d;
+    --ink-2:    #2a2519;
+    --ink-3:    #5e5644;
+    --rule:     #c4b89c;
+    --rule-2:   #8a7e62;
+    --signal:   #c95629;
+    --signal-2: #e3835a;
+    --steel:    #2c5163;
+    --copper:   #b8732d;
+    --sage:     #4f6a44;
+    --brick:    #8d3a26;
+  }
+
+  html, body {
+    background: var(--ink);
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-variation-settings: "opsz" 14, "wdth" 100, "wght" 400;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 64px 80px;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    margin: 24px auto;
+    background-image:
+      radial-gradient(circle at 8% 6%, rgba(44,81,99,0.04), transparent 38%),
+      radial-gradient(circle at 94% 96%, rgba(184,115,45,0.04), transparent 36%),
+      repeating-linear-gradient(
+        0deg, transparent 0,
+        transparent 39px,
+        rgba(22,19,13,0.022) 39px,
+        rgba(22,19,13,0.022) 40px);
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  .slide::before, .slide::after {
+    content: "";
+    position: absolute; width: 18px; height: 18px;
+    border: 1.5px solid var(--ink);
+  }
+  .slide::before { top: 28px; left: 28px; border-right: none; border-bottom: none; }
+  .slide::after  { bottom: 28px; right: 28px; border-left: none; border-top: none; }
+
+  .topbar {
+    position: absolute;
+    top: 28px; left: 64px; right: 64px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .topbar .signal { color: var(--signal); }
+  .botbar {
+    position: absolute;
+    bottom: 28px; left: 64px; right: 64px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .botbar .product { color: var(--ink); font-weight: 500; }
+
+  .mono { font-family: "JetBrains Mono", monospace; font-feature-settings: "ss01","ss02"; }
+
+  /* COVER */
+  .slide.cover {
+    padding: 110px 100px 80px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(201,86,41,0.10), transparent 50%),
+      radial-gradient(circle at 95% 95%, rgba(44,81,99,0.10), transparent 45%),
+      linear-gradient(180deg, var(--paper), var(--paper-2));
+  }
+  .cover .label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--signal); margin-bottom: 12px;
+  }
+  .cover h1 {
+    font-variation-settings: "opsz" 96, "wdth" 80, "wght" 720;
+    font-size: 138px; line-height: 0.92; letter-spacing: -0.028em;
+    color: var(--ink); margin-bottom: 28px; max-width: 1100px;
+  }
+  .cover h1 .it {
+    font-style: italic; font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 720;
+    color: var(--signal);
+  }
+  .cover .lede {
+    font-size: 28px; line-height: 1.32; color: var(--ink-2);
+    max-width: 820px; font-variation-settings: "opsz" 28, "wdth" 100, "wght" 380;
+    margin-bottom: 64px;
+  }
+  .cover .meta {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-top: 2px solid var(--ink); padding-top: 18px; width: 100%;
+  }
+  .cover .meta .left .id {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.2em; color: var(--signal);
+  }
+  .cover .meta .left .audience {
+    font-size: 18px; margin-top: 6px; color: var(--ink);
+    font-variation-settings: "wdth" 96, "wght" 500;
+  }
+  .cover .meta .right {
+    text-align: right; font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em; color: var(--ink-3); line-height: 1.7;
+  }
+
+  /* HEADINGS */
+  .slide .section-num {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.22em; color: var(--signal);
+    margin-bottom: 12px; margin-top: 32px;
+  }
+  .slide h2 {
+    font-variation-settings: "opsz" 96, "wdth" 86, "wght" 700;
+    font-size: 72px; line-height: 1.0; letter-spacing: -0.02em;
+    color: var(--ink); margin-bottom: 16px; max-width: 22ch;
+  }
+  .slide h2 em {
+    font-style: italic; font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 700;
+    color: var(--signal);
+  }
+  .slide h2.small { font-size: 60px; max-width: 26ch; }
+  .slide .sub {
+    font-size: 22px; color: var(--ink-2); max-width: 80ch;
+    margin-bottom: 28px; font-variation-settings: "wdth" 100, "wght" 380; line-height: 1.4;
+  }
+  .slide .sub strong { color: var(--ink); font-weight: 600; }
+
+  /* EVIDENCE GRID */
+  .evidence {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px;
+    margin-top: 22px;
+  }
+  .evidence .card {
+    border-top: 3px solid var(--ink); padding: 18px 0 0 0;
+  }
+  .evidence .card.jpm { border-top-color: var(--steel); }
+  .evidence .card.gs  { border-top-color: var(--signal); }
+  .evidence .card.bny { border-top-color: var(--copper); }
+  .evidence .card.lc  { border-top-color: var(--sage); }
+  .evidence .card.ms  { border-top-color: var(--brick); }
+  .evidence .card.gartner { border-top-color: var(--ink-3); }
+  .evidence .card .who {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 6px;
+  }
+  .evidence .card h4 {
+    font-variation-settings: "opsz" 36, "wdth" 88, "wght" 700;
+    font-size: 24px; color: var(--ink); margin-bottom: 10px;
+    letter-spacing: -0.01em; line-height: 1.05;
+  }
+  .evidence .card p {
+    font-size: 14.5px; line-height: 1.45; color: var(--ink-2); margin-bottom: 8px;
+  }
+  .evidence .card .stat {
+    font-family: "Fraunces", Georgia, serif;
+    font-style: italic; font-weight: 600;
+    font-variation-settings: "opsz" 96, "SOFT" 100, "WONK" 1;
+    font-size: 36px; color: var(--signal); display: block; margin-bottom: 6px; line-height: 1;
+  }
+  .evidence .card a.cite {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px; letter-spacing: 0.12em; color: var(--steel);
+    text-decoration: none; border-bottom: 1px dotted var(--rule-2);
+    text-transform: uppercase;
+  }
+
+  /* TWOCOL */
+  .twocol {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 56px;
+    align-items: start; margin-top: 16px;
+  }
+  .twocol .col p {
+    font-size: 18px; line-height: 1.5; color: var(--ink-2); margin-bottom: 12px;
+  }
+  .twocol .col p strong { color: var(--ink); }
+  .twocol .col h3 {
+    font-variation-settings: "opsz" 36, "wdth" 92, "wght" 640;
+    font-size: 26px; color: var(--ink); margin-bottom: 12px; letter-spacing: -0.012em;
+  }
+  .twocol .col.steel h3 { color: var(--steel); }
+  .twocol .col.copper h3 { color: var(--copper); }
+  .twocol .col.signal h3 { color: var(--signal); }
+
+  /* CODE BLOCK */
+  .codeblock {
+    background: var(--ink); color: var(--paper);
+    border-radius: 6px; padding: 22px 26px; margin-top: 16px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13.5px; line-height: 1.6;
+    box-shadow: 0 8px 24px rgba(22,19,13,0.18);
+    position: relative;
+  }
+  .codeblock::before {
+    content: "ai_core/tools/order_lookup.py";
+    position: absolute; top: -10px; left: 22px;
+    background: var(--paper); color: var(--ink-3);
+    padding: 0 10px;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .codeblock .k { color: #e3835a; }
+  .codeblock .s { color: #b6c98a; }
+  .codeblock .c { color: #8a7e62; font-style: italic; }
+  .codeblock .d { color: #6ab0c0; }
+  .codeblock .n { color: #f4ede0; }
+
+  /* BENEFITS LIST */
+  .benefits {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 56px;
+    margin-top: 6px; counter-reset: bb;
+  }
+  .benefits .item {
+    counter-increment: bb;
+    display: grid; grid-template-columns: 40px 1fr; gap: 14px;
+    padding: 10px 0; border-bottom: 1px solid var(--rule);
+  }
+  .benefits .item::before {
+    content: counter(bb, decimal-leading-zero);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px; letter-spacing: 0.16em; color: var(--steel);
+    align-self: baseline; padding-top: 4px;
+  }
+  .benefits .item .name {
+    font-variation-settings: "opsz" 28, "wdth" 92, "wght" 640;
+    font-size: 18px; color: var(--ink); line-height: 1.15; letter-spacing: -0.005em;
+  }
+  .benefits .item .desc {
+    font-size: 13.5px; color: var(--ink-3); margin-top: 3px; line-height: 1.4;
+  }
+  .benefits .item .desc a {
+    color: var(--steel); text-decoration: none; border-bottom: 1px dotted var(--rule-2);
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+  }
+
+  /* CALLOUT */
+  .callout {
+    margin-top: 18px; padding: 16px 22px;
+    border: 1.5px solid var(--ink); background: rgba(201,86,41,0.05);
+    font-size: 18px; line-height: 1.45; color: var(--ink); max-width: 96ch;
+  }
+  .callout strong { color: var(--signal); }
+
+  /* CLOSING */
+  .slide.closing {
+    background:
+      radial-gradient(circle at 14% 12%, rgba(201,86,41,0.10), transparent 48%),
+      radial-gradient(circle at 88% 92%, rgba(44,81,99,0.10), transparent 45%),
+      linear-gradient(180deg, var(--paper-2), var(--paper));
+  }
+  .closing h1 {
+    font-variation-settings: "opsz" 144, "wdth" 80, "wght" 720;
+    font-size: 124px; line-height: 0.92; letter-spacing: -0.025em;
+    color: var(--ink); margin-top: 70px; margin-bottom: 36px;
+  }
+  .closing h1 em {
+    font-style: italic; font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1, "wght" 720;
+    color: var(--signal);
+  }
+  .closing .sub {
+    font-size: 22px; color: var(--ink-2); max-width: 90ch;
+    margin-bottom: 28px; line-height: 1.4;
+  }
+  .closing .sub strong { color: var(--ink); }
+
+  /* SOURCES */
+  .sources {
+    margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule);
+    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    color: var(--ink-3); line-height: 1.65;
+    columns: 2; column-gap: 36px;
+  }
+  .sources strong {
+    color: var(--ink); letter-spacing: 0.14em;
+    display: block; margin-bottom: 6px; column-span: all;
+  }
+  .sources a { color: var(--steel); text-decoration: none; border-bottom: 1px dotted var(--rule-2); }
+  .sources li { list-style: none; margin: 3px 0; break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- ═════════════════ SLIDE 01 · COVER ═════════════════ -->
+<div class="slide cover">
+  <div class="topbar">
+    <span><span class="signal">EAAP</span> · BUSINESS AI TEAM</span>
+    <span>POSITION PAPER · v1.0</span>
+  </div>
+
+  <div class="label">CODE-FIRST AGENTIC AI · INDUSTRY ALIGNMENT</div>
+  <h1>How Business AI<br>teams <span class="it">ship agents.</span></h1>
+  <p class="lede">A typed Python SDK is how every major bank already builds production agents — and how our data scientists already build everything else.</p>
+
+  <div class="meta">
+    <div class="left">
+      <div class="id">DOC-POS-002 · MAY 2026</div>
+      <div class="audience">Prepared for Business AI leadership</div>
+    </div>
+    <div class="right">
+      <div>ai-core-sdk · v0.1</div>
+      <div>5 slides · 8 min read</div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <span class="product">ai-core-sdk</span>
+    <span>01 / 05</span>
+  </div>
+</div>
+
+<!-- ═════════════════ SLIDE 02 · INDUSTRY EVIDENCE ═════════════════ -->
+<div class="slide">
+  <div class="topbar"><span>§ 01 · WHAT THE INDUSTRY DOES</span><span>02 / 05</span></div>
+  <div class="section-num">§ 01 · INDUSTRY EVIDENCE</div>
+  <h2 class="small">Every major bank ships agents in <em>code.</em></h2>
+  <p class="sub">Three of the largest, most-regulated buyers on Earth have spent three years moving agentic AI into production. Each one built an <strong>internal, code-first platform</strong>. The pattern is industry-wide and unambiguous.</p>
+
+  <div class="evidence">
+    <div class="card jpm">
+      <div class="who">JPMORGAN CHASE</div>
+      <h4>OmniAI · internal Python platform</h4>
+      <p><span class="stat">400+</span>production use cases on an internal platform; agents integrated into 80+ services for continuous component testing. ~$18B annual tech budget directs the substrate.</p>
+      <a class="cite" href="https://www.itbrew.com/stories/2026/02/05/chase-is-using-ai-agents">IT Brew · Feb 2026 →</a>
+    </div>
+    <div class="card gs">
+      <div class="who">GOLDMAN SACHS</div>
+      <h4>Co-engineered with Anthropic</h4>
+      <p><span class="stat">12,000</span>developers given Devin (autonomous coding agent). Six-month embedded engagement with Anthropic engineers to write agents. The artefact is a repo.</p>
+      <a class="cite" href="https://www.pymnts.com/artificial-intelligence-2/2026/goldman-sachs-lets-ai-agents-do-accounting-and-compliance-work/">PYMNTS · 2026 →</a>
+    </div>
+    <div class="card bny">
+      <div class="who">BNY MELLON</div>
+      <h4>Eliza 2.0 · multi-agent orchestration</h4>
+      <p><span class="stat">125</span>live use cases on a code-based orchestration platform. 20,000 employees consume the agents; a small platform team writes them in code.</p>
+      <a class="cite" href="https://openai.com/index/bny/">OpenAI case study →</a>
+    </div>
+    <div class="card lc">
+      <div class="who">OSS ECOSYSTEM</div>
+      <h4>LangGraph adoption across the sector</h4>
+      <p>Open-source code framework adopted by Citi, Wells Fargo, Capital One, BBVA, HSBC, CIBC, Bank of America, UBS, CommBank, Lloyds, NatWest. The substrate the industry standardised on is Python.</p>
+      <a class="cite" href="https://evidentinsights.com/bankingbrief/banks-go-agentic/">Evident · Banks Go Agentic →</a>
+    </div>
+    <div class="card ms">
+      <div class="who">PLATFORM VENDORS</div>
+      <h4>Microsoft &amp; Google ship code-first SDKs</h4>
+      <p>Microsoft Agent Framework and Google ADK are <em>code-first by design</em>. Microsoft's own architecture guidance: code-first delivers "granular control and multicloud flexibility."</p>
+      <a class="cite" href="https://techcommunity.microsoft.com/blog/azurearchitectureblog/building-ai-agents-workflow-first-vs-code-first-vs-hybrid/4466788">MS Azure Architecture →</a>
+    </div>
+    <div class="card gartner">
+      <div class="who">GARTNER · ANALYST DATA</div>
+      <h4>Where projects fail</h4>
+      <p><span class="stat">88%</span>of agent pilots never reach production. Top blockers: evaluation gaps (64%), governance friction (57%), reliability (51%) — all <strong>code-shaped</strong> problems.</p>
+      <a class="cite" href="https://www.gartner.com/en/newsroom/press-releases/2025-06-25-gartner-predicts-over-40-percent-of-agentic-ai-projects-will-be-canceled-by-end-of-2027">Gartner · 2025 →</a>
+    </div>
+  </div>
+
+  <div class="botbar"><span class="product">ai-core-sdk</span><span>02 / 05</span></div>
+</div>
+
+<!-- ═════════════════ SLIDE 03 · WHY IT FITS THE TEAM ═════════════════ -->
+<div class="slide">
+  <div class="topbar"><span>§ 02 · WHY IT FITS THE TEAM</span><span>03 / 05</span></div>
+  <div class="section-num">§ 02 · WHY CODE-FIRST FITS BUSINESS AI</div>
+  <h2 class="small">Business AI is already a <em>code-first</em> team.</h2>
+  <p class="sub">Data scientists already write Python every day. Their entire toolchain — modelling, experiments, features, pipelines — is code-first. An agentic SDK is one more <span class="mono">import</span>, not a new paradigm.</p>
+
+  <div class="twocol">
+    <div class="col copper">
+      <h3>The stack the team already uses</h3>
+      <p><strong>Modelling:</strong> pandas, scikit-learn, statsmodels, PyTorch, JAX. Notebook-first, then packaged.</p>
+      <p><strong>Lifecycle:</strong> MLflow / Weights &amp; Biases for experiments, Feast for features, Airflow / Dagster / Kubeflow for pipelines, FastAPI for serving. <em>All code-first.</em></p>
+      <p><strong>Cloud:</strong> Python SDKs from every cloud provider, every vector DB, every observability tool. A code-first agentic SDK fits this stack natively.</p>
+    </div>
+    <div class="col signal">
+      <h3>What an agent <em>is</em>, technically</h3>
+      <p>An agent is not a workflow. A workflow is a static DAG. An <strong>agent decides at runtime</strong> what to do next based on tokens it just emitted.</p>
+      <p>That decision logic — planning, tool selection, memory compaction, retry, refusal — is <em>conditions on state</em>, not edges on a canvas. It belongs in code.</p>
+      <p>This is why the OSS consensus — <a class="mono" style="color:var(--steel)" href="https://www.langchain.com/langgraph">LangGraph</a>, <a class="mono" style="color:var(--steel)" href="https://github.com/microsoft/agent-framework">MS Agent Framework</a>, <a class="mono" style="color:var(--steel)" href="https://cloud.google.com/blog/products/ai-machine-learning/introducing-gemini-enterprise-agent-platform">Google ADK</a> — is uniformly code-first.</p>
+    </div>
+  </div>
+
+  <div class="callout"><strong>The fit is direct.</strong> A typed Python library compounds with everything the Business AI team already knows: testing in <span class="mono">pytest</span>, packaging in <span class="mono">pyproject.toml</span>, shipping in containers, observing in OpenTelemetry. Nothing new to learn that isn't agent-specific.</div>
+
+  <div class="botbar"><span class="product">ai-core-sdk</span><span>03 / 05</span></div>
+</div>
+
+<!-- ═════════════════ SLIDE 04 · WHAT THE SDK GIVES YOU ═════════════════ -->
+<div class="slide">
+  <div class="topbar"><span>§ 03 · WHAT THE SDK GIVES YOU</span><span>04 / 05</span></div>
+  <div class="section-num">§ 03 · CONCRETELY</div>
+  <h2 class="small">Eight lines. <em>Every</em> enterprise concern, wired.</h2>
+  <p class="sub">A registered, schema-validated, audit-emitting, policy-checked, budget-tracked tool — with input/output models, version pinning, and JSON-Schema export — is one decorator away.</p>
+
+<pre class="codeblock">
+<span class="d">@tool</span>(<span class="n">name</span>=<span class="s">"order_lookup"</span>, <span class="n">version</span>=<span class="s">2</span>)
+<span class="k">async def</span> <span class="n">order_lookup</span>(<span class="n">payload</span>: <span class="n">OrderLookupIn</span>) -> <span class="n">OrderLookupOut</span>:
+    <span class="c"># Pydantic-validated I/O. Span + audit + budget + policy fire automatically.</span>
+    <span class="n">order</span> = <span class="k">await</span> <span class="n">orders_service</span>.<span class="n">get</span>(<span class="n">payload</span>.<span class="n">order_id</span>, <span class="n">tenant_id</span>=<span class="n">payload</span>.<span class="n">tenant_id</span>)
+    <span class="k">return</span> <span class="n">OrderLookupOut</span>.<span class="n">model_validate</span>(<span class="n">order</span>)
+</pre>
+
+  <div class="benefits">
+    <div class="item"><div><div class="name">Typed tool contracts &amp; schema versioning</div><div class="desc">Pydantic models keyed by <span class="mono">(name, version)</span>; JSON Schema export for cross-language clients. <a href="https://docs.pydantic.dev/">pydantic.dev</a></div></div></div>
+    <div class="item"><div><div class="name">Deterministic tests in CI without a live cluster</div><div class="desc">DI-injected fakes for LLM, OPA, MCP, storage. <span class="mono">pytest</span> + golden replays. No vendor runtime required.</div></div></div>
+    <div class="item"><div><div class="name">OpenTelemetry traces &amp; metrics by default</div><div class="desc">Every LLM call, tool call, and policy decision emits a span. Joins the bank's existing OTel stack. <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">OTel GenAI semconv</a></div></div></div>
+    <div class="item"><div><div class="name">Policy-as-code via OPA / Rego</div><div class="desc">Authorization is a versioned, reviewable artefact — not a vendor checkbox. Fail-closed by default. <a href="https://www.openpolicyagent.org/">openpolicyagent.org</a></div></div></div>
+    <div class="item"><div><div class="name">Per-tenant budget &amp; cost attribution</div><div class="desc">Token + USD limits enforced before every LLM call; usage recorded after. Refund hooks on failure.</div></div></div>
+    <div class="item"><div><div class="name">Audit trail with PII redaction</div><div class="desc">Every prompt, tool call, and policy decision audited; configurable redaction profile for regulated payloads.</div></div></div>
+    <div class="item"><div><div class="name">Vendor portability via ABCs</div><div class="desc">Swap LiteLLM → Bedrock, OPA → Cedar, Postgres → DynamoDB by changing one DI binding. No agent rewrites.</div></div></div>
+    <div class="item"><div><div class="name">Reviewable in PRs · reproducible from a SHA</div><div class="desc">Every change is a commit; every commit has an author, reviewer, CI run. Regulators and auditors already speak this language.</div></div></div>
+  </div>
+
+  <div class="botbar"><span class="product">ai-core-sdk</span><span>04 / 05</span></div>
+</div>
+
+<!-- ═════════════════ SLIDE 05 · CLOSING ═════════════════ -->
+<div class="slide closing">
+  <div class="topbar"><span><span class="signal">EAAP</span> · BUSINESS AI TEAM</span><span>05 / 05</span></div>
+
+  <h1>The agent <em>is</em><br>a repository.</h1>
+
+  <p class="sub"><strong>What this means for the Business AI team:</strong> ship agents the same way the team already ships everything else — typed Python, scaffolded by <span class="mono">eaap init</span>, tested in <span class="mono">pytest</span>, deployed like any service, observed in the same OTel stack the bank already runs. We move at code velocity, not vendor-roadmap velocity. We share the stack with the rest of engineering. We stay aligned with how the industry has already chosen to build.</p>
+
+  <div class="sources">
+    <strong>SOURCES &amp; FURTHER READING</strong>
+    <ul>
+      <li><a href="https://www.itbrew.com/stories/2026/02/05/chase-is-using-ai-agents">JPMorgan Chase · OmniAI agentic adoption (IT Brew)</a></li>
+      <li><a href="https://www.pymnts.com/artificial-intelligence-2/2026/goldman-sachs-lets-ai-agents-do-accounting-and-compliance-work/">Goldman Sachs · Anthropic-embedded build (PYMNTS)</a></li>
+      <li><a href="https://lucidate.substack.com/p/goldman-sachs-scales-ai-coding-to">Goldman Sachs · Devin to 12k developers (Lucidate)</a></li>
+      <li><a href="https://openai.com/index/bny/">BNY Mellon · Eliza platform (OpenAI)</a></li>
+      <li><a href="https://www.startuphub.ai/ai-news/ai-video/2026/bny-mellon-scales-ai-literacy-the-20000-agent-strategy">BNY Mellon · Eliza 2.0 multi-agent (StartupHub)</a></li>
+      <li><a href="https://evidentinsights.com/bankingbrief/banks-go-agentic/">Evident Insights · Banks Go Agentic 2026</a></li>
+      <li><a href="https://techcommunity.microsoft.com/blog/azurearchitectureblog/building-ai-agents-workflow-first-vs-code-first-vs-hybrid/4466788">Microsoft Azure · Agent architecture guidance</a></li>
+      <li><a href="https://github.com/microsoft/agent-framework">Microsoft Agent Framework (GitHub)</a></li>
+      <li><a href="https://cloud.google.com/blog/products/ai-machine-learning/introducing-gemini-enterprise-agent-platform">Google · Gemini Enterprise Agent Platform &amp; ADK</a></li>
+      <li><a href="https://www.langchain.com/langgraph">LangGraph · agent orchestration framework</a></li>
+      <li><a href="https://www.gartner.com/en/newsroom/press-releases/2025-06-25-gartner-predicts-over-40-percent-of-agentic-ai-projects-will-be-canceled-by-end-of-2027">Gartner · 40% of agentic AI projects to be cancelled by 2027</a></li>
+      <li><a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">OpenTelemetry · GenAI semantic conventions</a></li>
+      <li><a href="https://www.openpolicyagent.org/">Open Policy Agent (OPA)</a></li>
+      <li><a href="https://docs.pydantic.dev/">Pydantic · typed data validation</a></li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

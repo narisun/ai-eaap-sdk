@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Why agentic AI is built in code, not in a UI</title>
+<style>
+  :root {
+    --ink:        #1a1a1a;
+    --ink-2:      #333333;
+    --ink-3:      #6a6a6a;
+    --paper:      #ffffff;
+    --paper-2:    #fafaf7;
+    --rule:       #e4e2dc;
+    --accent:     #a8421f;
+    --accent-2:   #2c5163;
+    --code-bg:    #f5f3ec;
+    --code-ink:   #2a2519;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Charter", Georgia, "Source Serif Pro", serif;
+    font-size: 18px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 80px 32px 120px;
+  }
+
+  /* Title block */
+  .title {
+    margin-bottom: 56px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .title .kicker {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 44px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+  .lede {
+    font-size: 21px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    font-style: italic;
+    max-width: 60ch;
+  }
+
+  /* Section heads */
+  h2 {
+    font-size: 28px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    color: var(--ink);
+    margin-top: 56px;
+    margin-bottom: 18px;
+  }
+  h2 .num {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  p { margin-bottom: 16px; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 700; }
+
+  /* Bullet lists */
+  ul, ol {
+    margin: 12px 0 20px 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  ul li, ol li {
+    position: relative;
+    padding-left: 28px;
+    margin-bottom: 14px;
+    color: var(--ink-2);
+  }
+  ul li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  ol { counter-reset: oo; }
+  ol li {
+    counter-increment: oo;
+    padding-left: 36px;
+  }
+  ol li::before {
+    content: counter(oo, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  li strong { color: var(--ink); font-weight: 700; }
+
+  /* Example callouts inside bullets */
+  .ex {
+    display: block;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: var(--paper-2);
+    border-left: 3px solid var(--accent-2);
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .ex::before {
+    content: "Example.";
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--accent-2);
+    font-weight: 600;
+    margin-right: 8px;
+    text-transform: uppercase;
+  }
+
+  /* Inline code */
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: 0.92em;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  /* Pull quote */
+  blockquote {
+    margin: 28px 0;
+    padding: 4px 0 4px 24px;
+    border-left: 3px solid var(--accent);
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--ink);
+    font-style: italic;
+    max-width: 56ch;
+  }
+
+  /* Closing thought */
+  .closing {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 2px solid var(--ink);
+  }
+  .closing p {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  /* Subtle separator within a section */
+  hr.soft {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 28px 0;
+  }
+
+  @media (max-width: 640px) {
+    main { padding: 48px 22px 80px; }
+    h1 { font-size: 34px; }
+    h2 { font-size: 24px; }
+    .lede { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<div class="title">
+  <div class="kicker">A note on building agentic AI</div>
+  <h1>Agents are non-deterministic. That single fact reorients everything.</h1>
+  <p class="lede">Building agentic AI is closer to training a model than to wiring a workflow. It is not a thing you do in a drag-and-drop UI. It is a thing you do in code — and the cross-cutting concerns belong in one shared library.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 01</span>Agents are non-deterministic. They behave like models, not like workflows.</h2>
+
+<p>An agent is not a flowchart with conditionals. It is a probabilistic system whose behaviour <em>emerges</em> from prompts, sampled tokens, retrieved context, tool outputs, and memory state. Same input on Monday and Tuesday produces different trajectories.</p>
+
+<ul>
+  <li><strong>Same input, different output.</strong> Tokens are sampled from a distribution. The same user query routes through different tools, with different memory compaction, at different cost, on different days.
+    <span class="ex">A <code>summarise_quarterly_report</code> agent given the same 12-page PDF on two consecutive runs may call <code>extract_tables</code> three times in one run and once in the other, depending on what the model decides about its own confidence. The diff between the runs is a <em>trace</em>, not a config change.</span>
+  </li>
+  <li><strong>Tool selection is decided at runtime by the model</strong> — not designed at build time by a human. This is the defining property that separates an agent from a workflow.
+    <span class="ex">A research agent given access to 40 tools picks 6 of them in a particular order based on tokens it just emitted. No flowchart can pre-draw that path; the path does not exist until the run happens.</span>
+  </li>
+  <li><strong>Behaviour drifts when any input changes</strong> — model version, system prompt, tool catalog, retrieval index, temperature, even token-count thresholds. A regression in one component cascades into emergent behaviour elsewhere.
+    <span class="ex">Upgrading from one model snapshot to the next can quietly shift refusal rates by 8%. The fix is an evaluation suite, not a UI re-test.</span>
+  </li>
+  <li><strong>The mature engineering response is the same one ML teams already use:</strong> golden-replay tests, evaluation harnesses, version-pinned dependencies, experiment tracking, observability over many runs.</li>
+</ul>
+
+<blockquote>An agent is much closer to a trained model than to a configured pipeline. We do not tune hyperparameters in a canvas. We do not build LLMs in a drag-and-drop UI. We should not build agents that way either.</blockquote>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 02</span>Hyperparameters live in code. So do agent parameters.</h2>
+
+<p>No serious ML team has ever tuned a model in a drag-and-drop UI. The reason is structural, not cultural — and the same reasoning applies to agents.</p>
+
+<ul>
+  <li><strong>Tuning is multi-dimensional.</strong> Adjusting temperature, top-p, retry count, refusal threshold, and tool budget together is a 5-D sweep. Code expresses this in a loop. A UI requires repetitive clicking with no audit of which combination was tested.
+    <span class="ex"><code>optuna.create_study()</code> sweeps 200 prompt-and-policy combinations overnight, logs every result to MLflow, and outputs a Pareto frontier of cost vs. accuracy. The UI equivalent is a spreadsheet of screenshots.</span>
+  </li>
+  <li><strong>The interesting parameters are not parameters at all.</strong> They are functions: planning strategies, refusal classifiers, memory compaction policies, retry classifiers, output validators. Functions belong in code.
+    <span class="ex">"Re-plan if the JSON output's <code>confidence</code> field is below 0.7 AND the previous tool call took longer than 4 seconds AND the budget remaining is above $0.10." This is a conditional on a generated artifact. There is no UI primitive for it.</span>
+  </li>
+  <li><strong>Experiment tracking is part of the build, not a separate tool.</strong> Code-first agents log every run to MLflow / W&amp;B / LangFuse with the same ergonomics ML teams already use.</li>
+  <li><strong>Reproducibility is non-negotiable.</strong> A regulator or incident investigator must be able to recreate the agent that ran on a given date. Code + lockfile + commit SHA does this. Vendor canvas state does not.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 03</span>The agentic AI space is evolving faster than any UI can keep up with.</h2>
+
+<p>The set of techniques used to build robust agents in mid-2026 did not exist in the same form 18 months ago. The cadence is closer to ML research than to enterprise software.</p>
+
+<ul>
+  <li><strong>New primitives ship quarterly.</strong> Constitutional AI / self-critique loops, agentic RAG, reflection and tree-of-thought variants, structured outputs, prompt caching, computer use, sub-agent orchestration, file-system agents, multi-modal tool returns.
+    <span class="ex">When prompt caching was released, code-first SDKs absorbed it via one decorator and shipped the same week. UI-first builders had to design new property panels, redo their docs, and roll out a vendor release. Some still do not expose it.</span>
+  </li>
+  <li><strong>The Model Context Protocol</strong> (a standard for tool servers) was only finalised in late 2024. Code-first SDKs added MCP as a transport in days. UI builders had to redesign their tool-registration flow.</li>
+  <li><strong>Memory architectures keep changing.</strong> Episodic vs. semantic vs. working memory, compaction with essential-entity preservation, retrieval over conversation history, summarisation tuned to entity boundaries. Each is a code primitive, not a checkbox.</li>
+  <li><strong>Cost-aware planning is now a build-time concern.</strong> Model cascades (Haiku → Sonnet → Opus), per-tenant budget guards, refund-on-failure semantics — all need code to express, not configuration.</li>
+  <li><strong>Output guardrails arrived after input guardrails.</strong> Detecting prompt-injection echoes, jailbreak responses, and PII leakage in model output is a post-generation filter. UIs that only check inputs missed this entire class of failure.</li>
+  <li><strong>The publication cadence outruns the UI release cadence.</strong> A code-first SDK absorbs a new technique as an <code>import</code>. A UI builder has to design, ship, and document each one. The structural delay is real, and it costs.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 04</span>What a drag-and-drop UI literally cannot represent.</h2>
+
+<p>Some agent behaviour is not "hard to draw" — it is unrepresentable in a node-and-edge metaphor. These are not edge cases; they are the substance of useful agents.</p>
+
+<ul>
+  <li><strong>Conditional logic that depends on the model's own reasoning.</strong> "If the LLM's confidence-tag is below threshold, re-plan; if above, proceed." The condition lives on a generated string, not on a wire between two boxes.</li>
+  <li><strong>Recursive sub-agent invocation.</strong> A research agent that spawns sub-agents per citation, depth bounded at runtime. Drawing this as a graph requires an unbounded canvas.
+    <span class="ex">A "deep research" agent finds 14 citations, spawns 14 sub-agents in parallel, each of which finds further citations. The shape of the call tree depends on what the model decides at runtime — there is nothing to draw at design time.</span>
+  </li>
+  <li><strong>Memory compaction with essential-entity preservation.</strong> "When prompt tokens exceed 8000, summarise the conversation but preserve every key in <code>essential_entity_keys</code> (account_id, jurisdiction, currency)." This is conditional state mutation. UIs have nowhere to put it.</li>
+  <li><strong>Tool selection driven by retrieval.</strong> "From the 200 available tools, give the model only the 8 nearest semantic neighbours of the user query." This is a runtime computation, not a designed graph.</li>
+  <li><strong>Differential retry policies per error class.</strong> 429 → exponential backoff with jitter; 5xx → linear retry; 4xx → propagate; budget exceeded → refuse and re-plan. Each policy a code primitive, not a checkbox.
+    <span class="ex">Tenacity's <code>retry_if_exception_type(...)</code> classifies errors at the function level. The UI alternative is a giant table of error codes and dropdown actions, which still cannot express "retry once, then fall back to a cheaper model."</span>
+  </li>
+  <li><strong>Tests that assert refusal.</strong> "Given a prompt-injection attempt, assert the agent did not call <code>delete_account</code> and emitted a structured refusal." This is a unit test. It does not exist in a canvas.</li>
+  <li><strong>Streaming with mid-stream cancellation.</strong> "Cancel the stream if the partial output contains a banned phrase OR cumulative tokens exceed budget." Token-by-token logic. There is no UI primitive for it.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 05</span>Cross-cutting concerns belong in one shared SDK — not eight team-by-team UI configurations.</h2>
+
+<p>The case for centralising in code is not aesthetic. It is operational. Every concern below is a bug-surface that multiplies if each agent reimplements it, and shrinks to one if a shared library handles it.</p>
+
+<ol>
+  <li><strong>Observability.</strong> OpenTelemetry spans for every LLM call, tool call, policy decision, and memory compaction — wired once, inherited by every agent.
+    <span class="ex">A new agent shipped on Tuesday gets full distributed tracing without anyone writing a single OTel call. The trace_id flows from the FastAPI request through the LLM call, the OPA decision, the tool invocation, the database query.</span>
+  </li>
+  <li><strong>Audit &amp; redaction.</strong> Configurable redaction profiles, structured payloads, multiple sinks. PII never leaks because no team rolls their own.
+    <span class="ex">A regulated agent inherits the same redaction profile (regex + key-name + chain) as every other agent. There is no possibility of one team forgetting to redact a payment card number.</span>
+  </li>
+  <li><strong>Policy enforcement.</strong> OPA evaluation on every tool call, fail-closed on errors. Decisions logged and traced.
+    <span class="ex">A new tool registered by a junior data scientist is automatically subject to the same authorisation rules as a tool written by a principal engineer. The policy file is in git, reviewed in PR.</span>
+  </li>
+  <li><strong>Budget &amp; cost attribution.</strong> Token + USD limits per tenant, agent, session — enforced before LLM calls, recorded after.
+    <span class="ex">A runaway agent loop is capped at $0.50 per session by a single configuration value, not by a custom guard each team writes (and inevitably forgets).</span>
+  </li>
+  <li><strong>Schema &amp; contract management.</strong> Pydantic-typed tool I/O, versioned by <code>(name, version)</code>, exported as JSON Schema for cross-language clients.
+    <span class="ex">A Python agent and a Java consumer agree on <code>OrderLookupOut.v2</code>. Deprecation of v1 is a structured event, not a Confluence page.</span>
+  </li>
+  <li><strong>Retry &amp; resilience.</strong> Tenacity-classified retries (429 / 5xx / timeout); deterministic refusal of auth, validation, and budget errors. Same semantics across every agent.</li>
+  <li><strong>Testing seam.</strong> DI bindings allow swapping every external dependency for a fake. Unit tests run in milliseconds, no live infrastructure needed.
+    <span class="ex">A unit test for a <code>loan_decision</code> agent runs in 80ms with no Postgres, no OPA server, no LLM call — and still validates the full policy + budget + audit path.</span>
+  </li>
+  <li><strong>Vendor portability.</strong> Every concrete sits behind an interface. Swapping LiteLLM for Bedrock, OPA for Cedar, Postgres for DynamoDB is a one-line DI change. Agent code stays unchanged.</li>
+</ol>
+
+<p>These concerns are <strong>eight bug-surfaces if eight teams reimplement them in eight UI configurations</strong>. They are <strong>one bug-surface, fixed once</strong> if centralised in a shared SDK.</p>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 06</span>A simple test: what does the artefact look like?</h2>
+
+<p>Set aside every philosophical argument. Ask one question: when this agent runs in production and something goes wrong at 3am, what does the on-call engineer open?</p>
+
+<ul>
+  <li><strong>Code-first artefact.</strong> A Python package, version-pinned in a lockfile, reviewable in a PR, reproducible from a commit SHA, testable in CI without a live cluster, observable in OpenTelemetry, deployable like any other service.</li>
+  <li><strong>UI-first artefact.</strong> A vendor-defined JSON blob — exportable but not reviewable, runnable only on the vendor's runtime, untestable without that runtime, observable only through the vendor's lens, deployable only through the vendor's pipeline.</li>
+  <li><strong>The test:</strong> a regulator, an auditor, an SRE on call at 3am — three people who have never seen this agent before — must each be able to read the artefact, understand what it does, and reason about why it failed. The first artefact passes this test on day one. The second never does.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<h2><span class="num">§ 07</span>Where a UI does belong in agentic AI.</h2>
+
+<p>The argument is not that UIs have no place in agent systems. It is that UIs belong on top of code, not in place of it.</p>
+
+<ul>
+  <li><strong>Operations consoles.</strong> Replay viewers, span explorers, budget dashboards, audit-log browsers, policy-override consoles for incident response. Click-driven workflows over a code-defined system. Indispensable, and obviously a UI.</li>
+  <li><strong>Catalogue surfaces.</strong> Discovery pages where business users browse available agents, request access, view past results, trigger pre-built runs. Read-mostly, backed by the SDK's schema export.</li>
+  <li><strong>Approval &amp; governance flows.</strong> Human-in-the-loop checkpoints where a reviewer approves or rejects an agent action. The action is defined in code; the approval is a UI moment.</li>
+  <li><strong>What does <em>not</em> belong in a UI:</strong> the agent itself. The decisions about which tools to call, how to compact memory, when to retry, when to refuse, how to validate output. Those are code.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────── -->
+<div class="closing">
+  <p><strong>The synthesis.</strong> Agents are non-deterministic systems built on a continuously evolving stack of techniques, validated through evaluation suites, with cross-cutting concerns that multiply per team if not centralised. The right tool to build them is the same tool every other non-deterministic, continuously-evolving system uses: code, with a shared library that absorbs the cross-cutting concerns once. UIs sit on top — for operators, reviewers, and consumers. The agent itself is a repository.</p>
+</div>
+
+</main>
+</body>
+</html>
