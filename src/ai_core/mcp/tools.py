@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict
 
 from ai_core.mcp.transports import (
-    MCPServerSpec,  # noqa: TC001  # runtime import — guards get_type_hints()
+    MCPServerSpec,  # runtime import — guards get_type_hints()
 )
 from ai_core.tools.spec import ToolSpec
 

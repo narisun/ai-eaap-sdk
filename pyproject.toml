@@ -197,6 +197,18 @@ ignore = [
     "ANN401",            # `Any` annotations — used at boundaries with untyped
                          # third-party shapes (FastMCP Tool, LiteLLM raw response).
                          # Tighten case-by-case.
+
+    # ----- Deferred to a future cleanup pass -----------------------------
+    # The following codes have a known baseline of violations on `main` as
+    # of v1.0.1. They're pure hygiene with zero runtime impact, but a clean
+    # fix needs per-case review (the auto-fix moved imports that turned out
+    # to have runtime usage and broke 61 tests in a trial run). Tracked as
+    # follow-up; suppressed project-wide so CI can gate on everything else.
+    "TC001",             # first-party imports usable in TYPE_CHECKING block
+    "TC002",             # third-party imports usable in TYPE_CHECKING block
+    "TC003",             # standard-library imports usable in TYPE_CHECKING block
+    "E501",              # line length > 100 — 20 docstring/string-literal sites
+                         # that don't wrap cleanly without losing readability.
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -13,10 +13,10 @@ import pytest
 from injector import Module, provider, singleton
 
 from ai_core.agents import BaseAgent
-from ai_core.audit import IAuditSink  # noqa: TC001
+from ai_core.audit import IAuditSink
 from ai_core.config.settings import AppSettings
 from ai_core.di import AgentModule, Container
-from ai_core.di.interfaces import ILLMClient  # noqa: TC001
+from ai_core.di.interfaces import ILLMClient
 from ai_core.mcp import MCPPrompt, MCPServerSpec
 from ai_core.testing import FakeAuditSink, ScriptedLLM, make_llm_response
 

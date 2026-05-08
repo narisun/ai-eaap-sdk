@@ -260,7 +260,7 @@ class RealObservabilityProvider(IObservabilityProvider):
                 raise
             else:
                 if lf_span is not None:
-                    self._safe_lf_call(lambda: lf_span.end())
+                    self._safe_lf_call(lf_span.end)
             finally:
                 if outer_trace_token is not None:
                     _active_lf_trace.reset(outer_trace_token)

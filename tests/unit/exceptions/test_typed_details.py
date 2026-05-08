@@ -209,5 +209,9 @@ def test_typed_details_is_frozen() -> None:
     """Typed payloads are frozen dataclasses — immutable for safe sharing."""
     exc = MCPTransportError("x", details={"component_id": "c", "transport": "stdio"})
     typed = exc.as_typed_details()
-    with pytest.raises(Exception):  # FrozenInstanceError under dataclass slots
+    # A frozen dataclass with slots raises FrozenInstanceError on attribute
+    # set; with slots alone it would be AttributeError. Accept either by
+    # narrowing to the precise type that fires under dataclasses(frozen=True).
+    from dataclasses import FrozenInstanceError
+    with pytest.raises(FrozenInstanceError):
         typed.component_id = "other"  # type: ignore[misc]
