@@ -36,7 +36,6 @@ import asyncio
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
-import litellm
 from injector import inject
 from langchain_core.messages import BaseMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
@@ -63,10 +62,21 @@ class TokenCounter(Protocol):
 
 
 class LiteLLMTokenCounter:
-    """Default :class:`TokenCounter` backed by :func:`litellm.token_counter`."""
+    """Default :class:`TokenCounter` backed by :func:`litellm.token_counter`.
+
+    The :mod:`litellm` import is deferred to first ``count()`` call so the
+    module is loadable in environments where the ``ai-eaap-sdk[litellm]``
+    extra is not installed. When LiteLLM is missing, ``count()`` silently
+    falls back to a character-count heuristic (~4 chars/token).
+    """
 
     def count(self, messages: Sequence[Any], *, model: str) -> int:
         normalised = [_msg_to_dict(m) for m in messages]
+        try:
+            import litellm  # noqa: PLC0415 — defer optional dep
+        except ImportError:
+            approx = sum(len(_msg_content(m)) for m in messages)
+            return max(0, approx // 4)
         try:
             return int(litellm.token_counter(model=model, messages=normalised))
         except Exception as exc:  # noqa: BLE001 — fall back to character heuristic
