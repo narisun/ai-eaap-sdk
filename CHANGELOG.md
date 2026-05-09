@@ -6,14 +6,46 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — Phase 14: agent compositional primitives
 
-First slice of the Phase 14 work: ship higher-level agent patterns
-(supervisor, planner, verifier, harness) as first-class primitives so
-AI engineers can build cutting-edge multi-agent applications without
-hand-rolling LangGraph subgraphs. Each pattern auto-inherits v1's
-cross-cutting concerns (DI, observability, policy, budget, audit, error
-handling).
+Higher-level agent patterns (supervisor, planner, verifier, harness)
+as first-class primitives so AI engineers can build cutting-edge
+multi-agent applications without hand-rolling LangGraph subgraphs.
+Each pattern auto-inherits v1's cross-cutting concerns (DI,
+observability, policy, budget, audit, error handling).
 
-### Added
+### Added — slice 2: PlanningAgent
+
+- **`ai_core.agents.PlanningAgent`** — plan-and-execute primitive.
+  The LLM declares a structured plan via a synthetic ``_make_plan``
+  tool call, then executes each step via the user's work tools. Plan
+  history is preserved in ``state.scratchpad["plans"]`` so
+  re-planning is informed by what didn't work. ``max_replans`` caps
+  revisions; once hit, the system prompt nudges the LLM to finalize.
+
+  Implementation: dynamic system prompt that switches between four
+  modes (initial / executing / done / replan-cap-reached) based on
+  live plan state read from ``self._current_state``. The
+  ``_make_plan`` tool's handler stashes plans on a side-channel that
+  the overridden ``_tool_node`` merges into ``state.scratchpad``.
+  Step status is tracked implicitly — the LLM revises step status
+  by calling ``_make_plan`` again with the updated step list.
+
+- **`ai_core.agents.{Plan, PlanStep, PlanAck, StepStatus}`** —
+  Pydantic data model exposed on the public surface so hosts can
+  introspect the plan from ``state.scratchpad`` programmatically
+  (eval, replay, dashboards).
+
+- **`AgentState.scratchpad`** — new optional ``dict[str, Any]``
+  field for per-pattern scratch space. Phase 14 patterns store
+  typed payloads at well-known keys (``scratchpad["plans"]`` for
+  ``PlanningAgent``; future: ``scratchpad["verifications"]`` for
+  ``VerifierAgent``). Default reducer is overwrite; patterns own
+  any merge semantics they need internally.
+
+- **Runnable example** at ``examples/planner_demo/run.py`` —
+  end-to-end plan-declare-execute-finalize loop with a scripted
+  LLM and one work tool.
+
+### Added — slice 1: SupervisorAgent
 
 - **`ai_core.agents.SupervisorAgent`** — coordinates child
   `BaseAgent` instances through LLM-driven tool-call routing.

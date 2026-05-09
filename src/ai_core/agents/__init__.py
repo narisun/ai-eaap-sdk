@@ -9,6 +9,7 @@ from ai_core.agents.memory import (
     MemoryManager,
     TokenCounter,
 )
+from ai_core.agents.planning import Plan, PlanAck, PlanningAgent, PlanStep, StepStatus
 from ai_core.agents.runtime import AgentRuntime
 from ai_core.agents.state import AgentState, EssentialEntities, new_agent_state
 from ai_core.agents.supervisor import SupervisorAgent, TaskInput, TaskOutput
@@ -21,6 +22,11 @@ __all__ = [
     "IMemoryManager",
     "LiteLLMTokenCounter",
     "MemoryManager",
+    "Plan",
+    "PlanAck",
+    "PlanStep",
+    "PlanningAgent",
+    "StepStatus",
     "SupervisorAgent",
     "TaskInput",
     "TaskOutput",
