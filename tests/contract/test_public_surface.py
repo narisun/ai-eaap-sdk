@@ -49,6 +49,8 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "Verdict",
+    "VerifierAgent",
     "make_tool",
     "new_agent_state",
     "tool",

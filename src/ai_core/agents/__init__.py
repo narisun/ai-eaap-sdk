@@ -13,6 +13,7 @@ from ai_core.agents.planning import Plan, PlanAck, PlanningAgent, PlanStep, Step
 from ai_core.agents.runtime import AgentRuntime
 from ai_core.agents.state import AgentState, EssentialEntities, new_agent_state
 from ai_core.agents.supervisor import SupervisorAgent, TaskInput, TaskOutput
+from ai_core.agents.verifier import Verdict, VerifierAgent
 
 __all__ = [
     "AgentRuntime",
@@ -31,5 +32,7 @@ __all__ = [
     "TaskInput",
     "TaskOutput",
     "TokenCounter",
+    "Verdict",
+    "VerifierAgent",
     "new_agent_state",
 ]
