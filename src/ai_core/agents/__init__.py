@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ai_core.agents.base import BaseAgent
+from ai_core.agents.deep import DeepAgent, DeepPlan, DeepPlanStep
 from ai_core.agents.harness import (
     HarnessAgent,
     LLMCallRecord,
@@ -26,6 +27,9 @@ __all__ = [
     "AgentRuntime",
     "AgentState",
     "BaseAgent",
+    "DeepAgent",
+    "DeepPlan",
+    "DeepPlanStep",
     "EssentialEntities",
     "HarnessAgent",
     "IMemoryManager",
