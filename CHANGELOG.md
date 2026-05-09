@@ -4,7 +4,7 @@ All notable changes to `ai-eaap-sdk` are documented here. The format
 roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — Phase 14: agent compositional primitives
+## [1.1.0] — 2026-05-08 — Phase 14: agent compositional primitives
 
 Higher-level agent patterns (supervisor, planner, verifier, harness)
 as first-class primitives so AI engineers can build cutting-edge
