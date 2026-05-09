@@ -4,6 +4,67 @@ All notable changes to `ai-eaap-sdk` are documented here. The format
 roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — Phase 15: hierarchical (deep) agents
+
+### Added — DeepAgent
+
+- **`ai_core.agents.DeepAgent`** — hierarchical-planning + sub-agent
+  dispatch + virtual filesystem primitive. Composes the patterns we
+  already ship rather than re-implementing them: plan-as-tool-call
+  (mirrors :class:`PlanningAgent`'s mechanism), children-as-tools
+  (mirrors :class:`SupervisorAgent`'s pattern), and a new
+  ``scratchpad["files"]`` virtual filesystem for state that survives
+  across sub-agent dispatches.
+
+  Plan steps reference *which sub-agent runs them* via a ``sub_agent``
+  field on :class:`DeepPlanStep`; ``_dispatch`` looks up the named
+  sub-agent in :meth:`DeepAgent.sub_agents` and runs its
+  :meth:`BaseAgent.ainvoke` with a fresh ``AgentState`` (no message
+  bleed-over). ``essential_entities`` (``tenant_id``, ``user_id``) and
+  delegation metadata (``delegated_by``, ``delegation_target``)
+  propagate so policy + audit + budget keep working under hierarchical
+  composition.
+
+  Five synthetic tools auto-prepended to :meth:`work_tools`:
+  ``_decompose`` (declare/revise plan), ``_dispatch`` (run a
+  sub-agent), ``_write_file`` / ``_read_file`` / ``_list_files``
+  (operate on ``scratchpad["files"]: dict[str, str]``). Tool name is
+  ``_decompose`` (not ``_make_plan``) so the deep agent's plan schema
+  doesn't collide with :class:`PlanningAgent`'s in the global
+  schema registry.
+
+  Verification is **not** bundled: hosts compose with
+  :class:`VerifierAgent` either by wrapping individual sub-agents
+  (verify each step) or by wrapping the whole deep agent (verify the
+  final answer). A :class:`HarnessAgent` wrapping a deep agent
+  records every LLM + tool dispatch — including each sub-agent's own
+  LLM calls — because they all flow through the same runtime's
+  invoker.
+
+  State written into :attr:`AgentState.scratchpad`:
+
+  * ``plan`` — the most recent :class:`DeepPlan` (dict)
+  * ``plan_history`` — list of all revisions (decisions log)
+  * ``files`` — the virtual filesystem (``dict[str, str]``)
+  * ``dispatch_history`` — list of dispatch records (step_id,
+    sub_agent, task, result)
+  * ``replan_count`` — current revision count, capped by
+    ``max_replans``
+
+  Recursion safety: each agent (the deep agent and each sub-agent)
+  has its own ``max_recursion_depth`` from :class:`AgentSettings`,
+  so a confused deep agent that loops 25 times while each sub-agent
+  loops 25 times is bounded at ``25 * 25`` LLM calls in the worst
+  case. Nested deep agents compose the same way.
+
+- **`ai_core.agents.{DeepPlan, DeepPlanStep}`** — Pydantic data
+  models exposed on the public surface so hosts can introspect plans
+  programmatically (eval, replay, dashboards).
+
+- **Runnable example** at ``examples/deep_demo/run.py`` — a brief-
+  author deep agent decomposing a task into research + write
+  sub-agent dispatches with a shared `research.md` file.
+
 ## [1.1.0] — 2026-05-08 — Phase 14: agent compositional primitives
 
 Higher-level agent patterns (supervisor, planner, verifier, harness)

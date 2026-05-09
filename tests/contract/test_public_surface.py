@@ -23,6 +23,9 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "BaseAgent",
     "BudgetExceededError",
     "ConfigurationError",
+    "DeepAgent",                        # NEW (Phase 15)
+    "DeepPlan",                         # NEW (Phase 15)
+    "DeepPlanStep",                     # NEW (Phase 15)
     "DependencyResolutionError",
     "EAAPBaseException",
     "ErrorCode",                        # NEW (Phase 8)
