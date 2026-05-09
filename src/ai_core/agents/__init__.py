@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from ai_core.agents.base import BaseAgent
+from ai_core.agents.harness import (
+    HarnessAgent,
+    LLMCallRecord,
+    ToolDispatchRecord,
+    Trace,
+    TraceEvent,
+)
 from ai_core.agents.memory import (
     IMemoryManager,
     LiteLLMTokenCounter,
@@ -20,7 +27,9 @@ __all__ = [
     "AgentState",
     "BaseAgent",
     "EssentialEntities",
+    "HarnessAgent",
     "IMemoryManager",
+    "LLMCallRecord",
     "LiteLLMTokenCounter",
     "MemoryManager",
     "Plan",
@@ -32,6 +41,9 @@ __all__ = [
     "TaskInput",
     "TaskOutput",
     "TokenCounter",
+    "ToolDispatchRecord",
+    "Trace",
+    "TraceEvent",
     "Verdict",
     "VerifierAgent",
     "new_agent_state",

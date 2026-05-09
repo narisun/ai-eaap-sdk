@@ -12,6 +12,55 @@ multi-agent applications without hand-rolling LangGraph subgraphs.
 Each pattern auto-inherits v1's cross-cutting concerns (DI,
 observability, policy, budget, audit, error handling).
 
+### Added — slice 4: HarnessAgent (capture-only tracing)
+
+- **`ai_core.agents.HarnessAgent`** — replay-grade tracing primitive.
+  Wraps a child :class:`BaseAgent` and records every LLM call and tool
+  dispatch the wrapped agent makes into a structured :class:`Trace`,
+  exposed via ``HarnessAgent.last_trace``. Hosts persist via
+  ``trace.model_dump_json()`` and feed the result to dashboards,
+  evals, or future replay machinery.
+
+  Capture mechanism: the harness builds a customised
+  :class:`AgentRuntime` via ``dataclasses.replace`` whose ``llm`` is a
+  ``_CapturingLLMClient`` (satisfies :class:`ILLMClient`
+  structurally) and whose ``tool_invoker`` is a
+  ``_CapturingToolInvoker`` (satisfies :class:`IToolInvoker`). Every
+  other collaborator (memory, observability, audit, MCP, agent
+  resolver) is shared with the harness's own runtime, so capture is
+  non-intrusive.
+
+  Scope is **capture only**; replay is deferred to a future slice.
+  The :class:`Trace` data model is the public surface that future
+  replay logic builds on — JSON-serialisable so traces persist and
+  replay across SDK versions without coupling to in-memory types.
+
+  Caveat: :class:`MemoryManager` compaction uses the separate
+  :class:`ICompactionLLM` DI binding and is therefore **not**
+  captured in v1. Hosts that need compaction-LLM capture override
+  the binding in their test container.
+
+- **`ai_core.agents.{Trace, TraceEvent, LLMCallRecord,
+  ToolDispatchRecord}`** — Pydantic data model exposed on the public
+  surface so hosts can introspect traces programmatically.
+  ``ToolDispatchRecord`` captures both ``outcome="ok"`` (with the
+  validated result) and ``outcome="error"`` (with exception type and
+  message); failures are recorded then re-raised so the wrapped
+  agent's error-recovery paths fire normally.
+
+- **`ai_core.tools.invoker.IToolInvoker`** — new ``runtime_checkable``
+  Protocol capturing the dispatch surface
+  (:meth:`invoke` / :meth:`register`) the agent runtime consumes.
+  :class:`AgentRuntime.tool_invoker` is now typed as the Protocol so
+  hosts (and SDK primitives like :class:`HarnessAgent`) can interpose
+  wrapping implementations without subclassing the concrete
+  :class:`ToolInvoker`. The concrete class is unchanged and satisfies
+  the Protocol structurally.
+
+- **Runnable example** at ``examples/harness_demo/run.py`` — wraps a
+  real support agent with a tool, runs it under capture, and renders
+  the captured event sequence + a JSON snippet of the trace.
+
 ### Added — slice 3: VerifierAgent
 
 - **`ai_core.agents.VerifierAgent`** — output-verification primitive.

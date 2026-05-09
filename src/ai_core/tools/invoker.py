@@ -9,13 +9,18 @@ holds references to:
 
 It is stateless w.r.t. specs — each :py:meth:`invoke` call takes the spec
 as a parameter so the same invoker handles every tool in the application.
+
+The :class:`IToolInvoker` Protocol captures the surface the
+:class:`AgentRuntime` consumes; hosts wrap or replace the runtime binding
+(e.g. :class:`HarnessAgent` injects a capturing wrapper) without
+subclassing the concrete :class:`ToolInvoker`.
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ValidationError
 
@@ -37,6 +42,41 @@ if TYPE_CHECKING:
     from ai_core.tools.spec import ToolSpec
 
 _logger = get_logger(__name__)
+
+
+@runtime_checkable
+class IToolInvoker(Protocol):
+    """Tool-dispatch surface consumed by :class:`AgentRuntime`.
+
+    Captures the two methods :class:`BaseAgent` and :class:`ToolRegistrar`
+    actually call: :meth:`invoke` for dispatch and :meth:`register` for
+    schema-registry side effects. The concrete :class:`ToolInvoker`
+    satisfies this Protocol structurally; hosts that need to interpose
+    behaviour across every dispatch (capturing for replay, request-scoped
+    retries, per-tenant rate limiting) implement the same shape and bind
+    it via :class:`AgentRuntime`.
+
+    The internal pipeline (middleware chain, audit sink, policy
+    evaluator) is **not** part of the Protocol — implementations are free
+    to compose those concerns however they like. The Protocol pins only
+    the input/output contract the agent runtime depends on.
+    """
+
+    async def invoke(
+        self,
+        spec: ToolSpec,
+        raw_args: Mapping[str, Any],
+        *,
+        principal: Mapping[str, Any] | None = None,
+        agent_id: str | None = None,
+        tenant_id: str | None = None,
+    ) -> Mapping[str, Any]:
+        """Dispatch ``raw_args`` against ``spec`` and return the validated output."""
+        ...
+
+    def register(self, spec: ToolSpec) -> None:
+        """Register a spec with the underlying schema registry. Idempotent."""
+        ...
 
 
 class ToolInvoker:
@@ -310,4 +350,4 @@ def _wrap(
     return _bound
 
 
-__all__ = ["ToolInvoker"]
+__all__ = ["IToolInvoker", "ToolInvoker"]
