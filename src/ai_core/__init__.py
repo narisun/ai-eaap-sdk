@@ -42,6 +42,8 @@ from ai_core.agents import (
     SupervisorAgent,
     TaskInput,
     TaskOutput,
+    Verdict,
+    VerifierAgent,
     new_agent_state,
 )
 from ai_core.app import AICoreApp, HealthSnapshot
@@ -105,6 +107,8 @@ __all__ = [
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "Verdict",
+    "VerifierAgent",
     "make_tool",
     "new_agent_state",
     "tool",

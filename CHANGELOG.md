@@ -12,6 +12,49 @@ multi-agent applications without hand-rolling LangGraph subgraphs.
 Each pattern auto-inherits v1's cross-cutting concerns (DI,
 observability, policy, budget, audit, error handling).
 
+### Added — slice 3: VerifierAgent
+
+- **`ai_core.agents.VerifierAgent`** — output-verification primitive.
+  Wraps a single child :class:`BaseAgent`. After the child produces
+  a final answer, the verifier issues a separate LLM call against
+  a host-supplied rubric and gets back a structured
+  :class:`Verdict` (passed / feedback / issues / score). On
+  ``Verdict.passed=False``, the wrapped agent re-runs with the
+  verdict's feedback injected as a new user message; up to
+  ``max_retries`` retries.
+
+  Direct LLM call (not synthetic tool) for the verification step —
+  verification is a control-flow decision, not a tool dispatch, and
+  routing through :class:`ToolInvoker` would add no value (no OPA
+  on the verification act itself). The verifier still emits its own
+  ``agent.verify`` span for observability and goes through its own
+  ``IBudgetService`` binding.
+
+  Composition: a verifier can wrap a :class:`SupervisorAgent` (gate
+  multi-agent flows on a final verification), a
+  :class:`PlanningAgent` (verify the plan-and-execute final answer),
+  or another :class:`VerifierAgent` (layered critique). A verifier
+  can also be a child of a supervisor.
+
+  Strict-mode default (``strict=True``): raise
+  :class:`AgentRuntimeError` when verification fails after
+  ``max_retries`` so unverified answers can't silently leak.
+  ``strict=False`` returns the last attempt with the final verdict
+  in ``state.metadata["last_verdict"]`` for hosts that want to
+  inspect and decide.
+
+  Verdict history accumulates in
+  ``state.scratchpad["verifications"]`` so eval / replay surfaces
+  see every retry.
+
+- **`ai_core.agents.Verdict`** — Pydantic data model exposed on the
+  public surface. Hosts can reach into ``state.metadata["last_verdict"]``
+  programmatically (dashboards, eval harnesses, alerting).
+
+- **Runnable example** at ``examples/verifier_demo/run.py`` —
+  citation-checking verifier wrapping a factual answerer; shows the
+  fail → feedback → revise → pass cycle.
+
 ### Added — slice 2: PlanningAgent
 
 - **`ai_core.agents.PlanningAgent`** — plan-and-execute primitive.
