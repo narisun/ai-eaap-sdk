@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from ai_core.config.settings import AgentSettings
     from ai_core.di.interfaces import ILLMClient, IObservabilityProvider
     from ai_core.mcp.transports import IMCPConnectionFactory
-    from ai_core.tools.invoker import ToolInvoker
+    from ai_core.tools.invoker import IToolInvoker
     from ai_core.tools.registrar import ToolRegistrar
     from ai_core.tools.resolver import IToolResolver
 
@@ -62,7 +62,10 @@ class AgentRuntime:
         llm: LLM client used by the agent node for chat completions.
         memory: Memory manager invoked by the compaction node.
         observability: Span + event sink for tracing and metrics.
-        tool_invoker: Validated, policy-aware tool dispatcher.
+        tool_invoker: Validated, policy-aware tool dispatcher. Typed as
+            :class:`IToolInvoker` so hosts (and SDK primitives like
+            :class:`HarnessAgent`) can interpose a wrapping implementation
+            without subclassing the concrete invoker.
         mcp_factory: Factory that opens MCP server connections lazily.
         tool_error_renderer: Strategy that turns tool-dispatch failures
             into ``ToolMessage`` instances for the next LLM turn. Override
@@ -83,7 +86,7 @@ class AgentRuntime:
     llm: ILLMClient
     memory: IMemoryManager
     observability: IObservabilityProvider
-    tool_invoker: ToolInvoker
+    tool_invoker: IToolInvoker
     mcp_factory: IMCPConnectionFactory
     tool_error_renderer: IToolErrorRenderer
     tool_resolver: IToolResolver

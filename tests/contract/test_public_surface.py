@@ -26,9 +26,11 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "DependencyResolutionError",
     "EAAPBaseException",
     "ErrorCode",                        # NEW (Phase 8)
+    "HarnessAgent",                     # NEW (Phase 14.4)
     "HealthSnapshot",
     "IAuditSink",
     "IHealthProbe",
+    "LLMCallRecord",                    # NEW (Phase 14.4)
     "LLMInvocationError",
     "LLMTimeoutError",
     "MCPTransportError",
@@ -46,9 +48,12 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset({
     "TaskInput",
     "TaskOutput",
     "Tool",
+    "ToolDispatchRecord",               # NEW (Phase 14.4)
     "ToolExecutionError",
     "ToolSpec",
     "ToolValidationError",
+    "Trace",                            # NEW (Phase 14.4)
+    "TraceEvent",                       # NEW (Phase 14.4)
     "Verdict",
     "VerifierAgent",
     "make_tool",
