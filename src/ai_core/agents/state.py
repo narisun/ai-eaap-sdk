@@ -61,6 +61,11 @@ class AgentState(TypedDict, total=False):
         compaction_count: Number of compactions performed in this thread.
         summary: Latest narrative summary produced by the compaction node.
         metadata: Free-form mapping for run-level metadata.
+        scratchpad: Free-form per-pattern scratch space — Phase 14 patterns
+            store typed payloads at well-known keys (``scratchpad["plan"]``
+            for :class:`PlanningAgent`, ``scratchpad["verifications"]`` for
+            :class:`VerifierAgent`, etc.). Default reducer is overwrite;
+            patterns that need merge semantics own that contract internally.
     """
 
     messages: Annotated[list[dict[str, Any]], add_messages]
@@ -69,6 +74,7 @@ class AgentState(TypedDict, total=False):
     compaction_count: int
     summary: str
     metadata: dict[str, Any]
+    scratchpad: dict[str, Any]
 
 
 def new_agent_state(
@@ -94,6 +100,7 @@ def new_agent_state(
         compaction_count=0,
         summary="",
         metadata=dict(metadata or {}),
+        scratchpad={},
     )
 
 
